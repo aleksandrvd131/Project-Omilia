@@ -6,7 +6,7 @@ EPS: float = 1e-8
 def vec_len(A: np.ndarray) -> float:
     return np.sqrt(A[0] ** 2 + A[1] ** 2 + A[2] ** 2)
 
-def dot_dist(A: np.ndarray, B: np.ndarray) -> float:
+def p_dist(A: np.ndarray, B: np.ndarray) -> float:
     return vec_len(A - B)
 
 def vec_normalize(A: np.ndarray) -> np.ndarray:
