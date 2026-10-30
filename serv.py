@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import sys
@@ -204,6 +205,13 @@ class GesturePipeline:
 
 
 pipeline: GesturePipeline | None = None
+_tts_cache: dict[str, bytes] = {}
+
+
+def _generate_tts_bytes(clean_text: str) -> bytes:
+    buffer = io.BytesIO()
+    gTTS(text=clean_text, lang="ru").write_to_fp(buffer)
+    return buffer.getvalue()
 
 
 @asynccontextmanager
@@ -224,18 +232,22 @@ app = FastAPI(title="Omilia Gesture Server", lifespan=lifespan)
 @app.get("/")
 async def index():
     if INDEX_PATH.exists():
-        return FileResponse(INDEX_PATH)
+        return FileResponse(INDEX_PATH, media_type="text/html")
     return JSONResponse({"status": "ok", "message": "Project Omilia API is running"})
 
 
 @app.get("/api/tts")
-def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
+async def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
     # конвертация из речи в mp3 файд
+    clean_text = text.strip()
+    if clean_text in _tts_cache:
+        return StreamingResponse(io.BytesIO(_tts_cache[clean_text]), media_type="audio/mpeg")
+
     try:
-        buffer = io.BytesIO()
-        gTTS(text=text.strip(), lang="ru").write_to_fp(buffer)
-        buffer.seek(0)
-        return StreamingResponse(buffer, media_type="audio/mpeg")
+        audio_data = await asyncio.to_thread(_generate_tts_bytes, clean_text)
+        if len(_tts_cache) < 256:
+            _tts_cache[clean_text] = audio_data
+        return StreamingResponse(io.BytesIO(audio_data), media_type="audio/mpeg")
     except Exception as err:  # noqa: BLE001
         return JSONResponse(status_code=500, content={"error": f"Ошибка TTS: {err}"})
 
@@ -255,7 +267,9 @@ async def gesture_ws(websocket: WebSocket):
 
             if pipeline is not None:
                 response = await pipeline.handle_message(payload, tracker)
-                await websocket.send_json(response)
+                await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
     except WebSocketDisconnect:
         pass
+    except Exception as err:  # noqa: BLE001
+        print(f"WebSocket закрыт: {err}")

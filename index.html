@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Omiλia — Распознавание РЖЯ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --bg: #0c0f17;
+      --card-bg: rgba(22, 27, 40, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.25);
+      --accent: #a855f7;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 15% 15%, #182238 0%, #0c0f17 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      background: rgba(12, 15, 23, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.25rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title span {
+      color: var(--primary);
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+
+    .status-dot.online {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      max-width: 1540px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1100px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      padding: 1.25rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    }
+
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      max-height: 580px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    video {
+      display: none;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* HUD overlay on top of video */
+    .hud-overlay {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      right: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+
+    .hud-sign-card {
+      background: rgba(12, 15, 23, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.6rem 1rem;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .hud-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .hud-value {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .hud-motion-card {
+      background: rgba(12, 15, 23, 0.85);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      padding: 0.6rem 1rem;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      text-align: right;
+    }
+
+    .motion-meter {
+      width: 120px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      margin-top: 0.4rem;
+      overflow: hidden;
+    }
+
+    .motion-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--primary));
+      transition: width 0.1s ease;
+    }
+
+    .dynamic-word-banner {
+      position: absolute;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(16, 185, 129, 0.9));
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.3rem;
+      padding: 0.6rem 1.75rem;
+      border-radius: 9999px;
+      box-shadow: 0 0 24px rgba(34, 197, 94, 0.6);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+
+    .dynamic-word-banner.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
+    }
+
+    .text-section {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .spelled-box {
+      width: 100%;
+      min-height: 80px;
+      background: rgba(10, 12, 18, 0.65);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      font-size: 1.3rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      position: relative;
+    }
+
+    .spelled-box:empty::before {
+      content: "Здесь будет отображаться перевод...";
+      color: rgba(255, 255, 255, 0.25);
+      font-size: 1rem;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .text-toolbar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    button.btn-primary {
+      background: linear-gradient(135deg, var(--primary), #0284c7);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    button.btn-primary:hover {
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #e2e8f0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    input, select {
+      background: rgba(10, 12, 18, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      color: #fff;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+
+    .rules-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .rule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.75rem;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .rule-tag {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--primary);
+    }
+
+    .btn-delete {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.8rem;
+    }
+
+    .btn-delete:hover {
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="logo-badge">Ω</div>
+      <div class="brand-title">Project <span>Omiλia</span></div>
+    </div>
+    <div class="status-group">
+      <div class="status-badge">
+        <div class="status-dot" id="ws-dot"></div>
+        <span id="ws-text">WebSocket: Подключение...</span>
+      </div>
+      <div class="status-badge" id="fps-badge">FPS: 0</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Video & Translation Output -->
+    <section>
+      <div class="card">
+        <div class="video-viewport">
+          <video id="webcam" playsinline></video>
+          <canvas id="overlay"></canvas>
+
+          <div class="hud-overlay">
+            <div class="hud-sign-card">
+              <div class="hud-label">Статический жест</div>
+              <div class="hud-value" id="hud-gesture">—</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);" id="hud-score">Точность: —</div>
+            </div>
+            <div class="hud-motion-card">
+              <div class="hud-label">Динамика движения</div>
+              <div class="hud-value" style="color: var(--accent);" id="hud-motion">Покой</div>
+              <div class="motion-meter">
+                <div class="motion-fill" id="motion-bar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dynamic-word-banner" id="word-banner"></div>
+        </div>
+
+        <div class="text-section">
+          <div class="spelled-box" id="spelled-text"></div>
+          <div class="text-toolbar">
+            <button onclick="sendAction('space_text')">⎵ Пробел</button>
+            <button onclick="sendAction('backspace_text')">⌫ Стереть</button>
+            <button onclick="sendAction('clear_text')">🗑 Очистить</button>
+            <button class="btn-primary" onclick="speakCurrentText()">🔊 Озвучить речь</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Training & Dynamic Rules -->
+    <aside class="sidebar">
+      <!-- Record Gesture -->
+      <div class="card">
+        <div class="card-title">Запись жеста в датасет</div>
+        <div class="input-row">
+          <input type="text" id="record-label" placeholder="Имя жеста (например: А, Привет)">
+          <button class="btn-primary" id="btn-record" onclick="toggleRecording()">Запись</button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);" id="record-status">
+          Введите название и нажмите «Запись» для сбора 15 кадров.
+        </div>
+      </div>
+
+      <!-- Dynamic Rules -->
+      <div class="card">
+        <div class="card-title">Правила РЖЯ (Форма + Движение)</div>
+        <div class="rules-list" id="rules-list"></div>
+
+        <div style="margin-top: 1rem; border-top: 1px solid var(--card-border); padding-top: 0.85rem;">
+          <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem;">Добавить правило:</div>
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <input type="text" id="rule-shape" placeholder="Базовая форма (1, Кулак, *)">
+            <select id="rule-motion">
+              <option value="Взмах ВЛЕВО">Взмах ВЛЕВО</option>
+              <option value="Взмах ВПРАВО">Взмах ВПРАВО</option>
+              <option value="Взмах ВВЕРХ">Взмах ВВЕРХ</option>
+              <option value="Взмах ВНИЗ">Взмах ВНИЗ</option>
+            </select>
+            <input type="text" id="rule-word" placeholder="Слово перевода (НЕТ, ДА)">
+            <button class="btn-primary" onclick="addDynamicRule()">+ Добавить правило</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+
+    const wsDot = document.getElementById('ws-dot');
+    const wsText = document.getElementById('ws-text');
+    const fpsBadge = document.getElementById('fps-badge');
+
+    const hudGesture = document.getElementById('hud-gesture');
+    const hudScore = document.getElementById('hud-score');
+    const hudMotion = document.getElementById('hud-motion');
+    const motionBar = document.getElementById('motion-bar');
+    const wordBanner = document.getElementById('word-banner');
+    const spelledTextBox = document.getElementById('spelled-text');
+    const rulesList = document.getElementById('rules-list');
+
+    let ws = null;
+    let isRecording = false;
+    let recordFramesLeft = 0;
+    let currentRecordLabel = '';
+
+    let lastFrameTime = performance.now();
+    let frameCount = 0;
+
+    // WebSocket setup
+    function initWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/gestures`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        wsDot.classList.add('online');
+        wsText.textContent = 'Сервер: Онлайн';
+      };
+
+      ws.onclose = () => {
+        wsDot.classList.remove('online');
+        wsText.textContent = 'Сервер: Переподключение...';
+        setTimeout(initWebSocket, 2000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleServerMessage(data);
+        } catch (e) {
+          console.error('Ошибка парсинга ответа:', e);
+        }
+      };
+    }
+
+    function handleServerMessage(data) {
+      if (data.detected) {
+        hudGesture.textContent = data.gesture || '—';
+        hudScore.textContent = `Точность: ${data.score ?? '—'}`;
+      } else {
+        hudGesture.textContent = '—';
+        hudScore.textContent = 'Руки не обнаружены';
+      }
+
+      if (data.motion) {
+        hudMotion.textContent = data.motion;
+      }
+
+      if (data.motion_progress) {
+        motionBar.style.width = `${data.motion_progress.percent || 0}%`;
+      }
+
+      if (data.dynamic_word) {
+        showBanner(data.dynamic_word);
+      }
+
+      if (data.spelled_text !== undefined) {
+        spelledTextBox.textContent = data.spelled_text;
+      }
+
+      if (data.rules) {
+        renderRules(data.rules);
+      }
+
+      if (data.speak_event) {
+        playTTS(data.speak_event);
+      }
+    }
+
+    function showBanner(word) {
+      wordBanner.textContent = word;
+      wordBanner.classList.add('show');
+      setTimeout(() => wordBanner.classList.remove('show'), 1600);
+    }
+
+    function renderRules(rules) {
+      rulesList.innerHTML = '';
+      for (const [key, word] of Object.entries(rules)) {
+        const item = document.createElement('div');
+        item.className = 'rule-item';
+        item.innerHTML = `
+          <span><span class="rule-tag">${key}</span> ➔ <strong>${word}</strong></span>
+          <button class="btn-delete" onclick="deleteDynamicRule('${key}')">✕</button>
+        `;
+        rulesList.appendChild(item);
+      }
+    }
+
+    function sendAction(action, payload = {}) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action, ...payload }));
+      }
+    }
+
+    function addDynamicRule() {
+      const baseShape = document.getElementById('rule-shape').value.trim() || '*';
+      const motion = document.getElementById('rule-motion').value;
+      const targetWord = document.getElementById('rule-word').value.trim();
+
+      if (!targetWord) {
+        alert('Введите слово перевода');
+        return;
+      }
+
+      sendAction('add_dynamic_rule', {
+        base_shape: baseShape,
+        motion: motion,
+        target_word: targetWord
+      });
+
+      document.getElementById('rule-word').value = '';
+    }
+
+    function deleteDynamicRule(ruleKey) {
+      sendAction('delete_dynamic_rule', { rule_key: ruleKey });
+    }
+
+    function toggleRecording() {
+      const labelInput = document.getElementById('record-label');
+      const label = labelInput.value.trim();
+      if (!label) {
+        alert('Введите имя жеста для записи');
+        return;
+      }
+      currentRecordLabel = label;
+      recordFramesLeft = 15;
+      isRecording = true;
+      document.getElementById('record-status').textContent = `Запись образцов: ${recordFramesLeft} кадров...`;
+    }
+
+    function playTTS(text) {
+      if (!text) return;
+      const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+      audio.play().catch(e => console.log('Автовоспроизведение заблокировано браузером:', e));
+    }
+
+    function speakCurrentText() {
+      const text = spelledTextBox.textContent.trim();
+      if (text) {
+        playTTS(text);
+      }
+    }
+
+    // MediaPipe initialization
+    let handsDetector = null;
+    let poseDetector = null;
+
+    let latestHands = [];
+    let latestPose = null;
+
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      initMediaPipe();
+    }
+
+    function initMediaPipe() {
+      handsDetector = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      handsDetector.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      handsDetector.onResults((results) => {
+        latestHands = results.multiHandLandmarks || [];
+      });
+
+      poseDetector = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      });
+
+      poseDetector.setOptions({
+        modelComplexity: 0,
+        smoothLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      poseDetector.onResults((results) => {
+        latestPose = results.poseLandmarks || null;
+      });
+
+      const camera = new Camera(video, {
+        onFrame: async () => {
+          await handsDetector.send({ image: video });
+          await poseDetector.send({ image: video });
+          onFrameRender();
+        },
+        width: 640,
+        height: 480
+      });
+
+      camera.start();
+    }
+
+    function onFrameRender() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Отрисовка скелета рук
+      if (latestHands) {
+        for (const landmarks of latestHands) {
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#38bdf8', lineWidth: 3 });
+          drawLandmarks(ctx, landmarks, { color: '#22c55e', lineWidth: 1, radius: 4 });
+        }
+      }
+
+      // Отрисовка ключевых точек позы (плечи, нос, локти)
+      if (latestPose) {
+        drawConnectors(ctx, latestPose, POSE_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.4)', lineWidth: 2 });
+      }
+
+      // Отправка ориентиров через WebSocket
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        let recordLabel = null;
+        if (isRecording && recordFramesLeft > 0) {
+          recordLabel = currentRecordLabel;
+          recordFramesLeft--;
+          document.getElementById('record-status').textContent = `Запись: осталось ${recordFramesLeft} кадров...`;
+          if (recordFramesLeft === 0) {
+            isRecording = false;
+            document.getElementById('record-status').textContent = `Запись жеста "${currentRecordLabel}" завершена!`;
+          }
+        }
+
+        ws.send(JSON.stringify({
+          hands_data: latestHands,
+          pose_landmarks: latestPose,
+          record_label: recordLabel
+        }));
+      }
+
+      // Счётчик FPS
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFrameTime >= 1000) {
+        fpsBadge.textContent = `FPS: ${frameCount}`;
+        frameCount = 0;
+        lastFrameTime = now;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initWebSocket();
+      setupCamera().catch(err => {
+        console.error('Ошибка доступа к камере:', err);
+        wsText.textContent = 'Ошибка: нет доступа к камере';
+      });
+    });
+  </script>
+</body>
+</html>
