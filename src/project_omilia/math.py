@@ -1,4 +1,5 @@
 import numpy as np
+
 from project_omilia.errors import IncorrectDataError
 
 EPS: float = 1e-8
@@ -28,3 +29,6 @@ def vec_angle(A: np.ndarray, B: np.ndarray) -> float:
 
 def vec_norm_angle(A: np.ndarray, B: np.ndarray) -> float:
     return vec_angle(A, B) / np.pi
+
+def scalar_to_vec(A: float) -> np.ndarray:
+    return np.array((A, A, A))

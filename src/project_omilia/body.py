@@ -1,12 +1,7 @@
 import numpy as np
+
 from project_omilia.errors import IncorrectDataError
-from project_omilia.math import (
-    p_dist,
-    vec_len,
-    vec_angle,
-    vec_normalize,
-    vec_norm_angle
-)
+from project_omilia.math import p_dist, scalar_to_vec, vec_norm_angle, vec_normalize
 
 POINTS_IN_HAND: int = 21
 POINTS_IN_BODY: int = 33
@@ -44,12 +39,13 @@ class Hand:
             self.normal = np.cross(v2, v1)
         self.normal = vec_normalize(self.normal)
         self.fingers = [[] for _ in range(5)]
+        # Vectors between each phalanga in every finger
         for i in range(1, 20, 4):
             self.fingers[(i - 1) // 4].append(data[i] - wrist)
             for j in range(3):
                 self.fingers[(i - 1) // 4].append(data[i + j + 1] - data[i + j])
 
-    def get_shape_features(self) -> np.ndarray:
+    def get_shape_features(self) -> list:
         """
         Summary.
             Determines details of hand to
@@ -75,35 +71,46 @@ class Hand:
             result.append(vec_norm_angle(fingers_vecs[i], fingers_vecs[i + 1]))
         for i in range(8, 21, 4):
             # Distance between fingertips 1..4 and thumb fingertip
-            result.append(p_dist(self.data[i], self.data[4]) / self.palm_scale)
+            result.append(vec_normalize(scalar_to_vec(p_dist(self.data[i], self.data[4]) / self.palm_scale)))
         # Distance between index and middle fingertips
-        result.append(p_dist(self.data[12], self.data[8]) / self.palm_scale)
+        result.append(vec_normalize(scalar_to_vec(p_dist(self.data[12], self.data[8]) / self.palm_scale)))
 
-        return np.array(result)
+        return result
+
+    def get_1d_array(self) -> list:
+        """
+        Summary.
+            Makes from various data appropriate thing
+        Returns:
+            List of hand's 3D vectors (described before)
+        """
+        result: list = [(vec for vec in finger) for finger in self.fingers]
+        result.append(self.normal)
+        result += self.get_shape_features()
+        return result
 
 class Pose:
 
     nose: np.ndarray
-    shoulder_width: float
-    chest_center: np.ndarray
-    left_nose_dist: float
-    right_nose_dist: float
+    left_to_nose: np.ndarray
+    right_to_nose: np.ndarray
     left_hand: Hand | None
-    right_hand: Hand | None
+    right_hand: Hand
 
     def __init__(self, data: list, hands: tuple[list, list]):
         if len(data) != POINTS_IN_BODY:
-            # TODO
-            pass
+            raise IncorrectDataError(
+                "Wrong amount of points in body.\n"
+            )
         else:
             self.nose = np.array(data[0])
-            self.shoulder_width = p_dist(np.array(data[12]), np.array(data[11]))
-            self.chest_center = (np.array(data[12]) + np.array(data[11])) / 2
-            self.left_nose_dist = p_dist(np.array(data[0]), np.array(data[15]))
-            self.right_nose_dist = p_dist(np.array(data[0]), np.array(data[16]))
+            # Vector from each hand to nose
+            self.right_to_nose = np.array(data[15]) - np.array(data[0])
+            self.left_to_nose = np.array(data[16]) - np.array(data[0])
 
         # Distance from right hand wrist to hands' wrist
-        is_right_hand = lambda hand_data: p_dist(hand_data[0], data[16]) < p_dist(hand_data[0], data[15])
+        is_right_hand = lambda hand_data: p_dist(np.array((hand_data[0].x, hand_data[0].y, hand_data[0].z)), data[15]) \
+            < p_dist(np.array((hand_data[0].x, hand_data[0].y, hand_data[0].z)), data[16])
         match len(hands):
             case 0:
                 raise IncorrectDataError(
@@ -124,7 +131,26 @@ class Pose:
                     self.left_hand = Hand(hands[0], False)
                     self.right_hand = Hand(hands[1], True)
 
-"""
-TODO:
-Нужно понять, как ведёт себя PoseLandmark в различных ситуациях и какие значения в каком формате возвращает
-"""
+    def get_1d_array_one_hand(self) -> np.ndarray:
+        """
+        Summary.
+            For 1 hand case generates 1D np.array of 3D vectors
+            for model use
+        Returns:
+            np.array of vectors
+        """
+        result: list = self.right_hand.get_1d_array()
+        result.append(self.right_to_nose)
+        return np.array(result)
+
+    def get_1d_array_two_hands(self) -> np.ndarray:
+        """
+        Summary.
+            For 2 hands case generates 1D np.array of 3D vectors
+            for model use
+        """
+        result: list = self.right_hand.get_1d_array()
+        result += self.left_hand.get_1d_array()
+        result.append(self.right_to_nose)
+        result.append(self.left_to_nose)
+        return np.array(result)
