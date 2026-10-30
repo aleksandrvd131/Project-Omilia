@@ -71,9 +71,9 @@ class Hand:
             result.append(vec_norm_angle(fingers_vecs[i], fingers_vecs[i + 1]))
         for i in range(8, 21, 4):
             # Distance between fingertips 1..4 and thumb fingertip
-            result.append(vec_normalize(scalar_to_vec(p_dist(self.data[i], self.data[4]) / self.palm_scale)))
+            result.append(scalar_to_vec(p_dist(self.data[i], self.data[4]) / self.palm_scale))
         # Distance between index and middle fingertips
-        result.append(vec_normalize(scalar_to_vec(p_dist(self.data[12], self.data[8]) / self.palm_scale)))
+        result.append(scalar_to_vec(p_dist(self.data[12], self.data[8]) / self.palm_scale))
 
         return result
 

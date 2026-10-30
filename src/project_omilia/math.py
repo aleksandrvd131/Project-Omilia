@@ -16,7 +16,7 @@ def vec_normalize(A: np.ndarray) -> np.ndarray:
         raise IncorrectDataError(
             "Division by zero while trying to normalize vector.\n"
         )
-    return A / vec_len(A)
+    return A / len_A
 
 def vec_angle(A: np.ndarray, B: np.ndarray) -> float:
     len_A = vec_len(A)
