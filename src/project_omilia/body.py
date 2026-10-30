@@ -84,7 +84,10 @@ class Hand:
         Returns:
             List of hand's 3D vectors (described before)
         """
-        result: list = [(vec for vec in finger) for finger in self.fingers]
+        result: list[np.ndarray] = [vec for finger in self.fingers for vec in finger]
+        for finger in self.fingers:
+            for vec in finger:
+                result.append(vec)
         result.append(self.normal)
         result += self.get_shape_features()
         return result
@@ -139,7 +142,7 @@ class Pose:
         Returns:
             np.array of vectors
         """
-        result: list = self.right_hand.get_1d_array()
+        result: list[np.ndarray] = self.right_hand.get_1d_array()
         result.append(self.right_to_nose)
         return np.array(result)
 
@@ -149,7 +152,7 @@ class Pose:
             For 2 hands case generates 1D np.array of 3D vectors
             for model use
         """
-        result: list = self.right_hand.get_1d_array()
+        result: list[np.ndarray] = self.right_hand.get_1d_array()
         result += self.left_hand.get_1d_array()
         result.append(self.right_to_nose)
         result.append(self.left_to_nose)
