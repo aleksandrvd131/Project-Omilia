@@ -1,20 +1,29 @@
 import io
 import json
+import sys
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+sys.modules["sounddevice"] = None
+
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from gtts import gTTS
 
-from bone_gesture_engine import (
-    DynamicTracker74,
-    RSLWordAssembler,
-    StaticSignEngine74,
-)
-
+try:
+    from project_omilia.engine import (
+        DynamicTracker74,
+        RSLWordAssembler,
+        StaticSignEngine74,
+    )
+except ImportError:
+    from bone_gesture_engine import (  # type: ignore[no-redef]
+        DynamicTracker74,
+        RSLWordAssembler,
+        StaticSignEngine74,
+    )
 
 BASE_DIR = Path(__file__).resolve().parent
 DATASET_PATH = BASE_DIR / "rsl_static_dataset_74.json"
@@ -214,7 +223,9 @@ app = FastAPI(title="Omilia Gesture Server", lifespan=lifespan)
 
 @app.get("/")
 async def index():
-    return FileResponse(INDEX_PATH)
+    if INDEX_PATH.exists():
+        return FileResponse(INDEX_PATH)
+    return JSONResponse({"status": "ok", "message": "Project Omilia API is running"})
 
 
 @app.get("/api/tts")
@@ -225,7 +236,7 @@ def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
         gTTS(text=text.strip(), lang="ru").write_to_fp(buffer)
         buffer.seek(0)
         return StreamingResponse(buffer, media_type="audio/mpeg")
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001
         return JSONResponse(status_code=500, content={"error": f"Ошибка TTS: {err}"})
 
 
@@ -242,8 +253,9 @@ async def gesture_ws(websocket: WebSocket):
             except json.JSONDecodeError:
                 continue
 
-            response = await pipeline.handle_message(payload, tracker)
-            await websocket.send_json(response)
+            if pipeline is not None:
+                response = await pipeline.handle_message(payload, tracker)
+                await websocket.send_json(response)
 
     except WebSocketDisconnect:
         pass
