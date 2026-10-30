@@ -32,7 +32,7 @@ class Hand:
                 "Wrong amount of points in hand.\n"
             )
         self.is_right = is_right
-        data = [np.array(i) for i in data]
+        data = [np.array((i.x, i.y, i.z)) for i in data]
         self.data = data
         wrist = data[0]
         self.palm_scale = p_dist(wrist, data[9])
@@ -111,11 +111,11 @@ class Pose:
                 )
             case 1:
                 self.left_hand = None
-                if is_right_hand(hands[0]):
-                    self.right_hand = Hand(hands[0], True)
-                else:
-                    # TODO: Нужно зеркалить руку!
-                    pass
+                if not is_right_hand(hands[0]):
+                    for point in hands[0]:
+                        point.x = 2 * data[0][0] - point.x
+                self.right_hand = Hand(hands[0], True)
+
             case 2:
                 if is_right_hand(hands[0]):
                     self.left_hand = Hand(hands[1], False)
@@ -126,6 +126,5 @@ class Pose:
 
 """
 TODO:
-Если жест одноручный, то нужно привести жест к правой руке, т.е. отзеркалить руку
-Но здесь надо понимать, есть ли разница между правой и левой рукой.
+Нужно понять, как ведёт себя PoseLandmark в различных ситуациях и какие значения в каком формате возвращает
 """
