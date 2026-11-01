@@ -1,5 +1,5 @@
 from project_omilia.body import Pose
-from project_omilia.errors import DatasetNotFoundError, IncorrectDataError
+from project_omilia.errors import DatasetNotFoundError, IncorrectDataError, JSONDatasetError
 import json
 import time
 from collections import deque
@@ -14,7 +14,7 @@ class Gesture:
 class StaticGesture(Gesture):
     def __init__(self, dataset_path: str = "omilia_static.json") -> None:
         self.dataset_path = Path(dataset_path)
-        self.dataset: dict[str, list[np.array[float]]] = {}
+        self.dataset: dict[str, list[np.ndarray[float]]] = {}
         self.model: KNeighborsClassifier | None = None
         self._load_dataset()
 
@@ -24,7 +24,7 @@ class StaticGesture(Gesture):
             result.append([tuple(vec) for vec in pose])
         return result
 
-    def make_dataset(self):
+    def make_dataset(self) -> None:
         dataset = []
         for pose in self.dataset:
             dataset.append(np.array([np.array(vec) for vec in pose]))
@@ -48,12 +48,12 @@ class StaticGesture(Gesture):
                 self.dataset = json.load(f)
                 self.make_dataset()
             self._train()
-        except (OSError, json.JSONDecodeError, json.JSONLoadError, KeyError, JSONDatasetError) as err:
-            raise (f"ERROR: Exception while loading dataset:i {err}")
+        except (OSError, json.JSONDecodeError, KeyError, JSONDatasetError) as err:
+            raise JSONDatasetError(f"ERROR: Exception while loading dataset:i {err}")
 
     def _train(self) -> None:
 
-        X: list[list[float]] = []
+        X: list[np.ndarray[float]] = []
         y: list[str] = []
 
         for gesture_name, vector in self.dataset.items():
