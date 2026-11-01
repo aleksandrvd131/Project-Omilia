@@ -22,7 +22,7 @@ class StaticGesture(Gesture):
     def dataset_to_json(self) -> dict[str, list[list[float]]]:
         result: dict[str, list[list[float]]] = {}
         for name, poses in self.dataset.items():
-            result[name] = [list(pose) for pose in poses]
+            result[name] = [pose.tolist() for pose in poses]
         return result
 
     def make_dataset(self) -> None:
@@ -112,7 +112,7 @@ class StaticGesture(Gesture):
 
     def predict(self, target: Pose, debug_flag = False) -> tuple[int, float, str]:
         if self.model is None or not self.dataset:
-            return 0, 0.0, ""
+            return -1, 0.0, ""
 
         if isinstance(target, Pose):
             vector = self.extract_vector(target)
