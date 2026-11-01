@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 import numpy as np
 import os
+from scipy.special import i0e
 from sklearn.neighbors import KNeighborsClassifier
 
 class Gesture:
@@ -79,7 +80,8 @@ class StaticGesture(Gesture):
         self._save_dataset()
 
     def delete_gesture(self, gesture_name: str) -> dict[str, int]:
-        self.dataset.pop(gesture_name)
+        if gesture_name in self.dataset:
+            self.dataset.pop(gesture_name)
         self._train()
         self._save_dataset()
         return self.get_dataset_stats()
