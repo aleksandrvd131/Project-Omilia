@@ -23,7 +23,6 @@ class StaticGesture(Gesture):
         result: dict[str, list[list[float]]] = {}
         for name, poses in self.dataset.items():
             result[name] = [list(pose) for pose in poses]
-        print(result)
         return result
 
     def make_dataset(self) -> None:
