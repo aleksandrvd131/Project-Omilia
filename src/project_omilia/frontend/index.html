@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Omiλia — Изучение русского жестового языка с ИИ</title>
+  
+  <!-- Шрифт Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Стили приложения -->
+  <link rel="stylesheet" href="/static/style.css">
+  
+  <!-- MediaPipe CDN для браузерного трекинга рук -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- Шапка сайта -->
+  <header>
+    <div class="header-inner">
+      <a href="#" class="brand" id="brand-link">
+        <div class="logo-badge">Ω</div>
+        <div class="brand-title">Project <span>Omiλia</span></div>
+      </a>
+
+      <!-- Вкладки навигации -->
+      <nav>
+        <ul class="nav-tabs">
+          <li>
+            <button class="nav-btn active" data-tab="about" id="tab-btn-about">
+              <span>🏠</span> О проекте
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" data-tab="catalog" id="tab-btn-catalog">
+              <span>📖</span> Словарь жестов
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" data-tab="blitz" id="tab-btn-blitz">
+              <span>⚡</span> Проверить себя
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" data-tab="profile" id="tab-btn-profile">
+              <span>👤</span> Личный кабинет
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Блок пользователя в шапке -->
+      <div class="user-actions" id="header-user-area">
+        <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Основное содержимое приложения (SPA) -->
+  <main>
+    
+    <!-- ============================================== -->
+    <!-- Вкладка 1: О проекте                           -->
+    <!-- ============================================== -->
+    <section id="tab-about" class="tab-content active">
+      <!-- Баннер -->
+      <div class="hero-banner">
+        <span class="hero-badge">Инновационный тренажёр</span>
+        <h1 class="hero-title">Изучайте русский жестовый язык <span>с помощью искусственного интеллекта</span></h1>
+        <p class="hero-desc">
+          Omiλia анализирует движения и форму ваших рук в реальном времени через веб-камеру, помогая легко осваивать жесты РЖЯ без репетитора и специального оборудования.
+        </p>
+        <div class="hero-buttons">
+          <button class="btn-hero-primary" id="btn-hero-start">Начать обучение →</button>
+          <button class="btn-hero-secondary" id="btn-hero-lk">Личный кабинет</button>
+        </div>
+      </div>
+
+      <!-- Карточки преимуществ -->
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">👁️</div>
+          <h3 class="feature-title">Компьютерное зрение</h3>
+          <p class="feature-desc">
+            Алгоритмы распознают 21 ключевую точку каждой руки, фаланги и углы пальцев без задержек прямо в вашем браузере.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎥</div>
+          <h3 class="feature-title">Двухэтапное обучение</h3>
+          <p class="feature-desc">
+            Сначала посмотрите наглядное видео и прочитайте технику выполнения жеста, а затем закрепите его на практике перед камерой.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3 class="feature-title">Блиц-опрос и прогресс</h3>
+          <p class="feature-desc">
+            Проверяйте изученные жесты в динамичном опросе. Все выученные жесты фиксируются в вашем профиле с детальной статистикой.
+          </p>
+        </div>
+      </div>
+
+      <!-- Секция обратной связи -->
+      <div class="contact-section">
+        <div class="contact-grid">
+          <div>
+            <h2 class="card-title">Свяжитесь с нами</h2>
+            <p class="card-subtitle">
+              Мы постоянно развиваем платформу и расширяем библиотеку жестов РЖЯ. Если у вас есть предложения по улучшению, идеи для сотрудничества или вы хотите добавить новый жест — напишите нам!
+            </p>
+            <div style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.8;">
+              <p>📍 <strong>Команда проекта:</strong> Project Omiλia R&D</p>
+              <p>✉️ <strong>Email:</strong> support@omilia.project</p>
+              <p>💬 <strong>Telegram:</strong> @omilia_support</p>
+            </div>
+          </div>
+
+          <form id="contact-form">
+            <div class="form-group">
+              <label for="contact-name">Ваше имя</label>
+              <input type="text" id="contact-name" class="form-control" placeholder="Иван" required>
+            </div>
+            <div class="form-group">
+              <label for="contact-email">Email для связи</label>
+              <input type="email" id="contact-email" class="form-control" placeholder="ivan@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="contact-msg">Сообщение или идея</label>
+              <textarea id="contact-msg" class="form-control" placeholder="Напишите, какой жест хотели бы добавить или с чем возникли трудности..." required></textarea>
+            </div>
+            <button type="submit" class="btn-hero-primary" style="width: 100%;">Отправить сообщение</button>
+            <div id="contact-success" style="display: none; margin-top: 1rem; color: var(--success); font-weight: 600; text-align: center;">
+              ✅ Спасибо! Ваше сообщение успешно отправлено.
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- Вкладка 2: Словарь жестов                       -->
+    <!-- ============================================== -->
+    <section id="tab-catalog" class="tab-content">
+      <div class="catalog-header">
+        <div>
+          <h2 class="card-title" style="margin-bottom: 0.25rem;">Словарь доступных жестов</h2>
+          <p class="card-subtitle" style="margin-bottom: 0;">Выберите жест, чтобы посмотреть видеоурок и выполнить его перед камерой</p>
+        </div>
+        <div id="catalog-learned-counter" class="badge-learned" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+          Выучено: 0 из 0
+        </div>
+      </div>
+
+      <!-- Сетка жестов -->
+      <div class="gestures-grid" id="gestures-grid">
+        <!-- Генерируется динамически через app.js -->
+        <div style="text-align: center; grid-column: 1 / -1; padding: 3rem; color: var(--text-muted);">
+          Загрузка словаря жестов...
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- Вкладка 3: Проверить себя (Блиц-опрос)          -->
+    <!-- ============================================== -->
+    <section id="tab-blitz" class="tab-content">
+      <!-- 1. Экран старта блица -->
+      <div id="blitz-intro" class="card blitz-hero">
+        <span class="hero-badge">Проверка знаний</span>
+        <h2 class="hero-title" style="font-size: 1.85rem; margin-top: 0.5rem;">Блиц-опрос по выученным жестам</h2>
+        <p class="hero-desc">
+          Искусственный интеллект случайным образом выберет жесты из тех, которые вы уже успешно освоили, и попросит повторить их на камеру.
+        </p>
+
+        <div id="blitz-eligibility" style="margin-bottom: 2rem;">
+          <!-- Сообщение о доступности жестов -->
+        </div>
+
+        <button class="btn-hero-primary" id="btn-start-blitz" style="font-size: 1.1rem; padding: 0.85rem 2rem;">
+          Начать блиц-опрос ⚡
+        </button>
+      </div>
+
+      <!-- 2. Активный экран блица с камерой -->
+      <div id="blitz-active" class="card" style="display: none; max-width: 720px; margin: 0 auto; padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <span id="blitz-progress-step" style="font-size: 0.85rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
+              Вопрос 1 из 3
+            </span>
+            <h3 id="blitz-target-title" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-top: 0.2rem;">
+              Жест: «Привет»
+            </h3>
+          </div>
+          <button id="btn-abort-blitz" class="btn-hero-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.85rem;">
+            Завершить
+          </button>
+        </div>
+
+        <p id="blitz-target-tip" style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Подсказка: держите ладонь открытой на уровне лица
+        </p>
+
+        <!-- Камера блиц-опроса -->
+        <div class="camera-container" style="border-radius: 12px; margin-bottom: 1rem;">
+          <video id="blitz-video" class="camera-video" playsinline></video>
+          <canvas id="blitz-canvas" class="camera-canvas"></canvas>
+
+          <div class="camera-hud">
+            <span class="hud-label">ИИ Распознал:</span>
+            <span class="hud-gesture" id="blitz-hud-gesture">—</span>
+            <span class="hud-score" id="blitz-hud-score">Точность: —</span>
+          </div>
+
+          <div class="hold-meter">
+            <div id="blitz-hold-fill" class="hold-meter-fill"></div>
+          </div>
+
+          <div id="blitz-question-success" class="success-overlay" style="display: none;">
+            <div style="font-size: 3rem;">🎉</div>
+            <h3 style="font-size: 1.5rem; font-weight: 800;">Верно! Жест принят!</h3>
+            <p>Переходим к следующему вопросу...</p>
+          </div>
+        </div>
+
+        <div style="text-align: center; font-size: 0.88rem; color: var(--text-muted);">
+          Покажите требуемый жест и удерживайте его 1.5 секунды
+        </div>
+      </div>
+
+      <!-- 3. Экран финиша блица -->
+      <div id="blitz-finish" class="card blitz-hero" style="display: none;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🏆</div>
+        <h2 class="hero-title" style="font-size: 1.9rem;">Блиц успешно завершён!</h2>
+        <p class="hero-desc" id="blitz-finish-desc">
+          Вы отлично справились и подтвердили знание всех выбранных жестов!
+        </p>
+        <div style="display: flex; justify-content: center; gap: 1rem;">
+          <button class="btn-hero-primary" id="btn-repeat-blitz">Пройти ещё раз ⚡</button>
+          <button class="btn-hero-secondary" id="btn-blitz-to-catalog">В словарь жестов</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- Вкладка 4: Личный кабинет                      -->
+    <!-- ============================================== -->
+    <section id="tab-profile" class="tab-content">
+      
+      <!-- Форма входа / регистрации (для гостей) -->
+      <div id="auth-box" class="auth-container">
+        <div class="auth-tabs">
+          <button class="auth-tab-btn active" id="auth-tab-login" type="button">Вход</button>
+          <button class="auth-tab-btn" id="auth-tab-register" type="button">Регистрация</button>
+        </div>
+
+        <!-- Форма Входа -->
+        <form id="form-login">
+          <div class="form-group">
+            <label for="login-username">Логин</label>
+            <input type="text" id="login-username" class="form-control" placeholder="Введите имя пользователя" required>
+          </div>
+          <div class="form-group">
+            <label for="login-password">Пароль</label>
+            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+          </div>
+          <div id="login-error" style="display: none; color: var(--danger); font-size: 0.88rem; margin-bottom: 1rem;"></div>
+          <button type="submit" class="btn-hero-primary" style="width: 100%;">Войти</button>
+        </form>
+
+        <!-- Форма Регистрации -->
+        <form id="form-register" style="display: none;">
+          <div class="form-group">
+            <label for="reg-username">Придумайте логин</label>
+            <input type="text" id="reg-username" class="form-control" placeholder="Придумайте имя (от 3 симв.)" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-password">Придумайте пароль</label>
+            <input type="password" id="reg-password" class="form-control" placeholder="Надёжный пароль (от 4 симв.)" required>
+          </div>
+          <div id="reg-error" style="display: none; color: var(--danger); font-size: 0.88rem; margin-bottom: 1rem;"></div>
+          <button type="submit" class="btn-hero-primary" style="width: 100%;">Создать аккаунт</button>
+        </form>
+      </div>
+
+      <!-- Кабинет авторизованного пользователя -->
+      <div id="profile-box" style="display: none;">
+        <!-- Карточка пользователя -->
+        <div class="card" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--primary-light); color: var(--primary-hover); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; border: 2px solid var(--primary-border);">
+              👤
+            </div>
+            <div>
+              <h2 class="card-title" id="profile-username" style="margin-bottom: 0.25rem;">Пользователь</h2>
+              <span class="gesture-badge badge-learned">Ученик РЖЯ</span>
+            </div>
+          </div>
+          <button class="btn-hero-secondary" id="btn-logout" style="color: var(--danger); border-color: #fecaca;">
+            Выйти из системы
+          </button>
+        </div>
+
+        <!-- Прогресс изучения -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <h3 class="card-title" style="margin-bottom: 0;">Ваш прогресс изучения РЖЯ</h3>
+            <span id="profile-progress-text" style="font-weight: 700; color: var(--primary-hover);">0%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div id="profile-progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <p id="profile-stats-summary" style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+            Вы выучили 0 из 0 жестов
+          </p>
+
+          <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem;">Освоенные жесты:</h4>
+          <div id="profile-learned-badges" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <!-- Список выученных жестов -->
+          </div>
+        </div>
+
+        <!-- Настройки (Озвучивание голосом) -->
+        <div class="card">
+          <h3 class="card-title">Настройки аккаунта</h3>
+          
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-label">Озвучивание жестов (Голос)</span>
+              <span class="settings-desc">Синтез речи произносит название жеста вслух при его успешном распознавании нейросетью</span>
+            </div>
+            <label class="switch" title="Включить / выключить озвучивание">
+              <input type="checkbox" id="tts-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================================================== -->
+  <!-- Модальное окно 1: Обучение жесту (Видео + Описание)   -->
+  <!-- ==================================================== -->
+  <div id="tutorial-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span id="tutorial-category" class="gesture-badge badge-unlearned" style="margin-bottom: 0.25rem; display: inline-block;">Категория</span>
+          <h3 id="tutorial-title" class="card-title" style="margin-bottom: 0;">Жест: «Привет»</h3>
+        </div>
+        <button class="btn-close" id="btn-close-tutorial" title="Закрыть">&times;</button>
+      </div>
+
+      <!-- Видеоплеер демонстрации жеста -->
+      <div class="video-preview-wrapper">
+        <video id="tutorial-video" class="video-demo" playsinline loop muted controls></video>
+        <div id="tutorial-video-fallback" class="video-placeholder">
+          <!-- Анимированная наглядная схема ладони при отсутствии внешнего видеофайла -->
+          <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);">
+            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path>
+            <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path>
+            <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path>
+            <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path>
+          </svg>
+          <div style="font-weight: 700; font-size: 1.1rem;" id="tutorial-demo-caption">Демонстрация жеста</div>
+          <div style="font-size: 0.85rem; color: #94a3b8; max-width: 360px;">
+            Внимательно изучите правильное положение пальцев и кисти перед переходом к камере
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text-main);">Как правильно выполнять:</h4>
+        <p id="tutorial-desc" style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem;">
+          Описание техники выполнения...
+        </p>
+
+        <div class="gesture-tip" id="tutorial-tip">
+          💡 Подсказка по выполнению
+        </div>
+
+        <button class="btn-hero-primary" id="btn-start-camera-practice" style="width: 100%; font-size: 1rem; padding: 0.85rem;">
+          Повторить жест перед камерой →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- Модальное окно 2: Практика перед камерой с ИИ        -->
+  <!-- ==================================================== -->
+  <div id="practice-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 720px;">
+      <div class="modal-header">
+        <div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
+            Практика перед камерой
+          </span>
+          <h3 id="practice-title" class="card-title" style="margin-bottom: 0;">Жест: «Привет»</h3>
+        </div>
+        <button class="btn-close" id="btn-close-practice-modal" title="Закрыть">&times;</button>
+      </div>
+
+      <!-- Камера практики -->
+      <div class="camera-container">
+        <video id="practice-video" class="camera-video" playsinline></video>
+        <canvas id="practice-canvas" class="camera-canvas"></canvas>
+
+        <div class="camera-hud">
+          <span class="hud-label">ИИ Распознал:</span>
+          <span class="hud-gesture" id="practice-hud-gesture">—</span>
+          <span class="hud-score" id="practice-hud-score">Точность: —</span>
+        </div>
+
+        <div class="hold-meter">
+          <div id="practice-hold-fill" class="hold-meter-fill"></div>
+        </div>
+
+        <div id="practice-success-overlay" class="success-overlay" style="display: none;">
+          <div style="font-size: 3.5rem;">🎉</div>
+          <h3 style="font-size: 1.6rem; font-weight: 800;">Отлично! Жест усвоен!</h3>
+          <p id="practice-success-msg">Нейросеть подтвердила правильность. Прогресс сохранён в ЛК.</p>
+          <button class="btn-hero-primary" id="btn-practice-done" style="background: #ffffff; color: var(--primary-hover); margin-top: 0.5rem; font-weight: 700;">
+            Продолжить обучение
+          </button>
+        </div>
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <p id="practice-tip-text" style="font-size: 0.9rem; color: var(--text-muted); margin: 0; flex: 1;">
+          Покажите жест на камеру и удерживайте 1.5 секунды
+        </p>
+        <button class="btn-hero-secondary" id="btn-practice-cancel">
+          Завершить
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Подвал сайта -->
+  <footer>
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        Project Omiλia © 2026. Платформа интерактивного изучения русского жестового языка с искусственным интеллектом.
+      </div>
+      <div>
+        <a href="/dev" style="color: var(--text-muted); text-decoration: none; font-size: 0.82rem;" title="Режим записи и дебага сэмплов">
+          🛠️ Панель разработчика
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Клиентский скрипт приложения -->
+  <script src="/static/app.js"></script>
+</body>
+</html>
