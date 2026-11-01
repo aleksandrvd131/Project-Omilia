@@ -6,6 +6,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 import numpy as np
+import os
 from sklearn.neighbors import KNeighborsClassifier
 
 class Gesture:
@@ -18,16 +19,17 @@ class StaticGesture(Gesture):
         self.model: KNeighborsClassifier | None = None
         self._load_dataset()
 
-    def dataset_to_json(self) -> list[tuple]:
-        result: list[list[tuple]] = []
-        for pose in self.dataset:
-            result.append([tuple(vec) for vec in pose])
+    def dataset_to_json(self) -> dict[str, list[list[float]]]:
+        result: dict[str, list[list[float]]] = {}
+        for name, poses in self.dataset.items():
+            result[name] = [list(pose) for pose in poses]
+        print(result)
         return result
 
     def make_dataset(self) -> None:
-        dataset = []
-        for pose in self.dataset:
-            dataset.append(np.array([np.array(vec) for vec in pose]))
+        dataset = {}
+        for name, poses in self.dataset.items():
+            dataset[name] = [np.array(pose) for pose in poses]
         self.dataset = dataset
 
     def _save_dataset(self) -> None:
@@ -41,7 +43,8 @@ class StaticGesture(Gesture):
             )
 
     def _load_dataset(self) -> None:
-        if not self.dataset_path.exists():
+        if not self.dataset_path.exists() or not os.path.getsize(self.dataset_path):
+            self.dataset = {}
             return
         try:
             with open(self.dataset_path, mode="r", encoding="utf-8") as f:
@@ -49,7 +52,7 @@ class StaticGesture(Gesture):
                 self.make_dataset()
             self._train()
         except (OSError, json.JSONDecodeError, KeyError, JSONDatasetError) as err:
-            raise JSONDatasetError(f"ERROR: Exception while loading dataset:i {err}")
+            raise JSONDatasetError(f"ERROR: Exception while loading dataset: {err}")
 
     def _train(self) -> None:
 
@@ -88,7 +91,7 @@ class StaticGesture(Gesture):
             stats[name] = len(self.dataset[name])
         return stats
 
-    def extract_vector(self, pose: Pose) -> list[float]:
+    def extract_vector(self, pose: Pose) -> np.ndarray[float]:
         if not isinstance(pose, Pose):
             raise TypeError(
                 "ERROR: No pose was given to gesture engine.\n"
@@ -98,7 +101,7 @@ class StaticGesture(Gesture):
         else:
             data = pose.get_1d_array_two_hands().flatten()
 
-        return [np.round(float(x), 8) for x in data]
+        return np.round(data, 8)
 
     """
     Code -255 - Unknown
