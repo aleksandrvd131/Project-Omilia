@@ -16,8 +16,9 @@ dependencies = [
     "opencv-python>=4.10.0",
     "ruff>=0.17.3",
     "scikit-learn>=1.9.1",
+    "scipy>=1.13.0",
     "urllib3>=2.8.0",
-    "unicorn[standart] >= 0.30.0",
+    "uvicorn[standard] >= 0.30.0",
     "websockets >= 12.0",
 ]
 

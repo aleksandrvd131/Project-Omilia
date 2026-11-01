@@ -447,11 +447,14 @@
       <div class="card">
         <div class="card-title">Запись жеста в датасет</div>
         <div class="input-row">
-          <input type="text" id="record-label" placeholder="Имя жеста (например: А, Привет)">
+          <input type="text" id="record-label" placeholder="Имя жеста (например: А, Привет)" onkeydown="if(event.key==='Enter') toggleRecording()">
           <button class="btn-primary" id="btn-record" onclick="toggleRecording()">Запись</button>
         </div>
         <div style="font-size: 0.75rem; color: var(--text-muted);" id="record-status">
           Введите название и нажмите «Запись» для сбора 15 кадров.
+        </div>
+        <div id="dataset-summary" style="margin-top: 0.75rem; font-size: 0.8rem; border-top: 1px solid var(--card-border); padding-top: 0.5rem; color: var(--text-muted);">
+          Датасет пуст
         </div>
       </div>
 
@@ -562,6 +565,10 @@
       if (data.speak_event) {
         playTTS(data.speak_event);
       }
+
+      if (data.dataset_stats) {
+        renderDatasetStats(data.dataset_stats);
+      }
     }
 
     function showBanner(word) {
@@ -612,17 +619,33 @@
       sendAction('delete_dynamic_rule', { rule_key: ruleKey });
     }
 
+    function renderDatasetStats(stats) {
+      const summary = document.getElementById('dataset-summary');
+      if (!summary || !stats) return;
+      const entries = Object.entries(stats);
+      if (entries.length === 0) {
+        summary.textContent = 'Датасет пуст (0 жестов)';
+        return;
+      }
+      summary.innerHTML = '<b>В датасете:</b> ' + entries.map(([k, v]) => `${k}: ${v} кадр.`).join(', ');
+    }
+
     function toggleRecording() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert('Сервер не подключен. Убедитесь, что сервер serv.py запущен (статус вверху "Сервер: Онлайн").');
+        return;
+      }
       const labelInput = document.getElementById('record-label');
       const label = labelInput.value.trim();
       if (!label) {
         alert('Введите имя жеста для записи');
+        labelInput.focus();
         return;
       }
       currentRecordLabel = label;
       recordFramesLeft = 15;
       isRecording = true;
-      document.getElementById('record-status').textContent = `Запись образцов: ${recordFramesLeft} кадров...`;
+      document.getElementById('record-status').textContent = `Покажите руку в камеру для записи "${label}"...`;
     }
 
     function playTTS(text) {
@@ -724,12 +747,16 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         let recordLabel = null;
         if (isRecording && recordFramesLeft > 0) {
-          recordLabel = currentRecordLabel;
-          recordFramesLeft--;
-          document.getElementById('record-status').textContent = `Запись: осталось ${recordFramesLeft} кадров...`;
-          if (recordFramesLeft === 0) {
-            isRecording = false;
-            document.getElementById('record-status').textContent = `Запись жеста "${currentRecordLabel}" завершена!`;
+          if (!latestHands || latestHands.length === 0) {
+            document.getElementById('record-status').textContent = `Покажите руку в камеру для записи "${currentRecordLabel}"...`;
+          } else {
+            recordLabel = currentRecordLabel;
+            recordFramesLeft--;
+            document.getElementById('record-status').textContent = `Запись "${currentRecordLabel}": осталось ${recordFramesLeft} кадров...`;
+            if (recordFramesLeft === 0) {
+              isRecording = false;
+              document.getElementById('record-status').textContent = `Жест "${currentRecordLabel}" записан в датасет!`;
+            }
           }
         }
 
