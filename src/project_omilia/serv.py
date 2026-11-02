@@ -14,7 +14,8 @@ from project_omilia.gestures import StaticGesture
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATASET_PATH = BASE_DIR / "omilia_static.json"
+DATASET_PATH_1H = BASE_DIR / "omilia_static_1h.json"
+DATASET_PATH_2H = BASE_DIR / "omilia_static_2h.json"
 INDEX_PATH = BASE_DIR / "index.html"
 
 
@@ -51,8 +52,10 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
 
 
 class StaticGestureServer:
-    def __init__(self, dataset_path: Path):
-        self.engine = StaticGesture(dataset_path=str(dataset_path))
+    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
+        # TODO: Pickle на случай, если нам не нужно обучать датасет
+        self.engine_1h = StaticGesture(dataset_path=str(dataset_path_1h))
+        self.engine_2h = StaticGesture(dataset_path=str(dataset_path_2h))
 
     def process_frame(self, payload: dict[str, Any]) -> dict[str, Any]:
         hands_data = payload.get("hands_data") or []
@@ -67,12 +70,15 @@ class StaticGestureServer:
                 "score": None,
                 "dataset_stats": self.engine.get_dataset_stats(),
             }
-
+        if pose.left_hand is None:
+            engine = self.engine_1h
+        else:
+            engine = self.engine_2h
         # Режим записи жеста в датасет
         if record_label:
             try:
-                self.engine.add_sample(name=record_label, pose=pose)
-                stats = self.engine.get_dataset_stats()
+                engine.add_sample(name=record_label, pose=pose)
+                stats = engine.get_dataset_stats()
                 print(f"[Запись] Сохранён сэмпл для '{record_label}' (всего: {stats.get(record_label, 0)})")
                 return {
                     "detected": True,
@@ -86,13 +92,13 @@ class StaticGestureServer:
                     "detected": True,
                     "gesture": "Ошибка геометрии",
                     "score": 0.0,
-                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_stats": engine.get_dataset_stats(),
                 }
 
         # Режим классификации
-        code, score, prediction = self.engine.predict(pose)
+        code, score, prediction = engine.predict(pose)
 
-        total_samples = sum(len(v) for v in self.engine.dataset.values())
+        total_samples = sum(len(v) for v in engine.dataset.values())
         if code == 0:
             gesture_name = prediction
         elif code == -1:
@@ -109,14 +115,14 @@ class StaticGestureServer:
             "detected": True,
             "gesture": gesture_name,
             "score": score,
-            "dataset_stats": self.engine.get_dataset_stats(),
+            "dataset_stats": engine.get_dataset_stats(),
         }
 
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
             case "delete_gesture":
                 gesture_name = payload.get("gesture_name", "")
-                stats = self.engine.delete_gesture(gesture_name)
+                stats = [self.engine_1h.delete_gesture(gesture_name), self.engine_2h.delete_gesture(gesture_name)]
                 return {
                     "detected": False,
                     "dataset_stats": stats,
@@ -124,7 +130,7 @@ class StaticGestureServer:
             case _:
                 return {
                     "detected": False,
-                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h],
                 }
 
 
@@ -134,8 +140,8 @@ server: StaticGestureServer | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global server
-    server = StaticGestureServer(dataset_path=DATASET_PATH)
-    print(f"Сервер запущен. Датасет: {DATASET_PATH.name} (жестов: {len(server.engine.dataset)})")
+    server = StaticGestureServer(dataset_path_1h=DATASET_PATH_1H, dataset_path_2h=DATASET_PATH_2H)
+    print(f"Сервер запущен. Датасеты: {DATASET_PATH_1H.name}, {DATASET_PATH_2H.name} (жестов: {len(server.engine_1h.dataset)+len(server.engine_2h.dataset)})")
     yield
 
 
