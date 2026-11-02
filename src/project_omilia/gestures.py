@@ -17,6 +17,7 @@ class StaticGesture(Gesture):
     def __init__(self, dataset_path: str = "omilia_static.json") -> None:
         self.dataset_path = Path(dataset_path)
         self.dataset: dict[str, list[np.ndarray[float]]] = {}
+        self.models: dict[int, KNeighborsClassifier] = {}
         self.model: KNeighborsClassifier | None = None
         self._load_dataset()
 
@@ -27,9 +28,14 @@ class StaticGesture(Gesture):
         return result
 
     def make_dataset(self) -> None:
-        dataset = {}
+        dataset: dict[str, list[np.ndarray[float]]] = {}
         for name, poses in self.dataset.items():
-            dataset[name] = [np.array(pose) for pose in poses]
+            norm_name = name.strip().lower()
+            converted_poses = [np.array(pose) for pose in poses]
+            if norm_name not in dataset:
+                dataset[norm_name] = converted_poses
+            else:
+                dataset[norm_name].extend(converted_poses)
         self.dataset = dataset
 
     def _save_dataset(self) -> None:
@@ -55,31 +61,56 @@ class StaticGesture(Gesture):
             raise JSONDatasetError(f"ERROR: Exception while loading dataset: {err}")
 
     def _train(self) -> None:
+        # Разделяем обучение для одноручных (141) и двуручных (282) жестов
+        by_dim: dict[int, tuple[list[np.ndarray], list[str]]] = {}
 
-        X: list[np.ndarray[float]] = []
-        y: list[str] = []
+        for gesture_name, vectors in self.dataset.items():
+            for vec in vectors:
+                dim = len(vec)
+                if dim not in by_dim:
+                    by_dim[dim] = ([], [])
+                by_dim[dim][0].append(vec)
+                by_dim[dim][1].append(gesture_name)
 
-        for gesture_name, vector in self.dataset.items():
-            for vec in vector:
-                X.append(vec)
-                y.append(gesture_name)
+        self.models = {}
+        for dim, (X_dim, y_dim) in by_dim.items():
+            if len(y_dim) >= 3:
+                k = min(len(y_dim), 5)
+                knn = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
+                knn.fit(np.array(X_dim, dtype=float), np.array(y_dim))
+                self.models[dim] = knn
 
-        if len(y) >= 3:
-            self.model = KNeighborsClassifier(n_neighbors=min(len(y), 5), metric="euclidean")
-            self.model.fit(np.array(X), np.array(y))
-        else:
-            self.model = None
+        # Fallback для совместимости
+        self.model = self.models.get(141) or (next(iter(self.models.values())) if self.models else None)
 
-    def add_sample(self, name: str, pose: Pose) -> None:
+    def add_sample(
+        self,
+        name: str,
+        pose: Pose,
+        auto_train: bool = True,
+        auto_save: bool = True,
+    ) -> None:
+        name = name.strip().lower()
         data = self.extract_vector(pose)
         if name not in self.dataset:
             self.dataset[name] = [data]
         else:
-            self.dataset[name].append(data)
+            # Если изменилась размерность (например, переобучили жест с 1 руки на 2 или наоборот)
+            if self.dataset[name] and len(self.dataset[name][0]) != len(data):
+                self.dataset[name] = [data]
+            else:
+                self.dataset[name].append(data)
+        if auto_train:
+            self._train()
+        if auto_save:
+            self._save_dataset()
+
+    def save_and_train(self) -> None:
         self._train()
         self._save_dataset()
 
     def delete_gesture(self, gesture_name: str) -> dict[str, int]:
+        gesture_name = gesture_name.strip().lower()
         if gesture_name in self.dataset:
             self.dataset.pop(gesture_name)
         self._train()
@@ -91,6 +122,19 @@ class StaticGesture(Gesture):
         for name in self.dataset:
             stats[name] = len(self.dataset[name])
         return stats
+
+    def get_dataset_info(self) -> dict[str, dict[str, Any]]:
+        info: dict[str, dict[str, Any]] = {}
+        for name, vectors in self.dataset.items():
+            if not vectors:
+                continue
+            dim = len(vectors[0])
+            hands_count = 2 if dim > 141 else 1
+            info[name] = {
+                "count": len(vectors),
+                "hands": hands_count,
+            }
+        return info
 
     def extract_vector(self, pose: Pose) -> np.ndarray[float]:
         if not isinstance(pose, Pose):
@@ -113,7 +157,7 @@ class StaticGesture(Gesture):
     """
 
     def predict(self, target: Pose, debug_flag = False) -> tuple[int, float, str]:
-        if self.model is None or not self.dataset:
+        if not self.dataset:
             return -1, 0.0, ""
 
         if isinstance(target, Pose):
@@ -129,19 +173,27 @@ class StaticGesture(Gesture):
         if vector is None or len(vector) == 0:
             return -1, 0.0, ""
 
-        try:
-            x_arr = np.array([vector], dtype = float) #??????????????????
+        dim = len(vector)
+        model = self.models.get(dim) if hasattr(self, "models") and self.models else (
+            self.model if (self.model is not None and getattr(self.model, "n_features_in_", None) == dim) else None
+        )
 
-            if x_arr.shape[1] != self.model.n_features_in_:
+        if model is None:
+            return -1, 0.0, ""
+
+        try:
+            x_arr = np.array([vector], dtype=float)
+
+            if x_arr.shape[1] != model.n_features_in_:
                 return -1, 0.0, ""
 
-            distances, _ = self.model.kneighbors(x_arr)
+            distances, _ = model.kneighbors(x_arr)
             score = round(float(np.mean(distances)), 2)
             max_distance = 2.0
             if score > max_distance:
                 return -2, score, ""
 
-            prediction = str(self.model.predict(x_arr)[0])
+            prediction = str(model.predict(x_arr)[0])
             return 0, score, prediction
 
         except (ValueError, KeyError, IndexError, TypeError):
