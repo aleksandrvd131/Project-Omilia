@@ -102,7 +102,7 @@ class StaticGesture(Gesture):
         else:
             data = pose.get_1d_array_two_hands().flatten()
 
-        return np.round(data, 8)
+        return np.round(data, 12)
 
     """
     Code -255 - Unknown
