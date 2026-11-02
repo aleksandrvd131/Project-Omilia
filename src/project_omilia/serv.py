@@ -19,7 +19,8 @@ import project_omilia.db as db
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
-DATASET_PATH = BASE_DIR / "omilia_static.json"
+DATASET_PATH_1H = BASE_DIR / "omilia_static_1h.json"
+DATASET_PATH_2H = BASE_DIR / "omilia_static_2h.json"
 INDEX_PATH = FRONTEND_DIR / "index.html"
 DEBUG_PATH = BASE_DIR / "debug.html"
 DB_PATH = BASE_DIR / "omilia.db"
@@ -110,8 +111,10 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
 
 
 class StaticGestureServer:
-    def __init__(self, dataset_path: Path):
-        self.engine = StaticGesture(dataset_path=str(dataset_path))
+    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
+        # TODO: Pickle
+        self.engine_1h = StaticGesture(dataset_path=str(dataset_path_1h))
+        self.engine_2h = StaticGesture(dataset_path=str(dataset_path_2h))
 
     def process_frame(self, payload: dict[str, Any]) -> dict[str, Any]:
         hands_data = payload.get("hands_data") or []
@@ -124,14 +127,19 @@ class StaticGestureServer:
                 "detected": False,
                 "gesture": None,
                 "score": None,
-                "dataset_stats": self.engine.get_dataset_stats(),
+                "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()],
             }
+
+        if pose.left_hand is None:
+            engine = self.engine_1h
+        else:
+            engine = self.engine_2h
 
         # Режим записи жеста в датасет (через панель разработчика)
         if record_label:
             try:
-                self.engine.add_sample(name=record_label, pose=pose)
-                stats = self.engine.get_dataset_stats()
+                engine.add_sample(name=record_label, pose=pose)
+                stats = engine.get_dataset_stats()
                 print(f"[Запись] Сохранён сэмпл для '{record_label}' (всего: {stats.get(record_label, 0)})")
                 return {
                     "detected": True,
@@ -145,13 +153,13 @@ class StaticGestureServer:
                     "detected": True,
                     "gesture": "Ошибка геометрии",
                     "score": 0.0,
-                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()]
                 }
 
         # Режим классификации
-        code, score, prediction = self.engine.predict(pose)
+        code, score, prediction = engine.predict(pose)
 
-        total_samples = sum(len(v) for v in self.engine.dataset.values())
+        total_samples = sum(len(v) for v in engine.dataset.values())
         if code == 0:
             gesture_name = prediction
         elif code == -1:
@@ -168,14 +176,14 @@ class StaticGestureServer:
             "detected": True,
             "gesture": gesture_name,
             "score": score,
-            "dataset_stats": self.engine.get_dataset_stats(),
+            "dataset_stats": engine.get_dataset_stats(),
         }
 
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
             case "delete_gesture":
                 gesture_name = payload.get("gesture_name", "")
-                stats = self.engine.delete_gesture(gesture_name)
+                stats = [self.engine_1h.delete_gesture(gesture_name), self.engine_2h.delete_gesture(gesture_name)]
                 return {
                     "detected": False,
                     "dataset_stats": stats,
@@ -183,7 +191,7 @@ class StaticGestureServer:
             case _:
                 return {
                     "detected": False,
-                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()],
                 }
 
 
@@ -217,8 +225,8 @@ def get_current_user_from_request(
 async def lifespan(app: FastAPI):
     global server
     db.init_db(DB_PATH)
-    server = StaticGestureServer(dataset_path=DATASET_PATH)
-    print(f"Сервер запущен. Датасет: {DATASET_PATH.name} (жестов: {len(server.engine.dataset)})")
+    server = StaticGestureServer(dataset_path_1h=DATASET_PATH_1H, dataset_path_2h=DATASET_PATH_2H)
+    print(f"Сервер запущен. Датасеты: {DATASET_PATH_1H.name}, {DATASET_PATH_2H.name} (жестов: {len(server.engine_1h.dataset)+len(server.engine_2h.dataset)})")
     yield
 
 
@@ -292,31 +300,32 @@ async def api_get_gestures(request: Request, authorization: str | None = Header(
     user = get_current_user_from_request(request, authorization)
     learned_set = set(db.get_learned_gestures(DB_PATH, user["id"])) if user else set()
 
-    dataset_stats = server.engine.get_dataset_stats() if server else {}
+    dataset_stats = [server.engine_1h.get_dataset_stats(), server.engine_2h.get_dataset_stats()] if server else []
 
     # Собираем список всех жестов, обученных в модели
     gestures_list = []
-    for gesture_name, count in dataset_stats.items():
-        meta = GESTURE_METADATA.get(
-            gesture_name.lower(),
-            {
-                "title": gesture_name.capitalize(),
-                "category": "Общие жесты",
-                "description": f"Статический жест «{gesture_name}».",
-                "tip": "Повторите положение кисти перед камерой.",
-            },
-        )
-        gestures_list.append(
-            {
-                "name": gesture_name,
-                "title": meta.get("title", gesture_name),
-                "category": meta.get("category", "Общие жесты"),
-                "description": meta.get("description", ""),
-                "tip": meta.get("tip", ""),
-                "samples_count": count,
-                "is_learned": gesture_name in learned_set,
-            }
-        )
+    for dataset in dataset_stats:
+        for gesture_name, count in dataset.items():
+            meta = GESTURE_METADATA.get(
+                gesture_name.lower(),
+                {
+                    "title": gesture_name.capitalize(),
+                    "category": "Общие жесты",
+                    "description": f"Статический жест «{gesture_name}».",
+                    "tip": "Повторите положение кисти перед камерой.",
+                },
+            )
+            gestures_list.append(
+                {
+                    "name": gesture_name,
+                    "title": meta.get("title", gesture_name),
+                    "category": meta.get("category", "Общие жесты"),
+                    "description": meta.get("description", ""),
+                    "tip": meta.get("tip", ""),
+                    "samples_count": count,
+                    "is_learned": gesture_name in learned_set,
+                }
+            )
 
     # Сортировка: сначала невыученные, затем выученные
     gestures_list.sort(key=lambda g: (g["is_learned"], g["name"]))
