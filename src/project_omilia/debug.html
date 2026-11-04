@@ -312,6 +312,225 @@
       box-shadow: 0 0 16px var(--primary-glow);
     }
 
+    button.btn-danger {
+      background: linear-gradient(135deg, var(--danger), #b91c1c);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    button.btn-danger:hover {
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Тумблер и переключатель режима жеста (1 рука / 2 руки) */
+    .mode-selector-container {
+      margin-bottom: 0.95rem;
+      background: rgba(10, 12, 18, 0.45);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 0.75rem;
+    }
+
+    .mode-selector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .mode-selector-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .mode-status-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      letter-spacing: 0.04em;
+      transition: all 0.25s ease;
+    }
+
+    .mode-status-badge.mode-1hand {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+    }
+
+    .mode-status-badge.mode-2hands {
+      background: rgba(168, 85, 247, 0.18);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+    }
+
+    .tumbler-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 20, 30, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 4px;
+      gap: 6px;
+    }
+
+    .tumbler-btn {
+      flex: 1;
+      padding: 0.45rem 0.5rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: 7px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+    }
+
+    .tumbler-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .tumbler-btn.active#btn-mode-1hand {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(2, 132, 199, 0.35));
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    .tumbler-btn.active#btn-mode-2hands {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(126, 34, 206, 0.35));
+      color: #c084fc;
+      border-color: rgba(168, 85, 247, 0.4);
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+    }
+
+    .tumbler-icon {
+      font-size: 1rem;
+    }
+
+    /* Тумблер переключатель (Toggle Switch) */
+    .tumbler-switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .tumbler-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .tumbler-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .tumbler-thumb {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 2px;
+      bottom: 2px;
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      border-radius: 50%;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
+    .tumbler-switch input:checked + .tumbler-slider {
+      background-color: rgba(168, 85, 247, 0.2);
+      border-color: rgba(168, 85, 247, 0.5);
+    }
+
+    .tumbler-switch input:checked + .tumbler-slider .tumbler-thumb {
+      transform: translateX(22px);
+      background: linear-gradient(135deg, #c084fc, #9333ea);
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.7);
+    }
+
+    /* Живой индикатор готовности рук */
+    .camera-hand-status {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-top: 0.55rem;
+      padding: 0.35rem 0.55rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .status-pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+      flex-shrink: 0;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .status-pulse-dot.ready {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .status-pulse-dot.warning {
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .status-pulse-dot.danger {
+      background: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+    }
+
+    .hud-mode-pill {
+      background: rgba(12, 15, 23, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: var(--primary);
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      backdrop-filter: blur(8px);
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.25s ease;
+    }
+
+    .hud-mode-pill.hands2 {
+      border-color: rgba(168, 85, 247, 0.5);
+      color: #c084fc;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.3);
+    }
+
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -417,6 +636,10 @@
               <div class="hud-value" id="hud-gesture">—</div>
               <div style="font-size: 0.75rem; color: var(--text-muted);" id="hud-score">Точность: —</div>
             </div>
+            <div class="hud-mode-pill" id="hud-mode-pill">
+              <span id="hud-mode-icon">✋</span>
+              <span id="hud-mode-text">Режим: 1 рука</span>
+            </div>
             <div class="hud-motion-card">
               <div class="hud-label">Динамика движения</div>
               <div class="hud-value" style="color: var(--accent);" id="hud-motion">Покой</div>
@@ -445,13 +668,51 @@
     <aside class="sidebar">
       <!-- Record Gesture -->
       <div class="card">
-        <div class="card-title">Запись жеста в датасет</div>
+        <div class="card-title">
+          <span>Запись жеста в датасет</span>
+          <span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">15 кадров</span>
+        </div>
+
+        <!-- Выбор: Одноручный или Двуручный жест (Кнопки + Тумблер) -->
+        <div class="mode-selector-container">
+          <div class="mode-selector-header">
+            <span class="mode-selector-label">Тип жеста:</span>
+            <span class="mode-status-badge mode-1hand" id="mode-status-badge">✋ 1 РУКА</span>
+          </div>
+
+          <div class="tumbler-container">
+            <button type="button" class="tumbler-btn active" id="btn-mode-1hand" onclick="setHandMode(1)" title="Обучение одноручного жеста (1 рука)">
+              <span class="tumbler-icon">✋</span>
+              <span>Одноручный</span>
+            </button>
+
+            <!-- Интерактивный тумблер (toggle switch) -->
+            <label class="tumbler-switch" title="Тумблер переключения: 1 рука ⟷ 2 руки">
+              <input type="checkbox" id="tumbler-toggle" onchange="toggleHandSwitch(this.checked)">
+              <span class="tumbler-slider">
+                <span class="tumbler-thumb"></span>
+              </span>
+            </label>
+
+            <button type="button" class="tumbler-btn" id="btn-mode-2hands" onclick="setHandMode(2)" title="Обучение двуручного жеста (2 руки)">
+              <span class="tumbler-icon">👐</span>
+              <span>Двуручный</span>
+            </button>
+          </div>
+
+          <!-- Живой монитор рук в кадре камеры -->
+          <div class="camera-hand-status" id="camera-hand-status">
+            <span class="status-pulse-dot warning" id="camera-hand-dot"></span>
+            <span id="camera-hand-msg">Камера: поиск рук...</span>
+          </div>
+        </div>
+
         <div class="input-row">
-          <input type="text" id="record-label" placeholder="Имя жеста (например: А, Привет)" onkeydown="if(event.key==='Enter') toggleRecording()">
+          <input type="text" id="record-label" placeholder="Имя жеста (например: а, привет)" onkeydown="if(event.key==='Enter') toggleRecording()">
           <button class="btn-primary" id="btn-record" onclick="toggleRecording()">Запись</button>
         </div>
-        <div style="font-size: 0.75rem; color: var(--text-muted);" id="record-status">
-          Введите название и нажмите «Запись» для сбора 15 кадров.
+        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;" id="record-status">
+          Выберите тип жеста (одноручный / двуручный), введите имя и нажмите «Запись».
         </div>
         <div id="dataset-summary" style="margin-top: 0.75rem; font-size: 0.8rem; border-top: 1px solid var(--card-border); padding-top: 0.5rem; color: var(--text-muted);">
           Датасет пуст
@@ -499,12 +760,98 @@
     const rulesList = document.getElementById('rules-list');
 
     let ws = null;
+    let selectedHandMode = 1; // 1 = одноручный (1 рука), 2 = двуручный (2 руки)
+    let isPreparing = false;
+    let prepTimer = null;
     let isRecording = false;
     let recordFramesLeft = 0;
     let currentRecordLabel = '';
 
     let lastFrameTime = performance.now();
     let frameCount = 0;
+
+    function toggleHandSwitch(isChecked) {
+      setHandMode(isChecked ? 2 : 1);
+    }
+
+    function setHandMode(mode) {
+      if (isRecording || isPreparing) {
+        cancelRecording();
+      }
+      selectedHandMode = mode;
+      const btn1 = document.getElementById('btn-mode-1hand');
+      const btn2 = document.getElementById('btn-mode-2hands');
+      const tumblerToggle = document.getElementById('tumbler-toggle');
+      const modeBadge = document.getElementById('mode-status-badge');
+      const hudPill = document.getElementById('hud-mode-pill');
+      const hudIcon = document.getElementById('hud-mode-icon');
+      const hudText = document.getElementById('hud-mode-text');
+
+      if (tumblerToggle) {
+        tumblerToggle.checked = (mode === 2);
+      }
+
+      if (mode === 1) {
+        btn1.classList.add('active');
+        btn2.classList.remove('active');
+        if (modeBadge) {
+          modeBadge.textContent = '✋ 1 РУКА';
+          modeBadge.className = 'mode-status-badge mode-1hand';
+        }
+        if (hudPill) {
+          hudPill.classList.remove('hands2');
+        }
+        if (hudIcon) hudIcon.textContent = '✋';
+        if (hudText) hudText.textContent = 'Режим: 1 рука';
+        document.getElementById('record-status').textContent = 'Выбран одноручный жест (1 рука). Введите имя и нажмите «Запись».';
+      } else {
+        btn2.classList.add('active');
+        btn1.classList.remove('active');
+        if (modeBadge) {
+          modeBadge.textContent = '👐 2 РУКИ';
+          modeBadge.className = 'mode-status-badge mode-2hands';
+        }
+        if (hudPill) {
+          hudPill.classList.add('hands2');
+        }
+        if (hudIcon) hudIcon.textContent = '👐';
+        if (hudText) hudText.textContent = 'Режим: 2 руки';
+        document.getElementById('record-status').textContent = 'Выбран двуручный жест (2 руки). Введите имя и нажмите «Запись».';
+      }
+
+      const currentHandsCount = latestHands ? latestHands.length : 0;
+      updateHandsStatus(currentHandsCount);
+    }
+
+    function updateHandsStatus(count) {
+      const dot = document.getElementById('camera-hand-dot');
+      const msg = document.getElementById('camera-hand-msg');
+      if (!dot || !msg) return;
+
+      if (selectedHandMode === 1) {
+        if (count === 0) {
+          dot.className = 'status-pulse-dot warning';
+          msg.textContent = 'Камера: 0 рук (покажите 1 руку)';
+        } else if (count === 1) {
+          dot.className = 'status-pulse-dot ready';
+          msg.textContent = 'Камера: 1 рука в кадре (✅ готово к записи)';
+        } else {
+          dot.className = 'status-pulse-dot ready';
+          msg.textContent = `Камера: ${count} руки в кадре (будет записана 1 рука)`;
+        }
+      } else { // selectedHandMode === 2
+        if (count === 0) {
+          dot.className = 'status-pulse-dot danger';
+          msg.textContent = 'Камера: 0 рук (требуются 2 руки)';
+        } else if (count === 1) {
+          dot.className = 'status-pulse-dot warning';
+          msg.textContent = 'Камера: 1/2 рук (⚠️ поднимите вторую руку)';
+        } else {
+          dot.className = 'status-pulse-dot ready';
+          msg.textContent = 'Камера: 2 руки в кадре (✅ готово к записи)';
+        }
+      }
+    }
 
     // WebSocket setup
     function initWebSocket() {
@@ -515,6 +862,8 @@
       ws.onopen = () => {
         wsDot.classList.add('online');
         wsText.textContent = 'Сервер: Онлайн';
+        // Запрашиваем актуальное состояние датасета при подключении
+        sendAction('get_dataset_stats');
       };
 
       ws.onclose = () => {
@@ -567,7 +916,7 @@
       }
 
       if (data.dataset_stats) {
-        renderDatasetStats(data.dataset_stats);
+        renderDatasetStats(data.dataset_stats, data.dataset_info);
       }
     }
 
@@ -619,33 +968,96 @@
       sendAction('delete_dynamic_rule', { rule_key: ruleKey });
     }
 
-    function renderDatasetStats(stats) {
+    function renderDatasetStats(stats, info = null) {
       const summary = document.getElementById('dataset-summary');
       if (!summary || !stats) return;
       const entries = Object.entries(stats);
       if (entries.length === 0) {
-        summary.textContent = 'Датасет пуст (0 жестов)';
+        summary.innerHTML = '<span style="color: var(--text-muted);">Датасет пуст (0 жестов)</span>';
         return;
       }
-      summary.innerHTML = '<b>В датасете:</b> ' + entries.map(([k, v]) => `${k}: ${v} кадр.`).join(', ');
+
+      let html = '<div style="font-weight: 600; margin-bottom: 0.45rem; color: #e2e8f0;">В датасете:</div>';
+      html += '<div style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 180px; overflow-y: auto;">';
+      for (const [name, count] of entries) {
+        const hands = (info && info[name]) ? info[name].hands : null;
+        const handsBadge = hands === 2
+          ? '<span style="font-size: 0.68rem; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">👐 2 руки</span>'
+          : '<span style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">✋ 1 рука</span>';
+
+        html += `
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid var(--card-border);">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <strong style="color: #fff;">${name}</strong>
+              ${handsBadge}
+              <span style="font-size: 0.75rem; color: var(--text-muted);">${count} кадр.</span>
+            </div>
+            <button onclick="deleteGesture('${name}')" title="Удалить жест" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+          </div>
+        `;
+      }
+      html += '</div>';
+      summary.innerHTML = html;
+    }
+
+    function deleteGesture(gestureName) {
+      if (!confirm(`Удалить жест "${gestureName}" из датасета?`)) return;
+      sendAction('delete_gesture', { gesture_name: gestureName });
     }
 
     function toggleRecording() {
+      if (isPreparing || isRecording) {
+        cancelRecording();
+        return;
+      }
+
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         alert('Сервер не подключен. Убедитесь, что сервер serv.py запущен (статус вверху "Сервер: Онлайн").');
         return;
       }
       const labelInput = document.getElementById('record-label');
-      const label = labelInput.value.trim();
+      const label = labelInput.value.trim().toLowerCase();
       if (!label) {
         alert('Введите имя жеста для записи');
         labelInput.focus();
         return;
       }
       currentRecordLabel = label;
-      recordFramesLeft = 15;
-      isRecording = true;
-      document.getElementById('record-status').textContent = `Покажите руку в камеру для записи "${label}"...`;
+      isPreparing = true;
+
+      const btnRecord = document.getElementById('btn-record');
+      btnRecord.textContent = 'Отмена';
+      btnRecord.classList.add('btn-danger');
+
+      const handText = selectedHandMode === 1 ? 'руку' : 'обе руки';
+      document.getElementById('record-status').textContent = `⏳ Приготовьтесь (задержка 0.5 сек)... Выставьте ${handText}!`;
+
+      // Баннер подсказки на видео
+      showBanner(`Приготовьтесь: выставьте ${handText}!`);
+
+      // Задержка перед началом обучения (сбором кадров) в полсекунды (500 мс)
+      prepTimer = setTimeout(() => {
+        isPreparing = false;
+        prepTimer = null;
+        isRecording = true;
+        recordFramesLeft = 15;
+        btnRecord.textContent = 'Отмена';
+        document.getElementById('record-status').textContent = `Сбор кадров для "${currentRecordLabel}" (${selectedHandMode === 1 ? '1 рука' : '2 руки'})...`;
+      }, 500);
+    }
+
+    function cancelRecording() {
+      if (prepTimer) {
+        clearTimeout(prepTimer);
+        prepTimer = null;
+      }
+      isPreparing = false;
+      isRecording = false;
+      recordFramesLeft = 0;
+      const btnRecord = document.getElementById('btn-record');
+      btnRecord.textContent = 'Запись';
+      btnRecord.classList.remove('btn-danger');
+      document.getElementById('record-status').textContent = 'Запись отменена.';
     }
 
     function playTTS(text) {
@@ -743,27 +1155,73 @@
         drawConnectors(ctx, latestPose, POSE_CONNECTIONS, { color: 'rgba(168, 85, 247, 0.4)', lineWidth: 2 });
       }
 
+      // Живой статус готовности рук для выбранного режима жеста
+      const currentHandsCount = latestHands ? latestHands.length : 0;
+      updateHandsStatus(currentHandsCount);
+
       // Отправка ориентиров через WebSocket
       if (ws && ws.readyState === WebSocket.OPEN) {
         let recordLabel = null;
-        if (isRecording && recordFramesLeft > 0) {
-          if (!latestHands || latestHands.length === 0) {
-            document.getElementById('record-status').textContent = `Покажите руку в камеру для записи "${currentRecordLabel}"...`;
+        let isLastFrame = false;
+
+        if (isPreparing) {
+          const handText = selectedHandMode === 1 ? 'одну руку' : 'обе руки';
+          const handsReady = selectedHandMode === 1 ? (currentHandsCount >= 1) : (currentHandsCount >= 2);
+          if (handsReady) {
+            document.getElementById('record-status').textContent = `⏳ Руки в кадре (${currentHandsCount}). Старт записи через доли секунды...`;
           } else {
+            document.getElementById('record-status').textContent = `⏳ Приготовьтесь (0.5 сек)... Выставьте ${handText} в кадр!`;
+          }
+        } else if (isRecording && recordFramesLeft > 0) {
+          let handsReady = false;
+
+          if (selectedHandMode === 1) {
+            if (currentHandsCount === 0) {
+              document.getElementById('record-status').textContent = `Покажите одну руку в камеру для записи "${currentRecordLabel}"...`;
+            } else {
+              handsReady = true;
+            }
+          } else { // selectedHandMode === 2
+            if (currentHandsCount < 2) {
+              document.getElementById('record-status').textContent = `Покажите обе руки в камеру для двуручного жеста "${currentRecordLabel}" (сейчас: ${currentHandsCount}/2)...`;
+            } else {
+              handsReady = true;
+            }
+          }
+
+          if (handsReady) {
             recordLabel = currentRecordLabel;
             recordFramesLeft--;
-            document.getElementById('record-status').textContent = `Запись "${currentRecordLabel}": осталось ${recordFramesLeft} кадров...`;
             if (recordFramesLeft === 0) {
               isRecording = false;
-              document.getElementById('record-status').textContent = `Жест "${currentRecordLabel}" записан в датасет!`;
+              isLastFrame = true;
+              const btnRecord = document.getElementById('btn-record');
+              btnRecord.textContent = 'Запись';
+              btnRecord.classList.remove('btn-danger');
+              const modeLabel = selectedHandMode === 1 ? 'одноручный' : 'двуручный';
+              document.getElementById('record-status').textContent = `Жест "${currentRecordLabel}" (${modeLabel}) успешно сохранён, модель переобучена!`;
+            } else {
+              document.getElementById('record-status').textContent = `Запись "${currentRecordLabel}" (${selectedHandMode === 1 ? '1 рука' : '2 руки'}): осталось ${recordFramesLeft} кадров...`;
             }
           }
         }
 
+        // Фильтрация рук при отправке для записи: если 1 рука — отправляем 1 руку, если 2 — отправляем 2
+        let handsToSend = latestHands;
+        if (recordLabel) {
+          if (selectedHandMode === 1 && latestHands && latestHands.length > 0) {
+            handsToSend = latestHands.slice(0, 1);
+          } else if (selectedHandMode === 2 && latestHands && latestHands.length >= 2) {
+            handsToSend = latestHands.slice(0, 2);
+          }
+        }
+
         ws.send(JSON.stringify({
-          hands_data: latestHands,
+          hands_data: handsToSend,
           pose_landmarks: latestPose,
-          record_label: recordLabel
+          record_label: recordLabel,
+          record_finished: isLastFrame,
+          hands_count: selectedHandMode
         }));
       }
 
@@ -782,6 +1240,19 @@
       setupCamera().catch(err => {
         console.error('Ошибка доступа к камере:', err);
         wsText.textContent = 'Ошибка: нет доступа к камере';
+      });
+
+      // Горячие клавиши 1 и 2 для быстрого переключения между одноручным и двуручным жестом
+      window.addEventListener('keydown', (e) => {
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+          return;
+        }
+        if (e.key === '1') {
+          setHandMode(1);
+        } else if (e.key === '2') {
+          setHandMode(2);
+        }
       });
     });
   </script>

@@ -21,6 +21,7 @@ def _hash_password(password: str) -> str:
 
 def get_connection(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -42,7 +43,7 @@ def init_db(db_path: Path) -> None:
             """
             CREATE TABLE IF NOT EXISTS learned_gestures (
                 user_id INTEGER NOT NULL,
-                gesture_name TEXT NOT NULL,
+                gesture_name TEXT COLLATE NOCASE NOT NULL,
                 learned_at TEXT NOT NULL,
                 PRIMARY KEY (user_id, gesture_name),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -152,6 +153,9 @@ def logout_user(db_path: Path, token: str) -> None:
 
 def mark_gesture_learned(db_path: Path, user_id: int, gesture_name: str) -> bool:
     """Фиксация жеста как успешно выученного пользователем."""
+    norm_name = gesture_name.strip().lower()
+    if not norm_name:
+        return False
     now = datetime.now(timezone.utc).isoformat()
     try:
         with get_connection(db_path) as conn:
@@ -160,7 +164,7 @@ def mark_gesture_learned(db_path: Path, user_id: int, gesture_name: str) -> bool
                 INSERT OR IGNORE INTO learned_gestures (user_id, gesture_name, learned_at)
                 VALUES (?, ?, ?)
                 """,
-                (user_id, gesture_name.strip(), now),
+                (user_id, norm_name, now),
             )
             conn.commit()
             return True
@@ -169,11 +173,16 @@ def mark_gesture_learned(db_path: Path, user_id: int, gesture_name: str) -> bool
 
 
 def get_learned_gestures(db_path: Path, user_id: int) -> list[str]:
-    """Возвращает список всех выученных пользователем жестов."""
+    """Возвращает уникальный список всех выученных пользователем жестов."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT gesture_name FROM learned_gestures WHERE user_id = ? ORDER BY learned_at ASC",
+            """
+            SELECT DISTINCT LOWER(gesture_name) AS gesture_name
+            FROM learned_gestures
+            WHERE user_id = ?
+            ORDER BY learned_at ASC
+            """,
             (user_id,),
         )
         return [row["gesture_name"] for row in cursor.fetchall()]

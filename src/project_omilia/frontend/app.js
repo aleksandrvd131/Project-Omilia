@@ -203,7 +203,10 @@
     }
     try {
       const data = await apiFetch('/api/auth/me');
-      state.currentUser = data.user;
+      state.currentUser = {
+        ...data.user,
+        learned_gestures: data.learned_gestures || data.user?.learned_gestures || [],
+      };
     } catch {
       state.authToken = null;
       localStorage.removeItem('omilia_token');
@@ -294,7 +297,9 @@
 
       // Обновляем счётчик
       if (dom.catalogLearnedCounter) {
-        dom.catalogLearnedCounter.textContent = `Выучено: ${data.total_learned} из ${data.total_available}`;
+        const total = data.total_available !== undefined ? data.total_available : (data.total_count || 0);
+        const learned = data.total_learned !== undefined ? data.total_learned : (data.learned_count || 0);
+        dom.catalogLearnedCounter.textContent = `Выучено: ${learned} из ${total}`;
       }
 
       renderCatalog();
@@ -687,14 +692,16 @@
 
   function handleServerPrediction(pred) {
     const now = performance.now();
-    const predictedName = (pred.name || '').trim().toLowerCase();
-    const distText = pred.distance ? `Дистанция: ${Number(pred.distance).toFixed(2)}` : '';
+    const gestureName = pred.gesture || pred.name || '';
+    const predictedName = gestureName.trim().toLowerCase();
+    const scoreVal = pred.score !== undefined ? pred.score : pred.distance;
+    const distText = (scoreVal !== undefined && scoreVal !== null) ? `Дистанция: ${Number(scoreVal).toFixed(2)}` : '';
 
     // --- Обработка в режиме практики (Шаг 2) ---
     if (state.cameraTarget === 'practice' && state.practice.gesture && !state.practice.isLearned) {
       const targetName = state.practice.gesture.name.trim().toLowerCase();
 
-      dom.practiceHudGesture.textContent = pred.name || '—';
+      dom.practiceHudGesture.textContent = gestureName || '—';
       dom.practiceHudScore.textContent = distText;
 
       const delta = state.practice.lastTimestamp ? (now - state.practice.lastTimestamp) / 1000 : 0.05;
@@ -724,7 +731,7 @@
       if (!currentQ) return;
 
       const targetName = currentQ.gesture_name.trim().toLowerCase();
-      dom.blitzHudGesture.textContent = pred.name || '—';
+      dom.blitzHudGesture.textContent = gestureName || '—';
       dom.blitzHudScore.textContent = distText;
 
       const delta = state.blitz.lastTimestamp ? (now - state.blitz.lastTimestamp) / 1000 : 0.05;
@@ -763,11 +770,15 @@
     // Фиксируем в базе данных через API
     if (state.authToken) {
       try {
-        await apiFetch('/api/gestures/learn', {
+        const resp = await apiFetch('/api/gestures/learn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gesture_name: gesture.name }),
         });
+        if (resp && resp.learned_gestures && state.currentUser) {
+          state.currentUser.learned_gestures = resp.learned_gestures;
+          updateProfileView();
+        }
       } catch (err) {
         console.warn('Ошибка сохранения прогресса:', err);
       }
@@ -836,7 +847,10 @@
         });
         state.authToken = data.user.token;
         localStorage.setItem('omilia_token', state.authToken);
-        state.currentUser = data.user;
+        state.currentUser = {
+          ...data.user,
+          learned_gestures: data.learned_gestures || data.user?.learned_gestures || [],
+        };
         updateUserHeader();
         updateProfileView();
         loadCatalog();
@@ -861,7 +875,10 @@
         });
         state.authToken = data.user.token;
         localStorage.setItem('omilia_token', state.authToken);
-        state.currentUser = data.user;
+        state.currentUser = {
+          ...data.user,
+          learned_gestures: data.learned_gestures || data.user?.learned_gestures || [],
+        };
         updateUserHeader();
         updateProfileView();
         loadCatalog();

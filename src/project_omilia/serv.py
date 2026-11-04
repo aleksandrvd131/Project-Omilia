@@ -16,11 +16,9 @@ from project_omilia.body import Pose
 from project_omilia.gestures import StaticGesture
 import project_omilia.db as db
 
-
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
-DATASET_PATH_1H = BASE_DIR / "omilia_static_1h.json"
-DATASET_PATH_2H = BASE_DIR / "omilia_static_2h.json"
+DATASET_PATH = BASE_DIR / "omilia_static.json"
 INDEX_PATH = FRONTEND_DIR / "index.html"
 DEBUG_PATH = BASE_DIR / "debug.html"
 DB_PATH = BASE_DIR / "omilia.db"
@@ -38,6 +36,12 @@ GESTURE_METADATA: dict[str, dict[str, str]] = {
         "category": "Фразы помощи",
         "description": "Кисть направлена к собеседнику или раскрытая ладонь обращена вверх на уровне груди.",
         "tip": "Держите руку на уровне груди перед камерой, пальцы выпрямлены.",
+    },
+    "дом": {
+        "title": "Дом",
+        "category": "Общие жесты",
+        "description": "Обе ладони соприкасаются кончиками пальцев под углом, образуя крышу.",
+        "tip": "Соедините кончики пальцев обеих рук перед грудью в форме крыши домика.",
     },
     "спасибо": {
         "title": "Спасибо",
@@ -57,19 +61,19 @@ GESTURE_METADATA: dict[str, dict[str, str]] = {
         "description": "Указательный палец поднят вертикально вверх, остальные прижаты (жест '1').",
         "tip": "Выпрямите указательный палец вертикально вверх, остальные сожмите.",
     },
-    "А": {
+    "а": {
         "title": "Буква А",
         "category": "Дактиль (Алфавит)",
         "description": "Пальцы сжаты в кулак, большой палец прижат сбоку к указательному.",
         "tip": "Кулак направлен ладонью к зрителю, большой палец прижат сбоку.",
     },
-    "Б": {
+    "б": {
         "title": "Буква Б",
         "category": "Дактиль (Алфавит)",
         "description": "Четыре пальца прямые вверх, большой палец согнут и прижат к ладони.",
         "tip": "Пальцы сомкнуты вместе и направлены строго вверх.",
     },
-    "В": {
+    "в": {
         "title": "Буква В",
         "category": "Дактиль (Алфавит)",
         "description": "Все пять пальцев широко раскрыты и направлены вверх.",
@@ -98,11 +102,12 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
         body[0] = SimpleNamespace(x=0.5, y=0.25, z=0.0)
         body[11] = SimpleNamespace(x=0.4, y=0.45, z=0.0)
         body[12] = SimpleNamespace(x=0.6, y=0.45, z=0.0)
-        body[15] = SimpleNamespace(x=hands[0][0].x, y=hands[0][0].y, z=hands[0][0].z)
+        # В MediaPipe Pose: 16 - правое запястье, 15 - левое
+        body[16] = SimpleNamespace(x=hands[0][0].x, y=hands[0][0].y, z=hands[0][0].z)
         if len(hands) > 1:
-            body[16] = SimpleNamespace(x=hands[1][0].x, y=hands[1][0].y, z=hands[1][0].z)
+            body[15] = SimpleNamespace(x=hands[1][0].x, y=hands[1][0].y, z=hands[1][0].z)
         else:
-            body[16] = SimpleNamespace(x=-1.0, y=-1.0, z=0.0)
+            body[15] = SimpleNamespace(x=-1.0, y=-1.0, z=0.0)
 
     try:
         return Pose(body, tuple(hands))
@@ -111,15 +116,18 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
 
 
 class StaticGestureServer:
-    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
-        # TODO: Pickle
-        self.engine_1h = StaticGesture(dataset_path=str(dataset_path_1h))
-        self.engine_2h = StaticGesture(dataset_path=str(dataset_path_2h))
+    def __init__(self, dataset_path: Path):
+        self.engine = StaticGesture(dataset_path=str(dataset_path))
 
     def process_frame(self, payload: dict[str, Any]) -> dict[str, Any]:
-        hands_data = payload.get("hands_data") or []
+        hands_data = payload.get("hands_data") or payload.get("hands") or []
         pose_landmarks = payload.get("pose_landmarks")
         record_label = payload.get("record_label")
+        hands_count = payload.get("hands_count")
+
+        # Если записываем одноручный жест и в кадре оказалось больше одной руки — берем только одну
+        if record_label and hands_count == 1 and len(hands_data) > 1:
+            hands_data = hands_data[:1]
 
         pose = make_pose(hands_data, pose_landmarks)
         if pose is None:
@@ -127,43 +135,72 @@ class StaticGestureServer:
                 "detected": False,
                 "gesture": None,
                 "score": None,
-                "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()],
+                "dataset_stats": self.engine.get_dataset_stats(),
+                "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
             }
-
-        if pose.left_hand is None:
-            engine = self.engine_1h
-        else:
-            engine = self.engine_2h
 
         # Режим записи жеста в датасет (через панель разработчика)
         if record_label:
-            try:
-                engine.add_sample(name=record_label, pose=pose)
-                stats = engine.get_dataset_stats()
-                print(f"[Запись] Сохранён сэмпл для '{record_label}' (всего: {stats.get(record_label, 0)})")
+            # Для двуручного жеста обязательно должно быть 2 руки
+            if hands_count == 2 and len(hands_data) < 2:
                 return {
                     "detected": True,
-                    "gesture": f"Запись: {record_label}",
+                    "gesture": "Требуется 2 руки",
+                    "name": "Требуется 2 руки",
+                    "score": 0.0,
+                    "distance": 0.0,
+                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
+                }
+
+            record_finished = payload.get("record_finished", False)
+            norm_label = record_label.strip().lower()
+            try:
+                # Обучение и перезапись файла происходят только на последнем кадре серии (или по умолчанию, если не батч)
+                self.engine.add_sample(
+                    name=norm_label,
+                    pose=pose,
+                    auto_train=record_finished,
+                    auto_save=record_finished,
+                )
+                stats = self.engine.get_dataset_stats()
+                info = getattr(self.engine, "get_dataset_info", lambda: {})()
+                status_suffix = " [модель переобучена и сохранена]" if record_finished else ""
+                print(f"[Запись] Сэмпл для '{norm_label}' сохранён (всего: {stats.get(norm_label, 0)}){status_suffix}")
+                return {
+                    "detected": True,
+                    "gesture": f"Запись: {norm_label}",
+                    "name": f"Запись: {norm_label}",
                     "score": 1.0,
+                    "distance": 1.0,
                     "dataset_stats": stats,
+                    "dataset_info": info,
                 }
             except Exception as err:
                 print(f"[Запись] Ошибка сэмпла: {err}")
                 return {
                     "detected": True,
                     "gesture": "Ошибка геометрии",
+                    "name": "Ошибка геометрии",
                     "score": 0.0,
-                    "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()]
+                    "distance": 0.0,
+                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
                 }
 
         # Режим классификации
-        code, score, prediction = engine.predict(pose)
+        code, score, prediction = self.engine.predict(pose)
 
-        total_samples = sum(len(v) for v in engine.dataset.values())
+        total_samples = sum(len(v) for v in self.engine.dataset.values())
         if code == 0:
             gesture_name = prediction
         elif code == -1:
-            if total_samples < 3:
+            dim = 141 if pose.left_hand is None else 282
+            hands_num = 1 if dim == 141 else 2
+            model_exists = hasattr(self.engine, "models") and dim in self.engine.models
+            if not model_exists:
+                gesture_name = f"Нет модели для {hands_num} рук(и)"
+            elif total_samples < 3:
                 gesture_name = f"Мало данных ({total_samples}/3)"
             else:
                 gesture_name = "Не совпадает число рук"
@@ -175,23 +212,41 @@ class StaticGestureServer:
         return {
             "detected": True,
             "gesture": gesture_name,
+            "name": gesture_name,
             "score": score,
-            "dataset_stats": engine.get_dataset_stats(),
+            "distance": score,
+            "dataset_stats": self.engine.get_dataset_stats(),
+            "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
         }
 
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
+            case "train_dataset":
+                self.engine.save_and_train()
+                return {
+                    "detected": False,
+                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
+                }
             case "delete_gesture":
-                gesture_name = payload.get("gesture_name", "")
-                stats = [self.engine_1h.delete_gesture(gesture_name), self.engine_2h.delete_gesture(gesture_name)]
+                gesture_name = payload.get("gesture_name", "").strip().lower()
+                stats = self.engine.delete_gesture(gesture_name)
                 return {
                     "detected": False,
                     "dataset_stats": stats,
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
+                }
+            case "get_dataset_stats":
+                return {
+                    "detected": False,
+                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
                 }
             case _:
                 return {
                     "detected": False,
-                    "dataset_stats": [self.engine_1h.get_dataset_stats(), self.engine_2h.get_dataset_stats()],
+                    "dataset_stats": self.engine.get_dataset_stats(),
+                    "dataset_info": getattr(self.engine, "get_dataset_info", lambda: {})(),
                 }
 
 
@@ -209,13 +264,18 @@ class LearnRequest(BaseModel):
 
 
 def get_current_user_from_request(
-    request: Request, authorization: str | None = Header(None)
+    request: Request, authorization: str | None = None
 ) -> dict[str, Any] | None:
     token = None
-    if authorization and authorization.startswith("Bearer "):
+    if authorization and isinstance(authorization, str) and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
+    elif "authorization" in request.headers:
+        hdr = request.headers["authorization"]
+        if hdr.startswith("Bearer "):
+            token = hdr[7:].strip()
     elif "token" in request.query_params:
         token = request.query_params["token"]
+
     if token:
         return db.get_user_by_token(DB_PATH, token)
     return None
@@ -225,8 +285,8 @@ def get_current_user_from_request(
 async def lifespan(app: FastAPI):
     global server
     db.init_db(DB_PATH)
-    server = StaticGestureServer(dataset_path_1h=DATASET_PATH_1H, dataset_path_2h=DATASET_PATH_2H)
-    print(f"Сервер запущен. Датасеты: {DATASET_PATH_1H.name}, {DATASET_PATH_2H.name} (жестов: {len(server.engine_1h.dataset)+len(server.engine_2h.dataset)})")
+    server = StaticGestureServer(dataset_path=DATASET_PATH)
+    print(f"Сервер запущен. Датасет: {DATASET_PATH.name} (жестов: {len(server.engine.dataset)})")
     yield
 
 
@@ -239,7 +299,6 @@ if FRONTEND_DIR.exists():
 # --- Статические страницы ---
 @app.get("/")
 async def root():
-    """Основной интерфейс для пользователей (бело-зелёная тема)."""
     if INDEX_PATH.exists():
         return FileResponse(INDEX_PATH)
     return JSONResponse(status_code=404, content={"error": "index.html not found"})
@@ -248,19 +307,19 @@ async def root():
 @app.get("/dev")
 @app.get("/debug")
 async def dev_page():
-    """Скрытая страница для разработчиков (запись и удаление жестов)."""
     if DEBUG_PATH.exists():
         return FileResponse(DEBUG_PATH)
     return JSONResponse(status_code=404, content={"error": "debug.html not found"})
 
 
-# --- Аутентификация ---
 @app.post("/api/auth/register")
 async def api_register(data: AuthRequest):
     user, err = db.register_user(DB_PATH, data.username, data.password)
     if err:
         return JSONResponse(status_code=400, content={"error": err})
-    return {"status": "ok", "user": user}
+    learned = db.get_learned_gestures(DB_PATH, user["id"])
+    user_with_learned = {**user, "learned_gestures": learned}
+    return {"status": "ok", "user": user_with_learned, "learned_gestures": learned}
 
 
 @app.post("/api/auth/login")
@@ -268,7 +327,9 @@ async def api_login(data: AuthRequest):
     user, err = db.login_user(DB_PATH, data.username, data.password)
     if err:
         return JSONResponse(status_code=400, content={"error": err})
-    return {"status": "ok", "user": user}
+    learned = db.get_learned_gestures(DB_PATH, user["id"])
+    user_with_learned = {**user, "learned_gestures": learned}
+    return {"status": "ok", "user": user_with_learned, "learned_gestures": learned}
 
 
 @app.get("/api/auth/me")
@@ -277,9 +338,10 @@ async def api_me(request: Request, authorization: str | None = Header(None)):
     if not user:
         return JSONResponse(status_code=401, content={"error": "Не авторизован"})
     learned = db.get_learned_gestures(DB_PATH, user["id"])
+    user_with_learned = {**user, "learned_gestures": learned}
     return {
         "status": "ok",
-        "user": user,
+        "user": user_with_learned,
         "learned_gestures": learned,
     }
 
@@ -294,47 +356,56 @@ async def api_logout(request: Request, authorization: str | None = Header(None))
     return {"status": "ok"}
 
 
-# --- Каталог жестов и прогресс ---
 @app.get("/api/gestures")
 async def api_get_gestures(request: Request, authorization: str | None = Header(None)):
     user = get_current_user_from_request(request, authorization)
-    learned_set = set(db.get_learned_gestures(DB_PATH, user["id"])) if user else set()
+    learned_set = set(g.strip().lower() for g in db.get_learned_gestures(DB_PATH, user["id"])) if user else set()
 
-    dataset_stats = [server.engine_1h.get_dataset_stats(), server.engine_2h.get_dataset_stats()] if server else []
+    dataset_stats = server.engine.get_dataset_stats() if server else {}
+
+    # Нормализуем имена жестов (нижний регистр) для исключения дубликатов в каталоге
+    normalized_stats: dict[str, int] = {}
+    for gesture_name, count in dataset_stats.items():
+        norm = gesture_name.strip().lower()
+        normalized_stats[norm] = normalized_stats.get(norm, 0) + count
 
     # Собираем список всех жестов, обученных в модели
     gestures_list = []
-    for dataset in dataset_stats:
-        for gesture_name, count in dataset.items():
-            meta = GESTURE_METADATA.get(
-                gesture_name.lower(),
-                {
-                    "title": gesture_name.capitalize(),
-                    "category": "Общие жесты",
-                    "description": f"Статический жест «{gesture_name}».",
-                    "tip": "Повторите положение кисти перед камерой.",
-                },
-            )
-            gestures_list.append(
-                {
-                    "name": gesture_name,
-                    "title": meta.get("title", gesture_name),
-                    "category": meta.get("category", "Общие жесты"),
-                    "description": meta.get("description", ""),
-                    "tip": meta.get("tip", ""),
-                    "samples_count": count,
-                    "is_learned": gesture_name in learned_set,
-                }
-            )
+    for gesture_name, count in normalized_stats.items():
+        meta = GESTURE_METADATA.get(
+            gesture_name,
+            {
+                "title": gesture_name.capitalize(),
+                "category": "Общие жесты",
+                "description": f"Статический жест «{gesture_name}».",
+                "tip": "Повторите положение кисти перед камерой.",
+            },
+        )
+        gestures_list.append(
+            {
+                "name": gesture_name,
+                "title": meta.get("title", gesture_name.capitalize()),
+                "category": meta.get("category", "Общие жесты"),
+                "description": meta.get("description", ""),
+                "tip": meta.get("tip", ""),
+                "samples_count": count,
+                "is_learned": gesture_name in learned_set,
+            }
+        )
 
     # Сортировка: сначала невыученные, затем выученные
     gestures_list.sort(key=lambda g: (g["is_learned"], g["name"]))
+
+    total_learned = sum(1 for g in gestures_list if g["is_learned"])
 
     return {
         "status": "ok",
         "gestures": gestures_list,
         "total_count": len(gestures_list),
-        "learned_count": len(learned_set),
+        "learned_count": total_learned,
+        # Алиасы для фронтенда
+        "total_learned": total_learned,
+        "total_available": len(gestures_list),
     }
 
 
@@ -346,7 +417,7 @@ async def api_learn_gesture(
     if not user:
         return JSONResponse(status_code=401, content={"error": "Требуется авторизация"})
 
-    gesture_name = data.gesture_name.strip()
+    gesture_name = data.gesture_name.strip().lower()
     if not gesture_name:
         return JSONResponse(status_code=400, content={"error": "Имя жеста не указано"})
 
@@ -362,7 +433,6 @@ async def api_learn_gesture(
     }
 
 
-# --- Блиц-опрос («Проверить себя») ---
 @app.get("/api/blitz/questions")
 async def api_blitz_questions(
     request: Request, count: int = Query(5, ge=1, le=20), authorization: str | None = Header(None)
@@ -412,8 +482,6 @@ def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": f"Ошибка TTS: {err}"})
 
-
-# --- WebSocket для камеры ---
 @app.websocket("/ws/gestures")
 async def gesture_ws(websocket: WebSocket):
     await websocket.accept()
