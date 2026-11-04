@@ -1,5 +1,5 @@
+from types import SimpleNamespace
 import numpy as np
-import json
 
 from project_omilia.errors import IncorrectDataError
 from project_omilia.math import p_dist, scalar_to_vec, vec_norm_angle, vec_normalize
@@ -127,18 +127,21 @@ class Pose:
                 )
             case 1:
                 self.left_hand = None
-                if not is_right_hand(hands[0]):
-                    for point in hands[0]:
+                hand_pts = [SimpleNamespace(x=p.x, y=p.y, z=getattr(p, "z", 0.0)) for p in hands[0]]
+                if not is_right_hand(hand_pts):
+                    for point in hand_pts:
                         point.x = 2 * data[0].x - point.x
-                self.right_hand = Hand(hands[0], True)
+                self.right_hand = Hand(hand_pts, True)
 
             case 2:
-                if is_right_hand(hands[0]):
-                    self.left_hand = Hand(hands[1], False)
-                    self.right_hand = Hand(hands[0], True)
+                h0 = [SimpleNamespace(x=p.x, y=p.y, z=getattr(p, "z", 0.0)) for p in hands[0]]
+                h1 = [SimpleNamespace(x=p.x, y=p.y, z=getattr(p, "z", 0.0)) for p in hands[1]]
+                if is_right_hand(h0):
+                    self.left_hand = Hand(h1, False)
+                    self.right_hand = Hand(h0, True)
                 else:
-                    self.left_hand = Hand(hands[0], False)
-                    self.right_hand = Hand(hands[1], True)
+                    self.left_hand = Hand(h0, False)
+                    self.right_hand = Hand(h1, True)
 
     def get_1d_array_one_hand(self) -> np.ndarray:
         """

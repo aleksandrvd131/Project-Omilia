@@ -41,6 +41,9 @@
     camera: null,
     cameraTarget: null, // 'practice' или 'blitz'
     mediaPipeHands: null,
+    mediaPipePose: null,
+    latestHands: [],
+    latestPose: null,
     isCameraRunning: false,
   };
 
@@ -290,25 +293,33 @@
   // Каталог жестов
   // ==========================================================
 
+  let isLoadingCatalog = false;
+
   async function loadCatalog() {
+    if (isLoadingCatalog) return;
+    isLoadingCatalog = true;
     try {
       const data = await apiFetch('/api/gestures');
       state.gestures = data.gestures || [];
 
-      // Обновляем счётчик
+      // Обновляем счётчик с безопасными фоллбэками
       if (dom.catalogLearnedCounter) {
-        const total = data.total_available !== undefined ? data.total_available : (data.total_count || 0);
-        const learned = data.total_learned !== undefined ? data.total_learned : (data.learned_count || 0);
+        const total = data.total_available ?? data.total_count ?? (state.gestures ? state.gestures.length : 0);
+        const learned = data.total_learned ?? data.learned_count ?? (state.gestures ? state.gestures.filter((g) => g.is_learned).length : 0);
         dom.catalogLearnedCounter.textContent = `Выучено: ${learned} из ${total}`;
       }
 
       renderCatalog();
     } catch (err) {
-      dom.gesturesGrid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; color: var(--danger); padding: 2rem;">
-          Не удалось загрузить каталог: ${err.message}
-        </div>
-      `;
+      if (dom.gesturesGrid) {
+        dom.gesturesGrid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: var(--danger); padding: 2rem;">
+            Не удалось загрузить каталог: ${escapeHtml(err.message)}
+          </div>
+        `;
+      }
+    } finally {
+      isLoadingCatalog = false;
     }
   }
 
@@ -562,25 +573,41 @@
   }
 
   function initMediaPipe() {
-    if (state.mediaPipeHands) return;
+    if (state.mediaPipeHands && state.mediaPipePose) return;
 
-    if (typeof Hands === 'undefined') {
-      console.error('Библиотека MediaPipe Hands не загружена.');
-      return;
+    if (typeof Hands !== 'undefined' && !state.mediaPipeHands) {
+      state.mediaPipeHands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      });
+
+      state.mediaPipeHands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6,
+      });
+
+      state.mediaPipeHands.onResults((results) => {
+        state.latestHands = results.multiHandLandmarks || [];
+      });
     }
 
-    state.mediaPipeHands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-    });
+    if (typeof Pose !== 'undefined' && !state.mediaPipePose) {
+      state.mediaPipePose = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      });
 
-    state.mediaPipeHands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6,
-    });
+      state.mediaPipePose.setOptions({
+        modelComplexity: 0,
+        smoothLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
 
-    state.mediaPipeHands.onResults(onMediaPipeResults);
+      state.mediaPipePose.onResults((results) => {
+        state.latestPose = results.poseLandmarks || null;
+      });
+    }
   }
 
   function startCamera(target) {
@@ -599,7 +626,13 @@
     state.camera = new Camera(videoEl, {
       onFrame: async () => {
         if (state.isCameraRunning && state.cameraTarget) {
-          await state.mediaPipeHands.send({ image: videoEl });
+          if (state.mediaPipeHands) {
+            await state.mediaPipeHands.send({ image: videoEl });
+          }
+          if (state.mediaPipePose) {
+            await state.mediaPipePose.send({ image: videoEl });
+          }
+          onFrameRender();
         }
       },
       width: 640,
@@ -616,11 +649,13 @@
       state.camera.stop();
       state.camera = null;
     }
+    state.latestHands = [];
+    state.latestPose = null;
     state.cameraTarget = null;
   }
 
-  // Обработка кадров от MediaPipe Hands
-  function onMediaPipeResults(results) {
+  // Отрисовка кадра и отправка данных в WebSocket
+  function onFrameRender() {
     if (!state.isCameraRunning || !state.cameraTarget) return;
 
     const canvas = state.cameraTarget === 'practice' ? dom.practiceCanvas : dom.blitzCanvas;
@@ -634,12 +669,9 @@
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const handsData = [];
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      for (const landmarks of results.multiHandLandmarks) {
-        handsData.push(landmarks);
-        drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height);
-      }
+    const handsData = state.latestHands || [];
+    for (const landmarks of handsData) {
+      drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height);
     }
 
     ctx.restore();
@@ -647,8 +679,9 @@
     // Отправляем точки на бэкенд через WebSocket
     if (state.ws && state.ws.readyState === WebSocket.OPEN && handsData.length > 0) {
       const payload = {
-        hands: handsData,
-        pose_landmarks: null, // опционально
+        hands_data: handsData,
+        hands: handsData, // Для совместимости
+        pose_landmarks: state.latestPose || null,
       };
       state.ws.send(JSON.stringify(payload));
     }
