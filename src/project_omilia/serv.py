@@ -299,7 +299,6 @@ if FRONTEND_DIR.exists():
 # --- Статические страницы ---
 @app.get("/")
 async def root():
-    """Основной интерфейс для пользователей (бело-зелёная тема)."""
     if INDEX_PATH.exists():
         return FileResponse(INDEX_PATH)
     return JSONResponse(status_code=404, content={"error": "index.html not found"})
@@ -308,13 +307,11 @@ async def root():
 @app.get("/dev")
 @app.get("/debug")
 async def dev_page():
-    """Скрытая страница для разработчиков (запись и удаление жестов)."""
     if DEBUG_PATH.exists():
         return FileResponse(DEBUG_PATH)
     return JSONResponse(status_code=404, content={"error": "debug.html not found"})
 
 
-# --- Аутентификация ---
 @app.post("/api/auth/register")
 async def api_register(data: AuthRequest):
     user, err = db.register_user(DB_PATH, data.username, data.password)
@@ -359,7 +356,6 @@ async def api_logout(request: Request, authorization: str | None = Header(None))
     return {"status": "ok"}
 
 
-# --- Каталог жестов и прогресс ---
 @app.get("/api/gestures")
 async def api_get_gestures(request: Request, authorization: str | None = Header(None)):
     user = get_current_user_from_request(request, authorization)
@@ -437,7 +433,6 @@ async def api_learn_gesture(
     }
 
 
-# --- Блиц-опрос («Проверить себя») ---
 @app.get("/api/blitz/questions")
 async def api_blitz_questions(
     request: Request, count: int = Query(5, ge=1, le=20), authorization: str | None = Header(None)
@@ -487,8 +482,6 @@ def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": f"Ошибка TTS: {err}"})
 
-
-# --- WebSocket для камеры ---
 @app.websocket("/ws/gestures")
 async def gesture_ws(websocket: WebSocket):
     await websocket.accept()
