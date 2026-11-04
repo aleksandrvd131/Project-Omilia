@@ -16,7 +16,6 @@ from project_omilia.body import Pose
 from project_omilia.gestures import StaticGesture
 import project_omilia.db as db
 
-
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 DATASET_PATH = BASE_DIR / "omilia_static.json"
@@ -37,6 +36,12 @@ GESTURE_METADATA: dict[str, dict[str, str]] = {
         "category": "Фразы помощи",
         "description": "Кисть направлена к собеседнику или раскрытая ладонь обращена вверх на уровне груди.",
         "tip": "Держите руку на уровне груди перед камерой, пальцы выпрямлены.",
+    },
+    "дом": {
+        "title": "Дом",
+        "category": "Общие жесты",
+        "description": "Обе ладони соприкасаются кончиками пальцев под углом, образуя крышу.",
+        "tip": "Соедините кончики пальцев обеих рук перед грудью в форме крыши домика.",
     },
     "спасибо": {
         "title": "Спасибо",
@@ -97,11 +102,12 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
         body[0] = SimpleNamespace(x=0.5, y=0.25, z=0.0)
         body[11] = SimpleNamespace(x=0.4, y=0.45, z=0.0)
         body[12] = SimpleNamespace(x=0.6, y=0.45, z=0.0)
-        body[15] = SimpleNamespace(x=hands[0][0].x, y=hands[0][0].y, z=hands[0][0].z)
+        # В MediaPipe Pose: 16 - правое запястье, 15 - левое
+        body[16] = SimpleNamespace(x=hands[0][0].x, y=hands[0][0].y, z=hands[0][0].z)
         if len(hands) > 1:
-            body[16] = SimpleNamespace(x=hands[1][0].x, y=hands[1][0].y, z=hands[1][0].z)
+            body[15] = SimpleNamespace(x=hands[1][0].x, y=hands[1][0].y, z=hands[1][0].z)
         else:
-            body[16] = SimpleNamespace(x=-1.0, y=-1.0, z=0.0)
+            body[15] = SimpleNamespace(x=-1.0, y=-1.0, z=0.0)
 
     try:
         return Pose(body, tuple(hands))
@@ -258,13 +264,18 @@ class LearnRequest(BaseModel):
 
 
 def get_current_user_from_request(
-    request: Request, authorization: str | None = Header(None)
+    request: Request, authorization: str | None = None
 ) -> dict[str, Any] | None:
     token = None
-    if authorization and authorization.startswith("Bearer "):
+    if authorization and isinstance(authorization, str) and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
+    elif "authorization" in request.headers:
+        hdr = request.headers["authorization"]
+        if hdr.startswith("Bearer "):
+            token = hdr[7:].strip()
     elif "token" in request.query_params:
         token = request.query_params["token"]
+
     if token:
         return db.get_user_by_token(DB_PATH, token)
     return None

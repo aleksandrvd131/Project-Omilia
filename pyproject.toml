@@ -5,12 +5,14 @@ description = "Project Omilia"
 readme = "README.md"
 authors = [
     { name = "RegMain", email = "kharkov.ivan.an@gmail.com" },
-    { name = "aleksandrvd131", email = ""}
+    { name = "aleksandrvd131", email = "aleksandr.vedyshev@gmail.com"}
+
 ]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi >= 0.115.0",
     "gtts >= 2.5.0",
+    "joblib >= 1.4.0",
     "mediapipe>=1.2.0",
     "numpy>=1.26.4",
     "opencv-python>=4.10.0",

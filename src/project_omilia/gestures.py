@@ -1,22 +1,24 @@
-from project_omilia.body import Pose
-from project_omilia.errors import DatasetNotFoundError, IncorrectDataError, JSONDatasetError
-import json
-import time
-from collections import deque
 from pathlib import Path
 from typing import Any
-import numpy as np
+import json
 import os
-from scipy.special import i0e
+import joblib
+import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
+
+from project_omilia.body import Pose
+from project_omilia.errors import IncorrectDataError, JSONDatasetError
+
 
 class Gesture:
     pass
 
+
 class StaticGesture(Gesture):
     def __init__(self, dataset_path: str = "omilia_static.json") -> None:
-        self.dataset_path = Path(dataset_path)
-        self.dataset: dict[str, list[np.ndarray[float]]] = {}
+        self.dataset_path = Path(dataset_path).resolve()
+        self.model_path = self.dataset_path.parent / "omilia_ai.joblib"
+        self.dataset: dict[str, list[np.ndarray]] = {}
         self.models: dict[int, KNeighborsClassifier] = {}
         self.model: KNeighborsClassifier | None = None
         self._load_dataset()
@@ -28,10 +30,10 @@ class StaticGesture(Gesture):
         return result
 
     def make_dataset(self) -> None:
-        dataset: dict[str, list[np.ndarray[float]]] = {}
+        dataset: dict[str, list[np.ndarray]] = {}
         for name, poses in self.dataset.items():
             norm_name = name.strip().lower()
-            converted_poses = [np.array(pose) for pose in poses]
+            converted_poses = [np.array(pose, dtype=float) for pose in poses]
             if norm_name not in dataset:
                 dataset[norm_name] = converted_poses
             else:
@@ -42,26 +44,60 @@ class StaticGesture(Gesture):
         try:
             with open(self.dataset_path, mode="w", encoding="utf-8") as f:
                 data = self.dataset_to_json()
-                json.dump(data, f, ensure_ascii = False, indent = 2)
+                json.dump(data, f, ensure_ascii=False, indent=2)
         except OSError as err:
-            raise JSONDatasetError(
-                f"ERROR: Exception while saving dataset: {err}"
-            )
+            raise JSONDatasetError(f"ERROR: Exception while saving dataset: {err}")
+
+    def _save_models(self) -> None:
+        try:
+            payload = {
+                "models": self.models,
+                "model": self.model,
+                "sample_counts": {k: len(v) for k, v in self.dataset.items()},
+            }
+            joblib.dump(payload, self.model_path)
+        except Exception as err:
+            print(f"[Model Cache] Предупреждение: ошибка сохранения в {self.model_path.name}: {err}")
+
+    def _try_load_cached_models(self) -> bool:
+        if not self.model_path.exists() or os.path.getsize(self.model_path) < 32:
+            return False
+        try:
+            cache = joblib.load(self.model_path)
+            if not isinstance(cache, dict) or "models" not in cache:
+                return False
+
+            cached_counts = cache.get("sample_counts", {})
+            current_counts = {k: len(v) for k, v in self.dataset.items()}
+
+            if cached_counts == current_counts:
+                self.models = cache["models"]
+                self.model = cache.get("model") or self.models.get(141) or (
+                    next(iter(self.models.values())) if self.models else None
+                )
+                print(f"[Model Cache] Загружены предварительно обученные модели из {self.model_path.name}")
+                return True
+        except Exception as err:
+            print(f"[Model Cache] Не удалось загрузить кэш {self.model_path.name}: {err}")
+        return False
 
     def _load_dataset(self) -> None:
         if not self.dataset_path.exists() or not os.path.getsize(self.dataset_path):
             self.dataset = {}
+            self.models = {}
+            self.model = None
             return
         try:
             with open(self.dataset_path, mode="r", encoding="utf-8") as f:
                 self.dataset = json.load(f)
                 self.make_dataset()
-            self._train()
+
+            if not self._try_load_cached_models():
+                self._train()
         except (OSError, json.JSONDecodeError, KeyError, JSONDatasetError) as err:
             raise JSONDatasetError(f"ERROR: Exception while loading dataset: {err}")
 
     def _train(self) -> None:
-        # Разделяем обучение для одноручных (141) и двуручных (282) жестов
         by_dim: dict[int, tuple[list[np.ndarray], list[str]]] = {}
 
         for gesture_name, vectors in self.dataset.items():
@@ -80,8 +116,29 @@ class StaticGesture(Gesture):
                 knn.fit(np.array(X_dim, dtype=float), np.array(y_dim))
                 self.models[dim] = knn
 
-        # Fallback для совместимости
         self.model = self.models.get(141) or (next(iter(self.models.values())) if self.models else None)
+        self._save_models()
+
+    def _train_dim(self, dim: int) -> None:
+        X_dim: list[np.ndarray] = []
+        y_dim: list[str] = []
+
+        for gesture_name, vectors in self.dataset.items():
+            for vec in vectors:
+                if len(vec) == dim:
+                    X_dim.append(vec)
+                    y_dim.append(gesture_name)
+
+        if len(y_dim) >= 3:
+            k = min(len(y_dim), 5)
+            knn = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
+            knn.fit(np.array(X_dim, dtype=float), np.array(y_dim))
+            self.models[dim] = knn
+        elif dim in self.models:
+            self.models.pop(dim)
+
+        self.model = self.models.get(141) or (next(iter(self.models.values())) if self.models else None)
+        self._save_models()
 
     def add_sample(
         self,
@@ -92,16 +149,18 @@ class StaticGesture(Gesture):
     ) -> None:
         name = name.strip().lower()
         data = self.extract_vector(pose)
+        dim = len(data)
+
         if name not in self.dataset:
             self.dataset[name] = [data]
         else:
-            # Если изменилась размерность (например, переобучили жест с 1 руки на 2 или наоборот)
-            if self.dataset[name] and len(self.dataset[name][0]) != len(data):
+            if self.dataset[name] and len(self.dataset[name][0]) != dim:
                 self.dataset[name] = [data]
             else:
                 self.dataset[name].append(data)
+
         if auto_train:
-            self._train()
+            self._train_dim(dim)
         if auto_save:
             self._save_dataset()
 
@@ -136,11 +195,9 @@ class StaticGesture(Gesture):
             }
         return info
 
-    def extract_vector(self, pose: Pose) -> np.ndarray[float]:
+    def extract_vector(self, pose: Pose) -> np.ndarray:
         if not isinstance(pose, Pose):
-            raise TypeError(
-                "ERROR: No pose was given to gesture engine.\n"
-            )
+            raise TypeError("ERROR: No pose was given to gesture engine.\n")
         if pose.left_hand is None:
             data = pose.get_1d_array_one_hand().flatten()
         else:
@@ -150,13 +207,13 @@ class StaticGesture(Gesture):
 
     """
     Code -255 - Unknown
-    Code -2 - Gesture is unknown
-    Code -1 - Not trained
+    Code -2 - Gesture is unknown (distance exceeded threshold)
+    Code -1 - Not trained / hand count mismatch
     Code 0 - Success
     Code 1 - Waiting for calibration
     """
 
-    def predict(self, target: Pose, debug_flag = False) -> tuple[int, float, str]:
+    def predict(self, target: Pose, debug_flag: bool = False) -> tuple[int, float, str]:
         if not self.dataset:
             return -1, 0.0, ""
 
@@ -166,9 +223,7 @@ class StaticGesture(Gesture):
             if debug_flag:
                 vector = target
             else:
-                raise IncorrectDataError(
-                    "ERROR: Trying to predict non Pose object.\n"
-                )
+                raise IncorrectDataError("ERROR: Trying to predict non Pose object.\n")
 
         if vector is None or len(vector) == 0:
             return -1, 0.0, ""
@@ -183,7 +238,6 @@ class StaticGesture(Gesture):
 
         try:
             x_arr = np.array([vector], dtype=float)
-
             if x_arr.shape[1] != model.n_features_in_:
                 return -1, 0.0, ""
 
