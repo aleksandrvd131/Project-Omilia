@@ -186,3 +186,18 @@ def get_learned_gestures(db_path: Path, user_id: int) -> list[str]:
             (user_id,),
         )
         return [row["gesture_name"] for row in cursor.fetchall()]
+
+
+def remove_gesture_from_db(db_path: Path, gesture_name: str) -> None:
+    """Удаляет жест из списка выученных у всех пользователей при удалении жеста из датасета."""
+    norm_name = gesture_name.strip().lower()
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM learned_gestures WHERE LOWER(TRIM(gesture_name)) = ?",
+                (norm_name,),
+            )
+            conn.commit()
+    except Exception:
+        pass

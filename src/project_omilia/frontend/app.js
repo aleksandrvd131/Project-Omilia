@@ -555,6 +555,11 @@
     };
 
     state.ws.onmessage = (event) => {
+      state.isWsBusy = false;
+      if (state.wsTimeout) {
+        clearTimeout(state.wsTimeout);
+        state.wsTimeout = null;
+      }
       try {
         const data = JSON.parse(event.data);
         handleServerPrediction(data);
@@ -564,10 +569,12 @@
     };
 
     state.ws.onerror = (err) => {
+      state.isWsBusy = false;
       console.error('[WebSocket] Ошибка:', err);
     };
 
     state.ws.onclose = () => {
+      state.isWsBusy = false;
       console.log('[WebSocket] Соединение закрыто');
     };
   }
@@ -588,7 +595,17 @@
       });
 
       state.mediaPipeHands.onResults((results) => {
-        state.latestHands = results.multiHandLandmarks || [];
+        let rawHands = results.multiHandLandmarks || [];
+        // Защита от ложного дублирования одной руки ребром
+        if (rawHands.length >= 2) {
+          const h0 = rawHands[0];
+          const h1 = rawHands[1];
+          const distWrist = Math.hypot(h0[0].x - h1[0].x, h0[0].y - h1[0].y);
+          if (distWrist < 0.08) {
+            rawHands = [h0];
+          }
+        }
+        state.latestHands = rawHands;
       });
     }
 
@@ -623,13 +640,16 @@
       state.camera = null;
     }
 
+    let appPoseCounter = 0;
     state.camera = new Camera(videoEl, {
       onFrame: async () => {
         if (state.isCameraRunning && state.cameraTarget) {
           if (state.mediaPipeHands) {
             await state.mediaPipeHands.send({ image: videoEl });
           }
-          if (state.mediaPipePose) {
+          // ОПТИМИЗАЦИЯ: опрашиваем Pose раз в 4 кадра для разгрузки CPU
+          appPoseCounter++;
+          if (state.mediaPipePose && (appPoseCounter % 4 === 0 || !state.latestPose)) {
             await state.mediaPipePose.send({ image: videoEl });
           }
           onFrameRender();
@@ -662,10 +682,13 @@
     const video = state.cameraTarget === 'practice' ? dom.practiceVideo : dom.blitzVideo;
     if (!canvas || !video) return;
 
-    const ctx = canvas.getContext('2d');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    // Оптимизация canvas: обновляем размеры только при изменении разрешения видео
+    if (video.videoWidth && (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight)) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
+    const ctx = canvas.getContext('2d');
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -676,14 +699,22 @@
 
     ctx.restore();
 
-    // Отправляем точки на бэкенд через WebSocket
+    // ОПТИМИЗАЦИЯ: отправка через WebSocket с троттлингом и Flow Control
+    const now = performance.now();
     if (state.ws && state.ws.readyState === WebSocket.OPEN && handsData.length > 0) {
-      const payload = {
-        hands_data: handsData,
-        hands: handsData, // Для совместимости
-        pose_landmarks: state.latestPose || null,
-      };
-      state.ws.send(JSON.stringify(payload));
+      if (!state.isWsBusy && (now - (state.lastWsSendTime || 0) >= 40)) {
+        state.isWsBusy = true;
+        state.lastWsSendTime = now;
+        if (state.wsTimeout) clearTimeout(state.wsTimeout);
+        state.wsTimeout = setTimeout(() => { state.isWsBusy = false; }, 350);
+
+        const payload = {
+          hands_data: handsData,
+          hands: handsData, // Для совместимости
+          pose_landmarks: state.latestPose || null,
+        };
+        state.ws.send(JSON.stringify(payload));
+      }
     }
   }
 

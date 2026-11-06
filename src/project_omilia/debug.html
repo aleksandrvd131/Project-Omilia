@@ -245,6 +245,57 @@
       transform: translateX(-50%) translateY(-6px);
     }
 
+    /* Анимированный оверлей обратного отсчёта до начала записи жеста */
+    .countdown-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 14, 23, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 30;
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+
+    .countdown-overlay.active {
+      display: flex;
+    }
+
+    .countdown-number {
+      font-size: 5.5rem;
+      font-weight: 900;
+      color: #38bdf8;
+      text-shadow: 0 0 35px rgba(56, 189, 248, 0.9), 0 0 70px rgba(56, 189, 248, 0.45);
+      line-height: 1;
+      animation: countdownPulse 0.4s ease;
+    }
+
+    .countdown-text {
+      margin-top: 0.85rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #f8fafc;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 0.45rem 1.4rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    @keyframes countdownPulse {
+      0% { transform: scale(0.65); opacity: 0; }
+      50% { transform: scale(1.18); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
     .text-section {
       margin-top: 1.25rem;
       display: flex;
@@ -604,6 +655,28 @@
     .btn-delete:hover {
       color: var(--danger);
     }
+
+    .btn-delete-gesture {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      cursor: pointer;
+      padding: 3px 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .btn-delete-gesture:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+      transform: scale(1.05);
+    }
   </style>
 </head>
 <body>
@@ -650,6 +723,12 @@
           </div>
 
           <div class="dynamic-word-banner" id="word-banner"></div>
+
+          <!-- Большой анимированный оверлей обратного отсчёта -->
+          <div class="countdown-overlay" id="countdown-overlay">
+            <div class="countdown-number" id="countdown-number">2</div>
+            <div class="countdown-text" id="countdown-text">Приготовьтесь...</div>
+          </div>
         </div>
 
         <div class="text-section">
@@ -767,6 +846,12 @@
     let recordFramesLeft = 0;
     let currentRecordLabel = '';
 
+    // Оптимизация WebSocket и инференса
+    let isWsBusy = false;
+    let lastWsSendTime = 0;
+    const MIN_WS_INTERVAL_MS = 40; // ~25 кадров/сек максимум для классификации
+    let wsTimeout = null;
+
     let lastFrameTime = performance.now();
     let frameCount = 0;
 
@@ -779,6 +864,25 @@
         cancelRecording();
       }
       selectedHandMode = mode;
+
+      // ЖЕСТКИЙ ТУМБЛЕР ДЛЯ MEDIAPIPE:
+      // Переключаем максимальное число рук прямо в движке трекинга MediaPipe Hands.
+      // При режиме 1 рука MediaPipe в принципе не ищет и не распознает вторую руку.
+      if (handsDetector) {
+        try {
+          handsDetector.setOptions({
+            maxNumHands: mode === 1 ? 1 : 2
+          });
+        } catch (e) {
+          console.warn('Ошибка смены режима MediaPipe:', e);
+        }
+      }
+
+      // Немедленно очищаем лишние руки из буфера
+      if (mode === 1 && latestHands && latestHands.length > 1) {
+        latestHands = latestHands.slice(0, 1);
+      }
+
       const btn1 = document.getElementById('btn-mode-1hand');
       const btn2 = document.getElementById('btn-mode-2hands');
       const tumblerToggle = document.getElementById('tumbler-toggle');
@@ -803,7 +907,7 @@
         }
         if (hudIcon) hudIcon.textContent = '✋';
         if (hudText) hudText.textContent = 'Режим: 1 рука';
-        document.getElementById('record-status').textContent = 'Выбран одноручный жест (1 рука). Введите имя и нажмите «Запись».';
+        document.getElementById('record-status').textContent = 'Включен режим 1 рука. Вторая рука полностью игнорируется и не захватывается.';
       } else {
         btn2.classList.add('active');
         btn1.classList.remove('active');
@@ -816,7 +920,7 @@
         }
         if (hudIcon) hudIcon.textContent = '👐';
         if (hudText) hudText.textContent = 'Режим: 2 руки';
-        document.getElementById('record-status').textContent = 'Выбран двуручный жест (2 руки). Введите имя и нажмите «Запись».';
+        document.getElementById('record-status').textContent = 'Включен режим 2 руки. В кадре ожидаются обе руки.';
       }
 
       const currentHandsCount = latestHands ? latestHands.length : 0;
@@ -867,12 +971,22 @@
       };
 
       ws.onclose = () => {
+        isWsBusy = false;
         wsDot.classList.remove('online');
         wsText.textContent = 'Сервер: Переподключение...';
         setTimeout(initWebSocket, 2000);
       };
 
+      ws.onerror = () => {
+        isWsBusy = false;
+      };
+
       ws.onmessage = (event) => {
+        isWsBusy = false;
+        if (wsTimeout) {
+          clearTimeout(wsTimeout);
+          wsTimeout = null;
+        }
         try {
           const data = JSON.parse(event.data);
           handleServerMessage(data);
@@ -968,9 +1082,21 @@
       sendAction('delete_dynamic_rule', { rule_key: ruleKey });
     }
 
+    let lastRenderedStatsJson = null;
+
     function renderDatasetStats(stats, info = null) {
       const summary = document.getElementById('dataset-summary');
       if (!summary || !stats) return;
+
+      const statsKey = JSON.stringify({ stats, info });
+      // ОПТИМИЗАЦИЯ И СТАБИЛЬНОСТЬ:
+      // Если данные датасета не изменились с прошлого кадра, не трогаем DOM!
+      // Это предотвращает стирание кнопки ✕ под курсором мыши каждые 40 мс и сохраняет скролл.
+      if (statsKey === lastRenderedStatsJson) {
+        return;
+      }
+      lastRenderedStatsJson = statsKey;
+
       const entries = Object.entries(stats);
       if (entries.length === 0) {
         summary.innerHTML = '<span style="color: var(--text-muted);">Датасет пуст (0 жестов)</span>';
@@ -985,6 +1111,8 @@
           ? '<span style="font-size: 0.68rem; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">👐 2 руки</span>'
           : '<span style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">✋ 1 рука</span>';
 
+        // Безопасное экранирование названия для вызова функции
+        const safeName = name.replace(/'/g, "\\'");
         html += `
           <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid var(--card-border);">
             <div style="display: flex; align-items: center; gap: 0.4rem;">
@@ -992,7 +1120,7 @@
               ${handsBadge}
               <span style="font-size: 0.75rem; color: var(--text-muted);">${count} кадр.</span>
             </div>
-            <button onclick="deleteGesture('${name}')" title="Удалить жест" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+            <button type="button" class="btn-delete-gesture" onclick="deleteGesture('${safeName}')" title="Удалить жест «${name}»">✕</button>
           </div>
         `;
       }
@@ -1000,10 +1128,36 @@
       summary.innerHTML = html;
     }
 
-    function deleteGesture(gestureName) {
-      if (!confirm(`Удалить жест "${gestureName}" из датасета?`)) return;
-      sendAction('delete_gesture', { gesture_name: gestureName });
+    async function deleteGesture(gestureName) {
+      const name = (gestureName || '').trim();
+      if (!name) return;
+      if (!confirm(`Вы действительно хотите удалить жест "${name}" из датасета?`)) {
+        return;
+      }
+
+      // Первым делом отправляем надежный HTTP DELETE запрос
+      try {
+        const res = await fetch(`/api/gestures/${encodeURIComponent(name)}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Сбрасываем кэш и сразу перерисовываем список
+          lastRenderedStatsJson = null;
+          if (data.dataset_stats) {
+            renderDatasetStats(data.dataset_stats, data.dataset_info);
+          }
+        }
+      } catch (err) {
+        console.warn('Ошибка HTTP DELETE, пробуем через WebSocket:', err);
+      }
+
+      // Также дублируем по WebSocket
+      sendAction('delete_gesture', { gesture_name: name });
     }
+
+    let prepInterval = null;
+    const PREP_DURATION_SEC = 2.0; // Задержка перед началом записи (2 секунды)
 
     function toggleRecording() {
       if (isPreparing || isRecording) {
@@ -1026,27 +1180,113 @@
       isPreparing = true;
 
       const btnRecord = document.getElementById('btn-record');
-      btnRecord.textContent = 'Отмена';
+      btnRecord.textContent = 'Отмена (2.0с)';
       btnRecord.classList.add('btn-danger');
 
+      const handText = selectedHandMode === 1 ? 'одну руку' : 'обе руки';
+      const overlay = document.getElementById('countdown-overlay');
+      const countNum = document.getElementById('countdown-number');
+      const countText = document.getElementById('countdown-text');
+
+      if (overlay) {
+        overlay.classList.add('active');
+        countNum.textContent = '2';
+        countText.textContent = `Приготовьтесь: выставьте ${handText}!`;
+      }
+
+      const startTime = performance.now();
+      const totalMs = PREP_DURATION_SEC * 1000;
+
+      updatePrepCountdownUI(PREP_DURATION_SEC);
+
+      if (prepInterval) clearInterval(prepInterval);
+      prepInterval = setInterval(() => {
+        const elapsed = performance.now() - startTime;
+        const remainingMs = Math.max(0, totalMs - elapsed);
+        const remSec = remainingMs / 1000;
+
+        if (remSec > 0.05) {
+          updatePrepCountdownUI(remSec);
+        } else {
+          // 2 секунды истекли — стартуем съёмку кадров!
+          clearInterval(prepInterval);
+          prepInterval = null;
+          startCapturingFrames();
+        }
+      }, 50);
+    }
+
+    function updatePrepCountdownUI(remSec) {
+      const btnRecord = document.getElementById('btn-record');
+      const countNum = document.getElementById('countdown-number');
+      const countText = document.getElementById('countdown-text');
+      const statusEl = document.getElementById('record-status');
       const handText = selectedHandMode === 1 ? 'руку' : 'обе руки';
-      document.getElementById('record-status').textContent = `⏳ Приготовьтесь (задержка 0.5 сек)... Выставьте ${handText}!`;
 
-      // Баннер подсказки на видео
-      showBanner(`Приготовьтесь: выставьте ${handText}!`);
+      const ceilSec = Math.ceil(remSec);
+      const formatted = remSec.toFixed(1);
 
-      // Задержка перед началом обучения (сбором кадров) в полсекунды (500 мс)
-      prepTimer = setTimeout(() => {
-        isPreparing = false;
-        prepTimer = null;
-        isRecording = true;
-        recordFramesLeft = 15;
-        btnRecord.textContent = 'Отмена';
-        document.getElementById('record-status').textContent = `Сбор кадров для "${currentRecordLabel}" (${selectedHandMode === 1 ? '1 рука' : '2 руки'})...`;
-      }, 500);
+      if (btnRecord) {
+        btnRecord.textContent = `Отмена (${formatted}с)`;
+      }
+
+      if (countNum) {
+        countNum.textContent = ceilSec > 0 ? ceilSec : '1';
+      }
+
+      if (countText) {
+        countText.textContent = `Зафиксируйте ${handText} перед камерой!`;
+      }
+
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div style="font-weight: 700; color: #38bdf8; font-size: 0.85rem; margin-bottom: 2px;">
+            ⏳ До старта записи: ${formatted} сек
+          </div>
+          <div>Выставьте ${selectedHandMode === 1 ? 'одну руку' : 'обе руки'} в позу жеста «${currentRecordLabel}»...</div>
+        `;
+      }
+    }
+
+    function startCapturingFrames() {
+      isPreparing = false;
+      isRecording = true;
+      recordFramesLeft = 15;
+
+      const overlay = document.getElementById('countdown-overlay');
+      const countNum = document.getElementById('countdown-number');
+      const countText = document.getElementById('countdown-text');
+      const btnRecord = document.getElementById('btn-record');
+      const statusEl = document.getElementById('record-status');
+
+      if (btnRecord) {
+        btnRecord.textContent = 'Отмена (0/15)';
+      }
+
+      if (countNum) {
+        countNum.textContent = '🔴';
+      }
+      if (countText) {
+        countText.textContent = `Съёмка сэмплов для «${currentRecordLabel}»...`;
+      }
+
+      // Плавное скрытие оверлея после старта съёмки через 350 мс
+      setTimeout(() => {
+        if (overlay) {
+          overlay.classList.remove('active');
+        }
+      }, 350);
+
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color: #ef4444; font-weight: 700;">🔴 Идёт запись кадров: 0 / 15...</span> Держите позу!`;
+      }
     }
 
     function cancelRecording() {
+      if (prepInterval) {
+        clearInterval(prepInterval);
+        prepInterval = null;
+      }
       if (prepTimer) {
         clearTimeout(prepTimer);
         prepTimer = null;
@@ -1054,10 +1294,21 @@
       isPreparing = false;
       isRecording = false;
       recordFramesLeft = 0;
+
+      const overlay = document.getElementById('countdown-overlay');
+      if (overlay) {
+        overlay.classList.remove('active');
+      }
+
       const btnRecord = document.getElementById('btn-record');
-      btnRecord.textContent = 'Запись';
-      btnRecord.classList.remove('btn-danger');
-      document.getElementById('record-status').textContent = 'Запись отменена.';
+      if (btnRecord) {
+        btnRecord.textContent = 'Запись';
+        btnRecord.classList.remove('btn-danger');
+      }
+      const statusEl = document.getElementById('record-status');
+      if (statusEl) {
+        statusEl.textContent = 'Запись отменена.';
+      }
     }
 
     function playTTS(text) {
@@ -1099,15 +1350,34 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
       });
 
+      // Начальный режим: 1 рука, если тумблер = 1, иначе 2
       handsDetector.setOptions({
-        maxNumHands: 2,
+        maxNumHands: selectedHandMode === 1 ? 1 : 2,
         modelComplexity: 1,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
 
       handsDetector.onResults((results) => {
-        latestHands = results.multiHandLandmarks || [];
+        let rawHands = results.multiHandLandmarks || [];
+        if (selectedHandMode === 1) {
+          // ЖЕСТКИЙ ТУМБЛЕР (1 рука): строго 1 рука.
+          // Если случайно попадает вторая рука или рука ребром — она игнорируется и отсекается.
+          latestHands = rawHands.slice(0, 1);
+        } else {
+          // ТУМБЛЕР (2 руки):
+          // Защита от фантомного дублирования одной руки ребром (ghost hand suppression):
+          // Если MediaPipe нашел 2 руки, но их запястья (точка 0) практически в одной точке (< 0.08 экрана)
+          if (rawHands.length >= 2) {
+            const h0 = rawHands[0];
+            const h1 = rawHands[1];
+            const distWrist = Math.hypot(h0[0].x - h1[0].x, h0[0].y - h1[0].y);
+            if (distWrist < 0.08) {
+              rawHands = [h0];
+            }
+          }
+          latestHands = rawHands.slice(0, 2);
+        }
       });
 
       poseDetector = new Pose({
@@ -1125,10 +1395,18 @@
         latestPose = results.poseLandmarks || null;
       });
 
+      let poseCounter = 0;
       const camera = new Camera(video, {
         onFrame: async () => {
-          await handsDetector.send({ image: video });
-          await poseDetector.send({ image: video });
+          if (handsDetector) {
+            await handsDetector.send({ image: video });
+          }
+          // ОПТИМИЗАЦИЯ: Pose (плечи, нос) обновляем раз в 4 кадра (~8-10 FPS),
+          // так как тело относительно статично, что экономит ~40% ресурсов CPU
+          poseCounter++;
+          if (poseDetector && (poseCounter % 4 === 0 || !latestPose)) {
+            await poseDetector.send({ image: video });
+          }
           onFrameRender();
         },
         width: 640,
@@ -1139,10 +1417,16 @@
     }
 
     function onFrameRender() {
+      // Оптимизация canvas: обновляем размер только если он реально изменился
+      if (video.videoWidth && (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight)) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Отрисовка скелета рук
+      // Отрисовка скелета рук (рисуются строго те руки, которые прошли жесткую фильтрацию)
       if (latestHands) {
         for (const landmarks of latestHands) {
           drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#38bdf8', lineWidth: 3 });
@@ -1159,31 +1443,23 @@
       const currentHandsCount = latestHands ? latestHands.length : 0;
       updateHandsStatus(currentHandsCount);
 
-      // Отправка ориентиров через WebSocket
+      // Отправка ориентиров через WebSocket с троттлингом и Flow Control
       if (ws && ws.readyState === WebSocket.OPEN) {
         let recordLabel = null;
         let isLastFrame = false;
 
-        if (isPreparing) {
-          const handText = selectedHandMode === 1 ? 'одну руку' : 'обе руки';
-          const handsReady = selectedHandMode === 1 ? (currentHandsCount >= 1) : (currentHandsCount >= 2);
-          if (handsReady) {
-            document.getElementById('record-status').textContent = `⏳ Руки в кадре (${currentHandsCount}). Старт записи через доли секунды...`;
-          } else {
-            document.getElementById('record-status').textContent = `⏳ Приготовьтесь (0.5 сек)... Выставьте ${handText} в кадр!`;
-          }
-        } else if (isRecording && recordFramesLeft > 0) {
+        if (isRecording && recordFramesLeft > 0) {
           let handsReady = false;
 
           if (selectedHandMode === 1) {
             if (currentHandsCount === 0) {
-              document.getElementById('record-status').textContent = `Покажите одну руку в камеру для записи "${currentRecordLabel}"...`;
+              document.getElementById('record-status').innerHTML = `<span style="color: #f59e0b; font-weight: 600;">⚠️ Покажите руку в камеру для записи «${currentRecordLabel}»...</span>`;
             } else {
               handsReady = true;
             }
           } else { // selectedHandMode === 2
             if (currentHandsCount < 2) {
-              document.getElementById('record-status').textContent = `Покажите обе руки в камеру для двуручного жеста "${currentRecordLabel}" (сейчас: ${currentHandsCount}/2)...`;
+              document.getElementById('record-status').innerHTML = `<span style="color: #f59e0b; font-weight: 600;">⚠️ Покажите обе руки в камеру (сейчас: ${currentHandsCount}/2)...</span>`;
             } else {
               handsReady = true;
             }
@@ -1192,37 +1468,60 @@
           if (handsReady) {
             recordLabel = currentRecordLabel;
             recordFramesLeft--;
+            const capturedCount = 15 - recordFramesLeft;
+            const btnRecord = document.getElementById('btn-record');
+
             if (recordFramesLeft === 0) {
               isRecording = false;
               isLastFrame = true;
-              const btnRecord = document.getElementById('btn-record');
-              btnRecord.textContent = 'Запись';
-              btnRecord.classList.remove('btn-danger');
+              if (btnRecord) {
+                btnRecord.textContent = 'Запись';
+                btnRecord.classList.remove('btn-danger');
+              }
               const modeLabel = selectedHandMode === 1 ? 'одноручный' : 'двуручный';
-              document.getElementById('record-status').textContent = `Жест "${currentRecordLabel}" (${modeLabel}) успешно сохранён, модель переобучена!`;
+              document.getElementById('record-status').innerHTML = `<span style="color: #22c55e; font-weight: 700;">✅ Жест «${currentRecordLabel}» (${modeLabel}) успешно сохранён в датасет!</span>`;
+              showBanner(`✅ Жест «${currentRecordLabel}» записан!`);
             } else {
-              document.getElementById('record-status').textContent = `Запись "${currentRecordLabel}" (${selectedHandMode === 1 ? '1 рука' : '2 руки'}): осталось ${recordFramesLeft} кадров...`;
+              if (btnRecord) {
+                btnRecord.textContent = `Отмена (${capturedCount}/15)`;
+              }
+              document.getElementById('record-status').innerHTML = `<span style="color: #ef4444; font-weight: 700;">🔴 Идёт съёмка кадров: ${capturedCount} / 15...</span> Держите руку неподвижно!`;
             }
           }
         }
 
-        // Фильтрация рук при отправке для записи: если 1 рука — отправляем 1 руку, если 2 — отправляем 2
-        let handsToSend = latestHands;
-        if (recordLabel) {
-          if (selectedHandMode === 1 && latestHands && latestHands.length > 0) {
+        // ОПТИМИЗАЦИЯ WebSocket: троттлинг запросов
+        const now = performance.now();
+        const canSend = recordLabel
+          ? true // при записи сэмплов отправляем каждый подтвержденный кадр
+          : (!isWsBusy && (now - lastWsSendTime >= MIN_WS_INTERVAL_MS));
+
+        if (!canSend && !isPreparing) {
+          // Пропускаем кадр, чтобы не перегружать сеть и сервер
+        } else {
+          if (!recordLabel) {
+            isWsBusy = true;
+            lastWsSendTime = now;
+            if (wsTimeout) clearTimeout(wsTimeout);
+            wsTimeout = setTimeout(() => { isWsBusy = false; }, 350);
+          }
+
+          // ЖЕСТКАЯ ФИЛЬТРАЦИЯ: если тумблер = 1 рука, на сервер отправляется СТРОГО 1 рука
+          let handsToSend = [];
+          if (selectedHandMode === 1) {
             handsToSend = latestHands.slice(0, 1);
-          } else if (selectedHandMode === 2 && latestHands && latestHands.length >= 2) {
+          } else {
             handsToSend = latestHands.slice(0, 2);
           }
-        }
 
-        ws.send(JSON.stringify({
-          hands_data: handsToSend,
-          pose_landmarks: latestPose,
-          record_label: recordLabel,
-          record_finished: isLastFrame,
-          hands_count: selectedHandMode
-        }));
+          ws.send(JSON.stringify({
+            hands_data: handsToSend,
+            pose_landmarks: latestPose,
+            record_label: recordLabel,
+            record_finished: isLastFrame,
+            hands_count: selectedHandMode
+          }));
+        }
       }
 
       // Счётчик FPS

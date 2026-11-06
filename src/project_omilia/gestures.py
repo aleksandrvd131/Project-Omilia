@@ -10,14 +10,31 @@ from project_omilia.body import Pose
 from project_omilia.errors import IncorrectDataError, JSONDatasetError
 
 
+def format_dataset_json_inline(data: dict[str, list[list[float]]]) -> str:
+    """Форматирует датасет так, чтобы каждый сэмпл (вектор координат) записывался в одну строчку."""
+    lines = ["{"]
+    items = list(data.items())
+    for i, (name, samples) in enumerate(items):
+        escaped_name = json.dumps(name, ensure_ascii=False)
+        lines.append(f"  {escaped_name}: [")
+        for j, sample in enumerate(samples):
+            sample_str = json.dumps(sample, ensure_ascii=False)
+            comma = "," if j < len(samples) - 1 else ""
+            lines.append(f"    {sample_str}{comma}")
+        comma_item = "," if i < len(items) - 1 else ""
+        lines.append(f"  ]{comma_item}")
+    lines.append("}\n")
+    return "\n".join(lines)
+
+
 class Gesture:
     pass
 
 
 class StaticGesture(Gesture):
-    def __init__(self, dataset_path: str = "omilia_static.json") -> None:
+    def __init__(self, dataset_path: str = "omilia_static_1h.json") -> None:
         self.dataset_path = Path(dataset_path).resolve()
-        self.model_path = self.dataset_path.parent / "omilia_ai.joblib"
+        self.model_path = self.dataset_path.with_suffix(".joblib")
         self.dataset: dict[str, list[np.ndarray]] = {}
         self.models: dict[int, KNeighborsClassifier] = {}
         self.model: KNeighborsClassifier | None = None
@@ -44,7 +61,7 @@ class StaticGesture(Gesture):
         try:
             with open(self.dataset_path, mode="w", encoding="utf-8") as f:
                 data = self.dataset_to_json()
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.write(format_dataset_json_inline(data))
         except OSError as err:
             raise JSONDatasetError(f"ERROR: Exception while saving dataset: {err}")
 
