@@ -6,6 +6,7 @@ import random
 from contextlib import asynccontextmanager
 from typing import Any
 
+import numpy as np
 from fastapi import FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +14,7 @@ from gtts import gTTS
 from pydantic import BaseModel
 
 from project_omilia.body import Pose
-from project_omilia.gestures import StaticGesture
+from project_omilia.gestures import StaticGesture, DynamicGestures
 import project_omilia.db as db
 
 
@@ -21,6 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 DATASET_PATH_1H = BASE_DIR / "omilia_static_1h.json"
 DATASET_PATH_2H = BASE_DIR / "omilia_static_2h.json"
+DYNAMIC_DATASET_PATH_1H = BASE_DIR / "omilia_dynamic_1h.json"
+DYNAMIC_DATASET_PATH_2H = BASE_DIR / "omilia_dynamic_2h.json"
 LEGACY_DATASET_PATH = BASE_DIR / "omilia_static.json"
 INDEX_PATH = FRONTEND_DIR / "index.html"
 DEBUG_PATH = BASE_DIR / "debug.html"
@@ -116,6 +119,83 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
         return Pose(body, tuple(hands))
     except Exception:
         return None
+
+class DynamicGestureServer:
+
+    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
+        self.dataset_path_1h = Path(dataset_path_1h).resolve()
+        self.dataset_path_2h = Path(dataset_path_2h).resolve()
+        self.engine_1h = DynamicGestures(dataset_path_1h)
+        self.engine_2h = DynamicGestures(dataset_path_2h)
+
+    def prepare_dynamic_clip(self, frames: list , engine, hands_count) -> np.ndarray:
+        if len(frames) != 8:
+            raise ValueError("Incorrect count of frames")
+        vectors = []
+
+        expected_values = 141 if hands_count == 1 else 282
+
+        for frame in frames:
+
+            if frame.get("hands_data") is None or frame.get("pose_landmarks") is None:
+                raise ValueError("Incorrect frame")
+
+            hands_data = frame["hands_data"]
+            pose_landmarks = frame["pose_landmarks"]
+
+            if hands_count == 1 and len(hands_data) > 1:
+                hands_data = hands_data[:1]
+
+            pose = make_pose(hands_data, pose_landmarks)
+            if pose is None:
+                raise ValueError("Incorrect data")
+
+            vector = engine.extract_vector(pose)
+            if vector.shape != (expected_values,):
+                raise ValueError("Incorrect vector")
+            if not np.isfinite(vector).all():
+                raise ValueError("Incorrect vector")
+
+            vectors.append(vector)
+
+        return np.stack(vectors)
+
+    def process_dynamic_clip(self, payload) -> dict:
+        try:
+            if payload.get("hands_count") is None:
+                raise ValueError("Hands count must be announced")
+            if payload.get("frames") is None:
+                raise ValueError("Frames must be announced")
+        except ValueError as error:
+            return {
+                "type": "dynamic_clip",
+                "status": "retry",
+                "reason": str(error),
+            }
+        hands_count = payload["hands_count"]
+        frames = payload["frames"]
+        if hands_count not in [1, 2]:
+            return {
+                "type": "dynamic_clip",
+                "status": "retry",
+                "reason": "Invalid hands count",
+            }
+        try:
+            if hands_count == 1:
+                sequence = self.prepare_dynamic_clip(frames, self.engine_1h, 1)
+            else:
+                sequence = self.prepare_dynamic_clip(frames, self.engine_2h, 2)
+        except ValueError as error:
+            return {
+                "type": "dynamic_clip",
+                "status": "retry",
+                "reason": str(error),
+            }
+        return {
+            "type": "dynamic_clip",
+            "status": "ok",
+            "shape": list(sequence.shape),
+        }
 
 
 class StaticGestureServer:
@@ -362,6 +442,7 @@ class StaticGestureServer:
 
 
 server: StaticGestureServer | None = None
+dynamic_server: DynamicGestureServer | None = None
 
 
 # DTO схемы для запросов
@@ -390,8 +471,10 @@ def get_current_user_from_request(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global server
+    global dynamic_server
     db.init_db(DB_PATH)
     server = StaticGestureServer(dataset_path_1h=DATASET_PATH_1H, dataset_path_2h=DATASET_PATH_2H)
+    dynamic_server = DynamicGestureServer(dataset_path_1h=DYNAMIC_DATASET_PATH_1H, dataset_path_2h=DYNAMIC_DATASET_PATH_2H)
     total_gestures = len(server.engine_1h.dataset) + len(server.engine_2h.dataset)
     print(f"Сервер Omiλia запущен. Датасеты: 1H={DATASET_PATH_1H.name}, 2H={DATASET_PATH_2H.name} (всего жестов: {total_gestures})")
     yield
@@ -618,7 +701,9 @@ async def gesture_ws(websocket: WebSocket):
                 continue
 
             try:
-                if "action" in payload:
+                if payload.get("type") == "dynamic_clip":
+                    response = dynamic_server.process_dynamic_clip(payload)
+                elif "action" in payload:
                     response = server.handle_action(payload["action"], payload)
                 else:
                     response = server.process_frame(payload)

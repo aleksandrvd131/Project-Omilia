@@ -9,6 +9,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from project_omilia.body import Pose
 from project_omilia.errors import IncorrectDataError, JSONDatasetError
 
+COUNT_OF_GESTURES = 8
+COUNT_OF_SAMPLES = 10
 
 def format_dataset_json_inline(data: dict[str, list[list[float]]]) -> str:
     """Форматирует датасет так, чтобы каждый сэмпл (вектор координат) записывался в одну строчку."""
@@ -269,3 +271,63 @@ class StaticGesture(Gesture):
 
         except (ValueError, KeyError, IndexError, TypeError):
             return -255, 0.0, ""
+
+
+def dtw_distance(attempt: np.ndarray, reference: np.ndarray) -> float:
+    n = len(attempt)
+    m = len(reference)
+    accumulated = np.full((n+1, m+1), np.inf)
+    accumulated[0][0] = 0
+
+    for i in range(1, n+1):
+        for j in range(1, m+1):
+            delta = attempt[i-1] - reference[j-1]
+            frame_cost = np.sum(delta ** 2)
+            accumulated[i][j] = frame_cost + min(
+                accumulated[i-1][j],
+                accumulated[i][j-1],
+                accumulated[i-1][j-1],
+            )
+
+    return float(np.sqrt(accumulated[n][m]))
+
+
+
+class DynamicGestures:
+    def __init__(self, dataset_path: Path):
+        pass
+
+    def extract_vector(self, pose: Pose) -> np.ndarray:
+        if not isinstance(pose, Pose):
+            raise TypeError("ERROR: No pose was given to gesture engine.\n")
+        if pose.left_hand is None:
+            data = pose.get_1d_array_one_hand().flatten()
+        else:
+            data = pose.get_1d_array_two_hands().flatten()
+
+        return np.round(data, 8)
+
+    def verify(
+            self,
+            attempt: np.ndarray,
+            references: list[np.ndarray],
+            *,
+            max_distance: float,
+    ) -> tuple[bool, float]:
+        """Возвращает результат проверки и среднее расстояние DTW."""
+        if len(references) != COUNT_OF_SAMPLES:
+            raise ValueError("There are no enough data to check gesture")
+        if attempt.shape not in ((COUNT_OF_GESTURES, 141), (COUNT_OF_GESTURES, 282)):
+            raise ValueError("Wrong format of attempt")
+
+        sum_of_distances = 0.0
+        mean_distance = 0.0
+
+        for sample in references:
+            if sample.shape != attempt.shape:
+                raise ValueError("Wrong format of sample")
+            sum_of_distances += dtw_distance(sample, attempt)
+
+        mean_distance = sum_of_distances / COUNT_OF_SAMPLES
+
+        return mean_distance < max_distance, mean_distance
