@@ -1,0 +1,16 @@
+.git
+.github
+.gitignore
+.venv
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.joblib
+*.onnx
+.pytest_cache/
+.ruff_cache/
+tests/
+*.md

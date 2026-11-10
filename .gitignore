@@ -9,4 +9,8 @@ build/
 .pytest_cache/
 .ruff_cache/
 dsad.md
+*.db
+*.joblib
+*.onnx
 src/project_omilia/omilia.db
+IMPROVEMENT_PLAN.md

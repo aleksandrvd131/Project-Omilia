@@ -8,6 +8,7 @@
 
   // --- Состояние приложения ---
   const state = {
+    classifier: null,
     authToken: localStorage.getItem('omilia_token') || null,
     currentUser: null,
     settings: {
@@ -68,6 +69,9 @@
     // Каталог
     gesturesGrid: document.getElementById('gestures-grid'),
     catalogLearnedCounter: document.getElementById('catalog-learned-counter'),
+    catalogSearch: document.getElementById('catalog-search'),
+    btnClearSearch: document.getElementById('btn-clear-search'),
+    categoryFilters: document.getElementById('category-filters'),
 
     // ЛК
     authBox: document.getElementById('auth-box'),
@@ -79,6 +83,10 @@
     loginError: document.getElementById('login-error'),
     regError: document.getElementById('reg-error'),
     profileUsername: document.getElementById('profile-username'),
+    profileRankBadge: document.getElementById('profile-rank-badge'),
+    statLearnedCount: document.getElementById('stat-learned-count'),
+    statTotalCount: document.getElementById('stat-total-count'),
+    statPercentCount: document.getElementById('stat-percent-count'),
     profileProgressBar: document.getElementById('profile-progress-bar'),
     profileProgressText: document.getElementById('profile-progress-text'),
     profileStatsSummary: document.getElementById('profile-stats-summary'),
@@ -260,10 +268,28 @@
         dom.ttsToggle.checked = state.settings.ttsEnabled;
       }
 
-      // Подсчёт прогресса
+      // Подсчёт прогресса и ранга
       const total = state.gestures.length || 1;
       const learned = state.currentUser.learned_gestures || [];
       const percent = Math.min(100, Math.round((learned.length / total) * 100));
+
+      // Карточки метрик
+      if (dom.statLearnedCount) dom.statLearnedCount.textContent = learned.length;
+      if (dom.statTotalCount) dom.statTotalCount.textContent = state.gestures.length;
+      if (dom.statPercentCount) dom.statPercentCount.textContent = `${percent}%`;
+
+      // Расчёт ранга пользователя
+      if (dom.profileRankBadge) {
+        let rankTitle = 'Новичок РЖЯ';
+        if (learned.length >= 8) {
+          rankTitle = 'Мастер жестового языка 🌟';
+        } else if (learned.length >= 4) {
+          rankTitle = 'Знаток РЖЯ 🚀';
+        } else if (learned.length >= 1) {
+          rankTitle = 'Ученик РЖЯ 📚';
+        }
+        dom.profileRankBadge.textContent = rankTitle;
+      }
 
       dom.profileProgressBar.style.width = `${percent}%`;
       dom.profileProgressText.textContent = `${percent}%`;
@@ -298,10 +324,14 @@
   }
 
   // ==========================================================
-  // Каталог жестов
+  // Каталог жестов, поиск и фильтрация
   // ==========================================================
 
   let isLoadingCatalog = false;
+  const catalogFilters = {
+    search: '',
+    category: 'all',
+  };
 
   async function loadCatalog() {
     if (isLoadingCatalog) return;
@@ -331,6 +361,28 @@
     }
   }
 
+  function getFilteredGestures() {
+    const q = catalogFilters.search.trim().toLowerCase();
+    const cat = catalogFilters.category;
+
+    return state.gestures.filter((g) => {
+      // Фильтр по категории
+      if (cat === 'learned' && !g.is_learned) return false;
+      if (cat !== 'all' && cat !== 'learned' && g.category !== cat) return false;
+
+      // Поиск по тексту
+      if (q) {
+        const title = (g.title || g.name || '').toLowerCase();
+        const desc = (g.description || '').toLowerCase();
+        const tip = (g.tip || '').toLowerCase();
+        if (!title.includes(q) && !desc.includes(q) && !tip.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
   function renderCatalog() {
     if (!dom.gesturesGrid) return;
     dom.gesturesGrid.innerHTML = '';
@@ -344,9 +396,38 @@
       return;
     }
 
-    state.gestures.forEach((gesture) => {
+    const filtered = getFilteredGestures();
+    if (filtered.length === 0) {
+      dom.gesturesGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem;">Ничего не найдено</h3>
+          <p style="font-size: 0.9rem;">Попробуйте изменить поисковый запрос или сбросить категорию.</p>
+          <button class="btn-hero-secondary" id="btn-reset-filters" style="margin-top: 1rem; padding: 0.45rem 1.15rem;">
+            Сбросить фильтры
+          </button>
+        </div>
+      `;
+      document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
+        catalogFilters.search = '';
+        catalogFilters.category = 'all';
+        if (dom.catalogSearch) dom.catalogSearch.value = '';
+        if (dom.btnClearSearch) dom.btnClearSearch.style.display = 'none';
+        dom.categoryFilters?.querySelectorAll('.filter-chip').forEach((c) => {
+          c.classList.toggle('active', c.dataset.category === 'all');
+        });
+        renderCatalog();
+      });
+      return;
+    }
+
+    filtered.forEach((gesture) => {
       const card = document.createElement('div');
       card.className = `gesture-card ${gesture.is_learned ? 'learned' : ''}`;
+
+      const handsBadge = gesture.dynamic_hands_count
+        ? '⚡ Движение'
+        : (gesture.hands_count === 2 || gesture.name === 'дом' ? '👐 2 руки' : '✋ 1 рука');
 
       card.innerHTML = `
         <div>
@@ -354,7 +435,12 @@
             <span class="gesture-badge ${gesture.is_learned ? 'badge-learned' : 'badge-unlearned'}">
               ${gesture.is_learned ? '✓ Выучен' : 'Не изучен'}
             </span>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(gesture.category)}</span>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <span style="font-size: 0.75rem; background: #f1f5f9; padding: 2px 7px; border-radius: 6px; font-weight: 600; color: var(--text-muted);">
+                ${handsBadge}
+              </span>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(gesture.category)}</span>
+            </div>
           </div>
           <h3 class="gesture-title">${escapeHtml(gesture.title || gesture.name)}</h3>
           <p class="gesture-desc">${escapeHtml(gesture.description)}</p>
@@ -546,7 +632,10 @@
 
     const { controls, gesture, isBlitz } = attempt;
     controls.gesture.textContent = result.accepted ? 'Жест засчитан' : 'Жест не засчитан';
-    controls.score.textContent = `Расстояние DTW: ${Number(result.distance).toFixed(2)}`;
+    const confText = result.confidence !== undefined
+      ? `Точность: ${Math.round(result.confidence)}%`
+      : `Расстояние DTW: ${Number(result.distance).toFixed(2)}`;
+    controls.score.textContent = confText;
     endDynamicAttempt(result.accepted ? 'Жест выполнен правильно.' : 'Повторите движение после отсчёта.');
     if (!result.accepted) return;
 
@@ -878,7 +967,17 @@
 
     if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
 
-    // ОПТИМИЗАЦИЯ: отправка через WebSocket с троттлингом и Flow Control
+    // СВЕРХБЫСТРЫЙ КЛИЕНТСКИЙ ML-ИНФЕРЕНС (0ms задержка, вычисление прямо в браузере):
+    if (state.classifier && handsData.length > 0) {
+      const handsMode = handsData.length > 1 ? 2 : 1;
+      const clientPred = state.classifier.predict(handsData, state.latestPose, handsMode);
+      if (clientPred && clientPred.detected) {
+        handleServerPrediction(clientPred);
+        return; // Мгновенный отклик 60 FPS без отправки по сети!
+      }
+    }
+
+    // Фоллбэк: отправка через WebSocket, если клиентский классификатор ещё загружается
     const now = performance.now();
     if (state.ws && state.ws.readyState === WebSocket.OPEN && handsData.length > 0) {
       if (!state.isWsBusy && (now - (state.lastWsSendTime || 0) >= 40)) {
@@ -943,8 +1042,14 @@
     const now = performance.now();
     const gestureName = pred.gesture || pred.name || '';
     const predictedName = gestureName.trim().toLowerCase();
+    const confidenceVal = pred.confidence !== undefined ? pred.confidence : null;
     const scoreVal = pred.score !== undefined ? pred.score : pred.distance;
-    const distText = (scoreVal !== undefined && scoreVal !== null) ? `Дистанция: ${Number(scoreVal).toFixed(2)}` : '';
+    let distText = '';
+    if (confidenceVal !== null && confidenceVal > 0) {
+      distText = `Точность: ${Math.round(confidenceVal)}%`;
+    } else if (scoreVal !== undefined && scoreVal !== null) {
+      distText = `Дистанция: ${Number(scoreVal).toFixed(2)}`;
+    }
 
     // --- Обработка в режиме практики (Шаг 2) ---
     if (state.cameraTarget === 'practice' && state.practice.gesture && !state.practice.isLearned) {
@@ -957,6 +1062,7 @@
       state.practice.lastTimestamp = now;
 
       if (predictedName === targetName) {
+        dom.practiceCanvas?.parentElement?.classList.add('matching');
         state.practice.holdProgress += delta;
         const progressPct = Math.min(100, Math.round((state.practice.holdProgress / state.practice.holdTarget) * 100));
         dom.practiceHoldFill.style.width = `${progressPct}%`;
@@ -964,9 +1070,11 @@
         // Жест успешно удержан!
         if (state.practice.holdProgress >= state.practice.holdTarget) {
           state.practice.isLearned = true;
+          dom.practiceCanvas?.parentElement?.classList.remove('matching');
           onGestureSuccessfullyLearned(state.practice.gesture);
         }
       } else {
+        dom.practiceCanvas?.parentElement?.classList.remove('matching');
         // Сброс удержания при показе другого жеста
         state.practice.holdProgress = Math.max(0, state.practice.holdProgress - delta * 1.5);
         const progressPct = Math.min(100, Math.round((state.practice.holdProgress / state.practice.holdTarget) * 100));
@@ -987,15 +1095,18 @@
       state.blitz.lastTimestamp = now;
 
       if (predictedName === targetName) {
+        dom.blitzCanvas?.parentElement?.classList.add('matching');
         state.blitz.holdProgress += delta;
         const progressPct = Math.min(100, Math.round((state.blitz.holdProgress / state.blitz.holdTarget) * 100));
         dom.blitzHoldFill.style.width = `${progressPct}%`;
 
         if (state.blitz.holdProgress >= state.blitz.holdTarget) {
           state.blitz.holdProgress = 0;
+          dom.blitzCanvas?.parentElement?.classList.remove('matching');
           completeBlitzQuestion(currentQ);
         }
       } else {
+        dom.blitzCanvas?.parentElement?.classList.remove('matching');
         state.blitz.holdProgress = Math.max(0, state.blitz.holdProgress - delta * 1.5);
         const progressPct = Math.min(100, Math.round((state.blitz.holdProgress / state.blitz.holdTarget) * 100));
         dom.blitzHoldFill.style.width = `${progressPct}%`;
@@ -1153,6 +1264,42 @@
       }
     });
 
+    // Поиск по словарю жестов
+    dom.catalogSearch?.addEventListener('input', (e) => {
+      catalogFilters.search = e.target.value;
+      if (dom.btnClearSearch) {
+        dom.btnClearSearch.style.display = e.target.value ? 'flex' : 'none';
+      }
+      renderCatalog();
+    });
+
+    dom.btnClearSearch?.addEventListener('click', () => {
+      if (dom.catalogSearch) dom.catalogSearch.value = '';
+      catalogFilters.search = '';
+      dom.btnClearSearch.style.display = 'none';
+      renderCatalog();
+    });
+
+    // Фильтры по категориям
+    dom.categoryFilters?.addEventListener('click', (e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+      dom.categoryFilters.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      catalogFilters.category = chip.dataset.category || 'all';
+      renderCatalog();
+    });
+
+    // Переключение зеркалирования камеры
+    document.querySelectorAll('.btn-toggle-mirror').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const container = e.target.closest('.camera-container') || document.querySelector('.camera-container');
+        if (container) {
+          container.classList.toggle('mirrored');
+        }
+      });
+    });
+
     // Управление модальными окнами обучения
     dom.btnCloseTutorial?.addEventListener('click', closeTutorialModal);
     dom.btnStartCameraPractice?.addEventListener('click', () => {
@@ -1188,6 +1335,9 @@
   // Старт приложения
   // ==========================================================
   async function init() {
+    if (window.OmiliaInference && window.OmiliaInference.OmiliaStaticClassifier) {
+      state.classifier = new window.OmiliaInference.OmiliaStaticClassifier();
+    }
     bindEvents();
     await checkAuth();
     await loadCatalog();

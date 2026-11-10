@@ -17,6 +17,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  
+  <!-- ONNX Runtime Web для инференса моделей прямо в браузере с нулевым пингом -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 </head>
 <body>
 
@@ -159,6 +162,22 @@
         </div>
       </div>
 
+      <!-- Поиск и фильтры по категориям -->
+      <div class="catalog-controls">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="catalog-search" class="search-input" placeholder="Поиск жеста по названию или букве..." autocomplete="off">
+          <button id="btn-clear-search" class="btn-clear-search" title="Очистить поиск" style="display: none;">✕</button>
+        </div>
+        <div class="category-filters" id="category-filters">
+          <button class="filter-chip active" data-category="all">Все жесты</button>
+          <button class="filter-chip" data-category="Дактиль (Алфавит)">Алфавит</button>
+          <button class="filter-chip" data-category="Приветствия">Приветствия</button>
+          <button class="filter-chip" data-category="Базовые">Базовые</button>
+          <button class="filter-chip" data-category="learned">✓ Только выученные</button>
+        </div>
+      </div>
+
       <!-- Сетка жестов -->
       <div class="gestures-grid" id="gestures-grid">
         <!-- Генерируется динамически через app.js -->
@@ -215,7 +234,13 @@
           <canvas id="blitz-canvas" class="camera-canvas"></canvas>
 
           <div class="camera-hud">
-            <span class="hud-label">ИИ Распознал:</span>
+            <div class="hud-top-bar">
+              <span class="hud-label">ИИ Распознал:</span>
+              <div class="hud-actions">
+                <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
+                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🔄</button>
+              </div>
+            </div>
             <span class="hud-gesture" id="blitz-hud-gesture">—</span>
             <span class="hud-score" id="blitz-hud-score">Точность: —</span>
           </div>
@@ -306,12 +331,28 @@
             </div>
             <div>
               <h2 class="card-title" id="profile-username" style="margin-bottom: 0.25rem;">Пользователь</h2>
-              <span class="gesture-badge badge-learned">Ученик РЖЯ</span>
+              <span class="gesture-badge badge-learned" id="profile-rank-badge">Ученик РЖЯ</span>
             </div>
           </div>
           <button class="btn-hero-secondary" id="btn-logout" style="color: var(--danger); border-color: #fecaca;">
             Выйти из системы
           </button>
+        </div>
+
+        <!-- Статистические карточки -->
+        <div class="profile-stats-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="stat-learned-count">0</div>
+            <div class="stat-label">Выучено жестов</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-total-count">0</div>
+            <div class="stat-label">Всего в словаре</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-percent-count">0%</div>
+            <div class="stat-label">Общий прогресс</div>
+          </div>
         </div>
 
         <!-- Прогресс изучения -->
@@ -422,7 +463,13 @@
         <canvas id="practice-canvas" class="camera-canvas"></canvas>
 
         <div class="camera-hud">
-          <span class="hud-label">ИИ Распознал:</span>
+          <div class="hud-top-bar">
+            <span class="hud-label">ИИ Распознал:</span>
+            <div class="hud-actions">
+              <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
+              <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🔄</button>
+            </div>
+          </div>
           <span class="hud-gesture" id="practice-hud-gesture">—</span>
           <span class="hud-score" id="practice-hud-score">Точность: —</span>
         </div>
@@ -469,8 +516,9 @@
     </div>
   </footer>
 
-  <!-- Клиентский скрипт приложения -->
+  <!-- Клиентский скрипт ML-инференса и приложения -->
   <script src="/static/dynamic-clip.js"></script>
+  <script src="/static/inference.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

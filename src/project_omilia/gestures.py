@@ -1,3 +1,9 @@
+"""
+Модуль классификации жестов:
+- StaticGesture: классификация формы кисти на основе взвешенного k-NN
+- DynamicGestures: сопоставление траекторий жестов через векторизованный DTW
+"""
+
 from pathlib import Path
 from typing import Any
 import json
@@ -11,35 +17,59 @@ from project_omilia.errors import IncorrectDataError
 COUNT_OF_GESTURES = 8
 COUNT_OF_SAMPLES = 10
 
+
 class Gesture:
     pass
 
 
 class StaticGesture(Gesture):
+    """Классификатор статических жестов (форма ладони и пальцев)."""
+
     def __init__(self, db_path: Path, hands_count: int) -> None:
         self.db_path = db_path
         self.hands_count = hands_count
+        self.labels: list[str] = []
+        self.vectors: np.ndarray | None = None
+        self.model: KNeighborsClassifier | None = None
         self.reload()
 
     def reload(self) -> None:
         dataset: dict[str, list[np.ndarray]] = {}
         for row in db.get_static_samples(self.db_path, self.hands_count):
-            vector = np.asarray(json.loads(row["features_json"]), dtype=float)
+            blob = row["features_blob"] if "features_blob" in row.keys() else None
+            if blob:
+                vector = np.frombuffer(blob, dtype=np.float32)
+            else:
+                vector = np.asarray(json.loads(row["features_json"]), dtype=np.float32)
             dataset.setdefault(row["gesture_name"], []).append(vector)
 
         vectors = [vector for samples in dataset.values() for vector in samples]
         labels = [name for name, samples in dataset.items() for _ in samples]
         model = None
         if len(labels) >= 3:
-            model = KNeighborsClassifier(n_neighbors=min(len(labels), 5), metric="euclidean")
+            # weights='distance' взвешивает соседей обратно пропорционально расстоянию
+            # algorithm='auto' использует BallTree/KDTree для быстрого O(log N) поиска
+            model = KNeighborsClassifier(
+                n_neighbors=min(len(labels), 3),
+                weights="distance",
+                metric="euclidean",
+                algorithm="auto",
+            )
             model.fit(np.asarray(vectors, dtype=float), np.asarray(labels))
 
         self.dataset = dataset
+        self.labels = labels
+        self.vectors = np.asarray(vectors, dtype=float) if vectors else None
         self.model = model
 
     def add_samples(self, name: str, vectors: list[np.ndarray]) -> None:
         samples = [
-            (name, self.hands_count, json.dumps(vector.tolist(), allow_nan=False))
+            (
+                name,
+                self.hands_count,
+                json.dumps(vector.tolist(), allow_nan=False),
+                vector.astype(np.float32).tobytes(),
+            )
             for vector in vectors
         ]
         db.insert_static_samples(self.db_path, samples)
@@ -59,16 +89,18 @@ class StaticGesture(Gesture):
         return np.round(data, 8)
 
     """
-    Code -255 - Unknown
+    Code -255 - Unknown error
     Code -2 - Gesture is unknown (distance exceeded threshold)
     Code -1 - Not trained / hand count mismatch
     Code 0 - Success
     Code 1 - Waiting for calibration
     """
 
-    def predict(self, target: Pose, debug_flag: bool = False) -> tuple[int, float, str]:
+    def predict(self, target: Pose, debug_flag: bool = False) -> tuple[int, float, str, float]:
+        """Предсказывает статический жест по ключевым точкам позы.
+        Возвращает: (код_статуса, евклидово_расстояние, предсказанное_имя, уверенность_0_100)."""
         if not self.dataset:
-            return -1, 0.0, ""
+            return -1, 0.0, "", 0.0
 
         if isinstance(target, Pose):
             vector = self.extract_vector(target)
@@ -79,53 +111,80 @@ class StaticGesture(Gesture):
                 raise IncorrectDataError("ERROR: Trying to predict non Pose object.\n")
 
         if vector is None or len(vector) == 0:
-            return -1, 0.0, ""
+            return -1, 0.0, "", 0.0
 
         model = self.model
-        if model is None:
-            return -1, 0.0, ""
+        if model is None or not self.labels:
+            return -1, 0.0, "", 0.0
 
         try:
             x_arr = np.array([vector], dtype=float)
             if x_arr.shape[1] != model.n_features_in_:
-                return -1, 0.0, ""
+                return -1, 0.0, "", 0.0
 
-            distances, _ = model.kneighbors(x_arr)
-            score = round(float(np.mean(distances)), 2)
+            # Однократный поиск k-ближайших соседей без повторного вычисления
+            distances, indices = model.kneighbors(x_arr)
+            score = round(float(np.mean(distances[0])), 2)
             max_distance = 2.0
-            if score > max_distance:
-                return -2, score, ""
 
-            prediction = str(model.predict(x_arr)[0])
-            return 0, score, prediction
+            # Расчёт уверенности в процентах от 0 до 100%
+            confidence = max(0.0, min(100.0, round((1.0 - (score / max_distance)) * 100, 1)))
+
+            if score > max_distance:
+                return -2, score, "", confidence
+
+            neighbor_labels = [self.labels[idx] for idx in indices[0]]
+            prediction = max(set(neighbor_labels), key=neighbor_labels.count)
+            return 0, score, prediction, confidence
 
         except (ValueError, KeyError, IndexError, TypeError):
-            return -255, 0.0, ""
+            return -255, 0.0, "", 0.0
 
 
 def dtw_distance(attempt: np.ndarray, reference: np.ndarray) -> float:
-    n = len(attempt)
-    m = len(reference)
-    accumulated = np.full((n+1, m+1), np.inf)
-    accumulated[0][0] = 0
+    """Оптимизированное вычисление Dynamic Time Warping (DTW) через векторизованный BLAS-бродкастинг."""
+    n, m = len(attempt), len(reference)
+    if n == 0 or m == 0:
+        return float("inf")
 
-    for i in range(1, n+1):
-        for j in range(1, m+1):
-            delta = attempt[i-1] - reference[j-1]
-            frame_cost = np.sum(delta ** 2)
-            accumulated[i][j] = frame_cost + min(
-                accumulated[i-1][j],
-                accumulated[i][j-1],
-                accumulated[i-1][j-1],
+    # Векторизованный расчёт матрицы попарных стоимостей кадров через broadcasting (SIMD)
+    diff = attempt[:, None, :] - reference[None, :, :]
+    cost_matrix = np.sum(diff * diff, axis=-1)
+
+    accumulated = np.full((n + 1, m + 1), np.inf)
+    accumulated[0, 0] = 0.0
+
+    for i in range(1, n + 1):
+        cost_row = cost_matrix[i - 1]
+        prev_row = accumulated[i - 1]
+        curr_row = accumulated[i]
+        for j in range(1, m + 1):
+            curr_row[j] = cost_row[j - 1] + min(
+                prev_row[j],
+                curr_row[j - 1],
+                prev_row[j - 1],
             )
 
-    return float(np.sqrt(accumulated[n][m]))
-
+    return float(np.sqrt(accumulated[n, m]))
 
 
 class DynamicGestures:
+    """Движок распознавания динамических жестов на основе DTW."""
+
     def __init__(self, db_path: Path) -> None:
         self.db_path = Path(db_path).resolve()
+
+    def calculate_adaptive_threshold(self, references: list[np.ndarray], default_threshold: float = 4.5) -> float:
+        """Автоматически вычисляет адаптивный порог DTW на основе эталонов."""
+        if len(references) < 2:
+            return default_threshold
+        pairwise = []
+        for i in range(len(references)):
+            for j in range(i + 1, len(references)):
+                pairwise.append(dtw_distance(references[i], references[j]))
+        if not pairwise:
+            return default_threshold
+        return round(float(np.mean(pairwise) * 1.35), 2)
 
     def add_sample(self, label: str, sequence: np.ndarray) -> int:
         label = label.strip().lower()
@@ -133,8 +192,8 @@ class DynamicGestures:
             raise ValueError("Укажи название жеста.")
 
         features = np.asarray(sequence, dtype=float)
-        if features.shape not in ((COUNT_OF_GESTURES, 141), (COUNT_OF_GESTURES, 282)):
-            raise ValueError("Ожидается клип из восьми кадров по 141 или 282 признака.")
+        if features.ndim != 2 or features.shape[1] not in (141, 282):
+            raise ValueError("Ожидается последовательность кадров по 141 или 282 признака.")
         if not np.isfinite(features).all():
             raise ValueError("Клип содержит некорректные значения.")
 
@@ -166,27 +225,36 @@ class DynamicGestures:
         attempt: np.ndarray,
         references: list[np.ndarray],
         *,
-        max_distance: float,
+        max_distance: float | None = None,
     ) -> tuple[bool, dict[str, float]]:
-        """Вычисляет три оценки DTW и засчитывает жест по среднему трёх ближайших."""
-        if len(references) != COUNT_OF_SAMPLES:
-            raise ValueError("There are no enough data to check gesture")
-        if attempt.shape not in ((COUNT_OF_GESTURES, 141), (COUNT_OF_GESTURES, 282)):
-            raise ValueError("Wrong format of attempt")
+        """Вычисляет оценки DTW и засчитывает жест по среднему k ближайших эталонов."""
+        if len(references) < 3:
+            raise ValueError(f"Недостаточно эталонов жеста (записано {len(references)}, требуется минимум 3).")
+        if attempt.ndim != 2 or attempt.shape[1] not in (141, 282):
+            raise ValueError("Некорректный формат попытки.")
+
+        if max_distance is None or max_distance <= 0:
+            max_distance = self.calculate_adaptive_threshold(references)
 
         distances = []
         for sample in references:
-            if sample.shape != attempt.shape:
-                raise ValueError("Wrong format of sample")
+            if sample.shape[1] != attempt.shape[1]:
+                raise ValueError("Число рук в попытке не совпадает с эталоном.")
             distances.append(dtw_distance(sample, attempt))
 
-        mean_all = sum(distances) / COUNT_OF_SAMPLES
-        nearest_three = sorted(distances)[:3]
-        mean_nearest_three = sum(nearest_three) / len(nearest_three)
-        return mean_nearest_three <= max_distance, {
-            "mean_all": mean_all,
-            "minimum": nearest_three[0],
-            "mean_nearest_three": mean_nearest_three,
+        k_nearest = min(3, len(distances))
+        nearest = sorted(distances)[:k_nearest]
+        mean_nearest = sum(nearest) / k_nearest
+        mean_all = sum(distances) / len(distances)
+
+        confidence = max(0.0, min(100.0, round((1.0 - (mean_nearest / max_distance)) * 100, 1)))
+
+        return mean_nearest <= max_distance, {
+            "mean_all": round(mean_all, 2),
+            "minimum": round(nearest[0], 2),
+            "mean_nearest_three": round(mean_nearest, 2),
+            "confidence": confidence,
+            "threshold": round(max_distance, 2),
         }
 
     def verify(
@@ -194,7 +262,7 @@ class DynamicGestures:
         attempt: np.ndarray,
         references: list[np.ndarray],
         *,
-        max_distance: float,
+        max_distance: float | None = None,
     ) -> tuple[bool, float]:
         """Возвращает результат проверки и среднее DTW трёх ближайших эталонов."""
         accepted, distances = self.evaluate(attempt, references, max_distance=max_distance)

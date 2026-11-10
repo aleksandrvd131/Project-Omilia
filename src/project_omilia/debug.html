@@ -14,6 +14,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
+  <!-- ONNX Runtime Web и клиентский ML-движок -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script src="/static/inference.js"></script>
+
   <style>
     :root {
       --bg: #0c0f17;
@@ -161,7 +165,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transform: scaleX(-1);
+      transform: none;
     }
 
     /* HUD overlay on top of video */
@@ -677,6 +681,18 @@
       box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
       transform: scale(1.05);
     }
+
+    #dynamic-record-status {
+      font-size: 0.8rem;
+      padding: 0.45rem 0.75rem;
+      margin-top: 0.4rem;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--text);
+      display: none;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -684,7 +700,7 @@
   <header>
     <div class="brand">
       <div class="logo-badge">Ω</div>
-      <div class="brand-title">Project <span>Omiλia</span></div>
+      <div class="brand-title">Project <span>Omiλia</span> <span style="font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-left: 0.4rem;">DEV</span></div>
     </div>
     <div class="status-group">
       <div class="status-badge">
@@ -971,10 +987,16 @@
       }
     }
 
+    function getStoredToken() {
+      return localStorage.getItem('omilia_token') || new URLSearchParams(window.location.search).get('token') || '';
+    }
+
     // WebSocket setup
     function initWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/gestures`;
+      const token = getStoredToken();
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+      const wsUrl = `${protocol}//${window.location.host}/ws/gestures${tokenParam}`;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -1020,10 +1042,14 @@
         const status = document.getElementById('record-status');
         const result = data.static_record;
         if (result.status === 'saved') {
-          status.textContent = `Жест «${result.label}»: сохранено ${result.count} кадров.`;
+          status.innerHTML = `<span style="color: #10b981; font-weight: 700;">✅ Жест «${result.label}»: сохранено ${result.count} кадров.</span>`;
         } else {
-          status.textContent = result.reason;
+          status.innerHTML = `<span style="color: #ef4444; font-weight: 700;">❌ ${result.reason}</span>`;
         }
+      }
+      if (data.error) {
+        const status = document.getElementById('record-status');
+        if (status) status.innerHTML = `<span style="color: #ef4444; font-weight: 700;">❌ ${data.error}</span>`;
       }
       if (data.type === "dynamic_clip") {
         if (data.status === "recorded") {
@@ -1051,7 +1077,9 @@
       }
       if (data.detected) {
         hudGesture.textContent = data.gesture || '—';
-        hudScore.textContent = `Точность: ${data.score ?? '—'}`;
+        const confStr = data.confidence ? `${Math.round(data.confidence)}%` : '';
+        const scoreStr = data.score !== undefined && data.score !== null ? ` (дист: ${data.score})` : '';
+        hudScore.textContent = confStr ? `Точность: ${confStr}${scoreStr}` : `Точность: ${data.score ?? '—'}`;
       } else {
         hudGesture.textContent = '—';
         hudScore.textContent = 'Руки не обнаружены';
@@ -1107,7 +1135,8 @@
 
     function sendAction(action, payload = {}) {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action, ...payload }));
+        const token = getStoredToken();
+        ws.send(JSON.stringify({ action, token, ...payload }));
       }
     }
 
@@ -1204,8 +1233,11 @@
 
       // Первым делом отправляем надежный HTTP DELETE запрос
       try {
+        const token = getStoredToken();
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`/api/gestures/${encodeURIComponent(name)}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers
         });
         if (res.ok) {
           const data = await res.json();
@@ -1405,7 +1437,11 @@
     let dynamicAttempt = null;
 
     function showDynamicStatus(message) {
-      document.getElementById("dynamic-record-status").textContent = message;
+      const el = document.getElementById("dynamic-record-status");
+      if (el) {
+        el.style.display = "block";
+        el.textContent = message;
+      }
     }
 
     function cancelDynamicRecording(message) {
@@ -1512,6 +1548,7 @@
       }
 
       const payload = {
+        token: getStoredToken(),
         type: "dynamic_clip",
         mode: attempt.mode,
         label: attempt.label,
@@ -1712,6 +1749,7 @@
           }
 
           ws.send(JSON.stringify({
+            token: getStoredToken(),
             hands_data: handsToSend,
             pose_landmarks: latestPose,
             record_label: recordLabel,
