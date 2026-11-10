@@ -789,12 +789,22 @@
         <div class="input-row">
           <input type="text" id="record-label" placeholder="Имя жеста (например: а, привет)" onkeydown="if(event.key==='Enter') toggleRecording()">
           <button class="btn-primary" id="btn-record" onclick="toggleRecording()">Запись</button>
+          <button type="button" class="btn-primary" onclick="startDynamicRecording()">Записать динамику</button>
         </div>
+        <div class="input-row">
+          <label for="dynamic-max-distance">Порог DTW</label>
+          <input type="number" id="dynamic-max-distance" min="0" step="any" placeholder="Сохранённый порог">
+          <button type="button" class="btn-primary" onclick="startDynamicRecording('verify')">Проверить динамику</button>
+        </div>
+        <div id="dynamic-record-status" role="status"></div>
         <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;" id="record-status">
           Выберите тип жеста (одноручный / двуручный), введите имя и нажмите «Запись».
         </div>
         <div id="dataset-summary" style="margin-top: 0.75rem; font-size: 0.8rem; border-top: 1px solid var(--card-border); padding-top: 0.5rem; color: var(--text-muted);">
-          Датасет пуст
+          Статические жесты пока не записаны
+        </div>
+        <div id="dynamic-dataset-summary" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
+          Динамические жесты пока не записаны
         </div>
       </div>
 
@@ -821,6 +831,7 @@
     </aside>
   </main>
 
+  <script src="/static/dynamic-clip.js"></script>
   <script>
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('overlay');
@@ -860,6 +871,9 @@
     }
 
     function setHandMode(mode) {
+      if (mode !== selectedHandMode) {
+        cancelDynamicRecording("Режим рук изменился. Повтори попытку.");
+      }
       if (isRecording || isPreparing) {
         cancelRecording();
       }
@@ -971,6 +985,8 @@
       };
 
       ws.onclose = () => {
+        if (isRecording || isPreparing) cancelRecording();
+        cancelDynamicRecording("Соединение прервалось. Повтори попытку после подключения.");
         isWsBusy = false;
         wsDot.classList.remove('online');
         wsText.textContent = 'Сервер: Переподключение...';
@@ -997,6 +1013,42 @@
     }
 
     function handleServerMessage(data) {
+      if (Array.isArray(data.dynamic_dataset)) {
+        renderDynamicDataset(data.dynamic_dataset);
+      }
+      if (data.static_record) {
+        const status = document.getElementById('record-status');
+        const result = data.static_record;
+        if (result.status === 'saved') {
+          status.textContent = `Жест «${result.label}»: сохранено ${result.count} кадров.`;
+        } else {
+          status.textContent = result.reason;
+        }
+      }
+      if (data.type === "dynamic_clip") {
+        if (data.status === "recorded") {
+          showDynamicStatus(`Жест «${data.label}»: сохранено ${data.count} из 10.`);
+          return;
+        }
+        if (data.status === "verified") {
+          const result = data.accepted ? "Жест засчитан" : "Жест не засчитан";
+          const formatDistance = value => Number(value.toPrecision(4));
+          const meanNearestThree = formatDistance(data.distance);
+          const comparison = data.distances
+            ? ` Среднее всех 10: ${formatDistance(data.distances.mean_all)}. Минимум: ${formatDistance(data.distances.minimum)}.`
+            : "";
+          showDynamicStatus(
+            `${result}: «${data.label}». Среднее трёх ближайших: ${meanNearestThree} (порог ${data.max_distance}).${comparison}`
+          );
+          return;
+        }
+        if (data.status === "ok") {
+          showDynamicStatus(`Сервер обработал клип. Форма: [${data.shape.join(", ")}].`);
+        } else {
+          showDynamicStatus(`Повтори попытку. ${data.reason || "Клип не обработан."}`);
+        }
+        return;
+      }
       if (data.detected) {
         hudGesture.textContent = data.gesture || '—';
         hudScore.textContent = `Точность: ${data.score ?? '—'}`;
@@ -1084,54 +1136,69 @@
 
     let lastRenderedStatsJson = null;
 
+    function renderGestureRows(container, heading, rows, remove) {
+      const title = document.createElement('strong');
+      title.textContent = heading;
+      const list = document.createElement('div');
+      list.style.cssText = 'display: grid; gap: 0.35rem; max-height: 180px; overflow-y: auto; margin-top: 0.45rem';
+
+      if (rows.length === 0) {
+        list.textContent = 'Записей пока нет';
+      }
+      for (const { name, details } of rows) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; padding: 0.35rem 0.5rem; border: 1px solid var(--card-border); border-radius: 6px';
+        const label = document.createElement('span');
+        label.textContent = `${name} · ${details}`;
+        row.append(label);
+        if (remove) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'btn-delete-gesture';
+          button.textContent = '✕';
+          button.title = `Удалить статические эталоны «${name}»`;
+          button.addEventListener('click', () => remove(name));
+          row.append(button);
+        }
+        list.append(row);
+      }
+
+      container.replaceChildren(title, list);
+    }
+
     function renderDatasetStats(stats, info = null) {
       const summary = document.getElementById('dataset-summary');
       if (!summary || !stats) return;
 
       const statsKey = JSON.stringify({ stats, info });
-      // ОПТИМИЗАЦИЯ И СТАБИЛЬНОСТЬ:
-      // Если данные датасета не изменились с прошлого кадра, не трогаем DOM!
-      // Это предотвращает стирание кнопки ✕ под курсором мыши каждые 40 мс и сохраняет скролл.
-      if (statsKey === lastRenderedStatsJson) {
-        return;
-      }
+      if (statsKey === lastRenderedStatsJson) return;
       lastRenderedStatsJson = statsKey;
 
-      const entries = Object.entries(stats);
-      if (entries.length === 0) {
-        summary.innerHTML = '<span style="color: var(--text-muted);">Датасет пуст (0 жестов)</span>';
-        return;
-      }
+      const rows = Object.entries(stats).map(([name, count]) => {
+        const handCounts = info?.[name]?.hand_counts ?? { [info?.[name]?.hands ?? 1]: count };
+        const details = Object.entries(handCounts)
+          .map(([hands, frames]) => `${hands === '2' ? '2 руки' : '1 рука'}: ${frames} кадр.`)
+          .join(', ');
+        return { name, details };
+      });
+      renderGestureRows(summary, 'Статические жесты', rows, deleteGesture);
+    }
 
-      let html = '<div style="font-weight: 600; margin-bottom: 0.45rem; color: #e2e8f0;">В датасете:</div>';
-      html += '<div style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 180px; overflow-y: auto;">';
-      for (const [name, count] of entries) {
-        const hands = (info && info[name]) ? info[name].hands : null;
-        const handsBadge = hands === 2
-          ? '<span style="font-size: 0.68rem; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">👐 2 руки</span>'
-          : '<span style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">✋ 1 рука</span>';
+    function renderDynamicDataset(dataset) {
+      const summary = document.getElementById('dynamic-dataset-summary');
+      if (!summary) return;
 
-        // Безопасное экранирование названия для вызова функции
-        const safeName = name.replace(/'/g, "\\'");
-        html += `
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid var(--card-border);">
-            <div style="display: flex; align-items: center; gap: 0.4rem;">
-              <strong style="color: #fff;">${name}</strong>
-              ${handsBadge}
-              <span style="font-size: 0.75rem; color: var(--text-muted);">${count} кадр.</span>
-            </div>
-            <button type="button" class="btn-delete-gesture" onclick="deleteGesture('${safeName}')" title="Удалить жест «${name}»">✕</button>
-          </div>
-        `;
-      }
-      html += '</div>';
-      summary.innerHTML = html;
+      const rows = dataset.map(({ name, hands, count }) => ({
+        name,
+        details: `${hands === 2 ? '2 руки' : '1 рука'}: ${count}/10 эталонов`,
+      }));
+      renderGestureRows(summary, 'Динамические жесты', rows);
     }
 
     async function deleteGesture(gestureName) {
       const name = (gestureName || '').trim();
       if (!name) return;
-      if (!confirm(`Вы действительно хотите удалить жест "${name}" из датасета?`)) {
+      if (!confirm(`Удалить статические эталоны жеста «${name}» для одной и двух рук?`)) {
         return;
       }
 
@@ -1147,12 +1214,12 @@
           if (data.dataset_stats) {
             renderDatasetStats(data.dataset_stats, data.dataset_info);
           }
+          return;
         }
       } catch (err) {
         console.warn('Ошибка HTTP DELETE, пробуем через WebSocket:', err);
       }
 
-      // Также дублируем по WebSocket
       sendAction('delete_gesture', { gesture_name: name });
     }
 
@@ -1160,6 +1227,8 @@
     const PREP_DURATION_SEC = 2.0; // Задержка перед началом записи (2 секунды)
 
     function toggleRecording() {
+      if (dynamicAttempt) return;
+
       if (isPreparing || isRecording) {
         cancelRecording();
         return;
@@ -1283,6 +1352,7 @@
     }
 
     function cancelRecording() {
+      if (isRecording) sendAction('cancel_static_recording');
       if (prepInterval) {
         clearInterval(prepInterval);
         prepInterval = null;
@@ -1330,6 +1400,131 @@
 
     let latestHands = [];
     let latestPose = null;
+
+    const { prepSeconds: DYNAMIC_PREP_SECONDS, durationMs: DYNAMIC_DURATION_MS } = window.omiliaDynamicClip;
+    let dynamicAttempt = null;
+
+    function showDynamicStatus(message) {
+      document.getElementById("dynamic-record-status").textContent = message;
+    }
+
+    function cancelDynamicRecording(message) {
+      if (!dynamicAttempt) return;
+      dynamicAttempt = null;
+      showDynamicStatus(message);
+    }
+
+    function startDynamicRecording(mode = "record") {
+      if (dynamicAttempt) return;
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showDynamicStatus("Дождись подключения к серверу.");
+        return;
+      }
+
+      if (video.readyState < 2 || !handsDetector || !poseDetector) {
+        showDynamicStatus("Дождись запуска камеры.");
+        return;
+      }
+
+      if (isPreparing || isRecording) {
+        showDynamicStatus("Дождись окончания текущей записи.");
+        return;
+      }
+
+      const label = document.getElementById("record-label").value.trim();
+      if (!label) {
+        showDynamicStatus("Введи название жеста.");
+        return;
+      }
+
+      let maxDistance;
+      if (mode === "verify") {
+        const thresholdInput = document.getElementById("dynamic-max-distance");
+        if (!thresholdInput.validity.valid) {
+          showDynamicStatus("Введи порог DTW: число от 0.");
+          return;
+        }
+        if (thresholdInput.value !== "") {
+          maxDistance = thresholdInput.valueAsNumber;
+        }
+      }
+
+      const attempt = {
+        startedAt: null,
+        handsCount: selectedHandMode,
+        mode,
+        label,
+        maxDistance,
+        frames: [],
+      };
+
+      dynamicAttempt = attempt;
+
+      function countdown(secondsLeft) {
+        if (dynamicAttempt !== attempt) return;
+
+        if (secondsLeft > 0) {
+          showDynamicStatus(`Приготовься: ${secondsLeft}…`);
+          setTimeout(() => countdown(secondsLeft - 1), 1000);
+          return;
+        }
+
+        attempt.startedAt = performance.now();
+        showDynamicStatus("Покажи жест за одну секунду.");
+
+        // Последний кадр может обработаться чуть позже конца съёмки.
+        setTimeout(() => {
+          if (dynamicAttempt !== attempt) return;
+          dynamicAttempt = null;
+          finishDynamicRecording(attempt);
+        }, DYNAMIC_DURATION_MS + 100);
+      }
+
+      countdown(DYNAMIC_PREP_SECONDS);
+    }
+
+    function collectDynamicFrame(attempt, capturedAt) {
+      if (!attempt || dynamicAttempt !== attempt || attempt.startedAt === null) return;
+
+      const elapsed = capturedAt - attempt.startedAt;
+      if (elapsed < 0 || elapsed >= DYNAMIC_DURATION_MS) return;
+
+      attempt.frames.push({
+        t_ms: elapsed,
+        hands_data: structuredClone(latestHands),
+        pose_landmarks: structuredClone(latestPose),
+      });
+    }
+
+    function finishDynamicRecording(attempt) {
+      let selectedFrames;
+      try {
+        selectedFrames = window.omiliaDynamicClip.selectFrames(attempt.frames, attempt.handsCount);
+      } catch (error) {
+        showDynamicStatus(error.message);
+        return;
+      }
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showDynamicStatus("Соединение прервалось. Повтори запись после подключения.");
+        return;
+      }
+
+      const payload = {
+        type: "dynamic_clip",
+        mode: attempt.mode,
+        label: attempt.label,
+        hands_count: attempt.handsCount,
+        frames: selectedFrames,
+      };
+      if (attempt.mode === "verify") {
+        payload.max_distance = attempt.maxDistance;
+      }
+      ws.send(JSON.stringify(payload));
+
+      showDynamicStatus("Восемь кадров отправлены. Ждём ответ сервера.");
+    }
 
     async function setupCamera() {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -1398,15 +1593,19 @@
       let poseCounter = 0;
       const camera = new Camera(video, {
         onFrame: async () => {
+          const attempt = dynamicAttempt?.startedAt != null ? dynamicAttempt : null;
+          const capturedAt = performance.now();
+
           if (handsDetector) {
             await handsDetector.send({ image: video });
           }
-          // ОПТИМИЗАЦИЯ: Pose (плечи, нос) обновляем раз в 4 кадра (~8-10 FPS),
-          // так как тело относительно статично, что экономит ~40% ресурсов CPU
+
           poseCounter++;
-          if (poseDetector && (poseCounter % 4 === 0 || !latestPose)) {
+          if (poseDetector && (attempt || poseCounter % 4 === 0 || !latestPose)) {
             await poseDetector.send({ image: video });
           }
+
+          collectDynamicFrame(attempt, capturedAt);
           onFrameRender();
         },
         width: 640,
@@ -1478,9 +1677,7 @@
                 btnRecord.textContent = 'Запись';
                 btnRecord.classList.remove('btn-danger');
               }
-              const modeLabel = selectedHandMode === 1 ? 'одноручный' : 'двуручный';
-              document.getElementById('record-status').innerHTML = `<span style="color: #22c55e; font-weight: 700;">✅ Жест «${currentRecordLabel}» (${modeLabel}) успешно сохранён в датасет!</span>`;
-              showBanner(`✅ Жест «${currentRecordLabel}» записан!`);
+              document.getElementById('record-status').textContent = 'Сохраняем статический жест…';
             } else {
               if (btnRecord) {
                 btnRecord.textContent = `Отмена (${capturedCount}/15)`;

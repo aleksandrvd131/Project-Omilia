@@ -3,7 +3,9 @@ from types import SimpleNamespace
 import io
 import json
 import random
+import sqlite3
 from contextlib import asynccontextmanager
+from math import isfinite
 from typing import Any
 
 import numpy as np
@@ -14,7 +16,7 @@ from gtts import gTTS
 from pydantic import BaseModel
 
 from project_omilia.body import Pose
-from project_omilia.gestures import StaticGesture, DynamicGestures
+from project_omilia.gestures import COUNT_OF_GESTURES, COUNT_OF_SAMPLES, DynamicGestures, StaticGesture
 import project_omilia.db as db
 
 
@@ -22,12 +24,11 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 DATASET_PATH_1H = BASE_DIR / "omilia_static_1h.json"
 DATASET_PATH_2H = BASE_DIR / "omilia_static_2h.json"
-DYNAMIC_DATASET_PATH_1H = BASE_DIR / "omilia_dynamic_1h.json"
-DYNAMIC_DATASET_PATH_2H = BASE_DIR / "omilia_dynamic_2h.json"
 LEGACY_DATASET_PATH = BASE_DIR / "omilia_static.json"
 INDEX_PATH = FRONTEND_DIR / "index.html"
 DEBUG_PATH = BASE_DIR / "debug.html"
 DB_PATH = BASE_DIR / "omilia.db"
+DYNAMIC_DTW_THRESHOLDS = {("нет", 1): 4.3}
 
 # Базовые описания и подсказки для жестов
 GESTURE_METADATA: dict[str, dict[str, str]] = {
@@ -121,150 +122,237 @@ def make_pose(hands_data: list, pose_landmarks: list | None) -> Pose | None:
         return None
 
 class DynamicGestureServer:
+    def __init__(self, db_path: Path) -> None:
+        self.engine = DynamicGestures(db_path)
 
-    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
-        self.dataset_path_1h = Path(dataset_path_1h).resolve()
-        self.dataset_path_2h = Path(dataset_path_2h).resolve()
-        self.engine_1h = DynamicGestures(dataset_path_1h)
-        self.engine_2h = DynamicGestures(dataset_path_2h)
+    def get_ready_gestures(self) -> dict[str, int]:
+        ready = {}
+        for name, hands_count in DYNAMIC_DTW_THRESHOLDS:
+            if name not in ready and db.count_dynamic_samples(self.engine.db_path, name, hands_count) == COUNT_OF_SAMPLES:
+                ready[name] = hands_count
+        return ready
 
-    def prepare_dynamic_clip(self, frames: list , engine, hands_count) -> np.ndarray:
-        if len(frames) != 8:
-            raise ValueError("Incorrect count of frames")
+    def prepare_dynamic_clip(self, frames: list, hands_count: int) -> np.ndarray:
+        if len(frames) != COUNT_OF_GESTURES:
+            raise ValueError("Ожидается клип из восьми кадров.")
+
+        expected_shape = (141 * hands_count,)
         vectors = []
 
-        expected_values = 141 if hands_count == 1 else 282
+        for number, frame in enumerate(frames, start=1):
+            if not isinstance(frame, dict):
+                raise ValueError(f"Кадр {number}: ожидался объект с точками.")
+            hands_data = frame.get("hands_data")
+            pose_landmarks = frame.get("pose_landmarks")
+            if not isinstance(hands_data, list) or len(hands_data) != hands_count:
+                raise ValueError(f"Кадр {number}: ожидалось кистей: {hands_count}.")
+            if any(not isinstance(hand, list) or len(hand) != 21 for hand in hands_data):
+                raise ValueError(f"Кадр {number}: ожидалось 21 точка на кисть.")
+            if not isinstance(pose_landmarks, list) or len(pose_landmarks) != 33:
+                raise ValueError(f"Кадр {number}: ожидалось 33 точки тела.")
 
-        for frame in frames:
+            try:
+                pose = make_pose(hands_data, pose_landmarks)
+                if pose is None:
+                    raise ValueError("Не удалось построить позу.")
+                vector = self.engine.extract_vector(pose)
+            except (KeyError, TypeError, ValueError, ArithmeticError) as error:
+                raise ValueError(f"Кадр {number}: некорректные координаты.") from error
 
-            if frame.get("hands_data") is None or frame.get("pose_landmarks") is None:
-                raise ValueError("Incorrect frame")
-
-            hands_data = frame["hands_data"]
-            pose_landmarks = frame["pose_landmarks"]
-
-            if hands_count == 1 and len(hands_data) > 1:
-                hands_data = hands_data[:1]
-
-            pose = make_pose(hands_data, pose_landmarks)
-            if pose is None:
-                raise ValueError("Incorrect data")
-
-            vector = engine.extract_vector(pose)
-            if vector.shape != (expected_values,):
-                raise ValueError("Incorrect vector")
-            if not np.isfinite(vector).all():
-                raise ValueError("Incorrect vector")
-
+            if vector.shape != expected_shape or not np.isfinite(vector).all():
+                raise ValueError(f"Кадр {number}: некорректные признаки.")
             vectors.append(vector)
 
         return np.stack(vectors)
 
-    def process_dynamic_clip(self, payload) -> dict:
+    def process_dynamic_clip(self, payload: dict[str, Any]) -> dict[str, Any]:
+        response: dict[str, Any] = {"type": "dynamic_clip"}
+        if type(payload.get("attempt_id")) is int:
+            response["attempt_id"] = payload["attempt_id"]
         try:
-            if payload.get("hands_count") is None:
-                raise ValueError("Hands count must be announced")
-            if payload.get("frames") is None:
-                raise ValueError("Frames must be announced")
+            hands_count = payload.get("hands_count")
+            if type(hands_count) is not int or hands_count not in (1, 2):
+                raise ValueError("Выбери режим одной или двух рук.")
+            frames = payload.get("frames")
+            if not isinstance(frames, list):
+                raise ValueError("В пакете нет списка кадров.")
+
+            mode = payload.get("mode")
+            if mode not in (None, "record", "verify", "practice"):
+                raise ValueError("Неизвестный режим динамического клипа.")
+            if mode in ("record", "verify", "practice"):
+                label = payload.get("label")
+                if not isinstance(label, str) or not label.strip():
+                    raise ValueError("Укажи название жеста.")
+                label = label.strip().lower()
+
+            if mode in ("verify", "practice"):
+                raw_threshold = payload.get("max_distance") if mode == "verify" else None
+                if raw_threshold is None:
+                    raw_threshold = DYNAMIC_DTW_THRESHOLDS.get((label, hands_count))
+                    if raw_threshold is None:
+                        if mode == "practice":
+                            raise ValueError("Динамическая практика для этого жеста пока недоступна.")
+                        raise ValueError("Для этого жеста и режима рук задай порог DTW.")
+                try:
+                    if type(raw_threshold) not in (int, float):
+                        raise ValueError
+                    threshold = float(raw_threshold)
+                    if not isfinite(threshold) or threshold < 0:
+                        raise ValueError
+                except (ValueError, OverflowError):
+                    raise ValueError("Порог DTW должен быть конечным числом от 0.") from None
+
+                references = self.engine.get_samples(label, hands_count)
+                if len(references) != COUNT_OF_SAMPLES:
+                    raise ValueError(
+                        f"Для жеста «{label}» в этом режиме рук записано "
+                        f"{len(references)} из {COUNT_OF_SAMPLES} эталонов."
+                    )
+
+            sequence = self.prepare_dynamic_clip(frames, hands_count)
+            if mode == "record":
+                count = self.engine.add_sample(label, sequence)
+                return {
+                    **response, "status": "recorded", "label": label, "count": count,
+                    "dynamic_dataset": db.list_dynamic_samples(self.engine.db_path),
+                }
+            if mode in ("verify", "practice"):
+                accepted, distances = self.engine.evaluate(sequence, references, max_distance=threshold)
+                if mode == "verify":
+                    response["distances"] = distances
+                return {
+                    **response,
+                    "status": "verified",
+                    "label": label,
+                    "accepted": accepted,
+                    "distance": distances["mean_nearest_three"],
+                    "max_distance": threshold,
+                }
         except ValueError as error:
-            return {
-                "type": "dynamic_clip",
-                "status": "retry",
-                "reason": str(error),
-            }
-        hands_count = payload["hands_count"]
-        frames = payload["frames"]
-        if hands_count not in [1, 2]:
-            return {
-                "type": "dynamic_clip",
-                "status": "retry",
-                "reason": "Invalid hands count",
-            }
-        try:
-            if hands_count == 1:
-                sequence = self.prepare_dynamic_clip(frames, self.engine_1h, 1)
-            else:
-                sequence = self.prepare_dynamic_clip(frames, self.engine_2h, 2)
-        except ValueError as error:
-            return {
-                "type": "dynamic_clip",
-                "status": "retry",
-                "reason": str(error),
-            }
-        return {
-            "type": "dynamic_clip",
-            "status": "ok",
-            "shape": list(sequence.shape),
-        }
+            return {**response, "status": "retry", "reason": str(error)}
+        except sqlite3.Error as error:
+            print(f"[Динамические жесты] Ошибка SQLite: {error}")
+            return {**response, "status": "retry", "reason": "Не удалось обратиться к эталонам."}
+
+        return {**response, "status": "ok", "shape": list(sequence.shape)}
+
+
+def import_static_datasets(db_path: Path) -> None:
+    if db.static_samples_imported(db_path):
+        return
+
+    def read_dataset(path: Path) -> dict:
+        if not path.is_file() or path.stat().st_size == 0:
+            return {}
+        dataset = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(dataset, dict):
+            raise ValueError(f"Некорректный набор статических жестов: {path.name}")
+        return dataset
+
+    split = {1: read_dataset(DATASET_PATH_1H), 2: read_dataset(DATASET_PATH_2H)}
+    missing = {hands for hands, dataset in split.items() if not dataset}
+    legacy = read_dataset(LEGACY_DATASET_PATH) if missing else {}
+
+    samples = []
+    for hands, dataset in split.items():
+        width = 141 * hands
+        for label, vectors in (dataset or legacy).items():
+            name = label.strip().lower()
+            if not name or not isinstance(vectors, list):
+                raise ValueError("Некорректная запись в старом наборе статических жестов.")
+            for values in vectors:
+                vector = np.asarray(values, dtype=float)
+                if not dataset and vector.shape == (141 * (3 - hands),):
+                    continue
+                if vector.shape != (width,) or not np.isfinite(vector).all():
+                    raise ValueError(f"Некорректный эталон статического жеста «{name}».")
+                samples.append((name, hands, json.dumps(vector.tolist(), allow_nan=False)))
+
+    db.import_static_samples(db_path, samples)
 
 
 class StaticGestureServer:
-    def __init__(self, dataset_path_1h: Path, dataset_path_2h: Path) -> None:
-        self.dataset_path_1h = Path(dataset_path_1h).resolve()
-        self.dataset_path_2h = Path(dataset_path_2h).resolve()
-
-        # Автоматическая миграция из старого omilia_static.json при необходимости
-        self._ensure_split_datasets()
-
-        self.engine_1h = StaticGesture(dataset_path=str(self.dataset_path_1h))
-        self.engine_2h = StaticGesture(dataset_path=str(self.dataset_path_2h))
-
-    def _ensure_split_datasets(self) -> None:
-        """Если файлов 1h или 2h нет, автоматически разделяет существующий omilia_static.json."""
-        need_1h = not self.dataset_path_1h.exists() or self.dataset_path_1h.stat().st_size == 0
-        need_2h = not self.dataset_path_2h.exists() or self.dataset_path_2h.stat().st_size == 0
-
-        if (need_1h or need_2h) and LEGACY_DATASET_PATH.exists() and LEGACY_DATASET_PATH.stat().st_size > 0:
-            try:
-                with open(LEGACY_DATASET_PATH, mode="r", encoding="utf-8") as f:
-                    legacy_data = json.load(f)
-
-                data_1h: dict[str, list[list[float]]] = {}
-                data_2h: dict[str, list[list[float]]] = {}
-
-                for name, vectors in legacy_data.items():
-                    if not vectors:
-                        continue
-                    dim = len(vectors[0])
-                    if dim <= 141:
-                        data_1h[name] = vectors
-                    else:
-                        data_2h[name] = vectors
-
-                if need_1h and data_1h:
-                    with open(self.dataset_path_1h, mode="w", encoding="utf-8") as f:
-                        json.dump(data_1h, f, ensure_ascii=False, indent=2)
-                    print(f"[Миграция] Создан {self.dataset_path_1h.name} с жестами: {list(data_1h.keys())}")
-
-                if need_2h and data_2h:
-                    with open(self.dataset_path_2h, mode="w", encoding="utf-8") as f:
-                        json.dump(data_2h, f, ensure_ascii=False, indent=2)
-                    print(f"[Миграция] Создан {self.dataset_path_2h.name} с жестами: {list(data_2h.keys())}")
-            except Exception as err:
-                print(f"[Миграция] Ошибка разделения датасетов: {err}")
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self.engine_1h = StaticGesture(db_path, 1)
+        self.engine_2h = StaticGesture(db_path, 2)
 
     def get_combined_stats(self) -> dict[str, int]:
         stats: dict[str, int] = {}
-        for k, v in self.engine_1h.get_dataset_stats().items():
-            stats[k] = v
-        for k, v in self.engine_2h.get_dataset_stats().items():
-            stats[k] = v
+        for engine in (self.engine_1h, self.engine_2h):
+            for name, count in engine.get_dataset_stats().items():
+                stats[name] = stats.get(name, 0) + count
         return stats
 
     def get_combined_info(self) -> dict[str, dict[str, Any]]:
         info: dict[str, dict[str, Any]] = {}
-        for k, v in self.engine_1h.get_dataset_stats().items():
-            info[k] = {"count": v, "hands": 1}
-        for k, v in self.engine_2h.get_dataset_stats().items():
-            info[k] = {"count": v, "hands": 2}
+        for engine in (self.engine_1h, self.engine_2h):
+            for name, count in engine.get_dataset_stats().items():
+                item = info.setdefault(name, {"count": 0, "hands": engine.hands_count, "hand_counts": {}})
+                item["count"] += count
+                item["hand_counts"][engine.hands_count] = count
         return info
 
-    def process_frame(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _record_frame(
+        self,
+        payload: dict[str, Any],
+        pose: Pose | None,
+        recording: list[tuple[str, int, np.ndarray]],
+    ) -> dict[str, Any]:
+        raw_label = payload["record_label"]
+        label = raw_label.strip().lower() if isinstance(raw_label, str) else ""
+        finished = bool(payload.get("record_finished"))
+        hands = payload.get("hands_count")
+        if hands not in (1, 2):
+            hands = 1 if pose is None or pose.left_hand is None else 2
+
+        if recording and recording[0][:2] != (label, hands):
+            recording.clear()
+        engine = self.engine_1h if hands == 1 else self.engine_2h
+        result = None
+        try:
+            if not label or pose is None:
+                raise ValueError("Кисть не обнаружена.")
+            vector = engine.extract_vector(pose)
+            if vector.shape != (141 * hands,) or not np.isfinite(vector).all():
+                raise ValueError("Кадр не подходит для выбранного режима рук.")
+            if len(recording) >= 15:
+                recording.clear()
+                raise ValueError("Слишком много кадров в серии.")
+            recording.append((label, hands, vector))
+
+            if finished:
+                engine.add_samples(label, [sample for _, _, sample in recording])
+                result = {"status": "saved", "label": label, "count": len(recording)}
+            message = f"Запись: {label}"
+        except (ValueError, ArithmeticError, sqlite3.Error) as error:
+            print(f"[Статическая запись] {error}")
+            message = "Не удалось обработать кадр."
+            if finished:
+                result = {"status": "retry", "reason": "Не удалось сохранить статический жест. Повторите запись."}
+        finally:
+            if finished:
+                recording.clear()
+
+        response = {
+            "detected": pose is not None,
+            "gesture": message,
+            "name": message,
+            "dataset_stats": self.get_combined_stats(),
+            "dataset_info": self.get_combined_info(),
+        }
+        if result is not None:
+            response["static_record"] = result
+        return response
+
+    def process_frame(
+        self, payload: dict[str, Any], recording: list[tuple[str, int, np.ndarray]],
+    ) -> dict[str, Any]:
         hands_data = payload.get("hands_data") or payload.get("hands") or []
         pose_landmarks = payload.get("pose_landmarks")
         record_label = payload.get("record_label")
         hands_count = payload.get("hands_count")  # 1 или 2 из тумблера
-        record_finished = payload.get("record_finished", False)
 
         # ЖЕСТКИЙ ТУМБЛЕР РЕЖИМА 1 РУКА:
         # Если тумблер в режиме 1 рука (или hands_count == 1):
@@ -272,7 +360,12 @@ class StaticGestureServer:
         if hands_count == 1 and len(hands_data) > 1:
             hands_data = hands_data[:1]
 
-        pose = make_pose(hands_data, pose_landmarks)
+        try:
+            pose = make_pose(hands_data, pose_landmarks)
+        except (KeyError, TypeError, ValueError):
+            pose = None
+        if record_label:
+            return self._record_frame(payload, pose, recording)
         if pose is None:
             return {
                 "detected": False,
@@ -292,64 +385,9 @@ class StaticGestureServer:
         else:
             engine = self.engine_1h if pose.left_hand is None else self.engine_2h
 
-        # Режим записи жеста в датасет (через панель разработчика)
-        if record_label:
-            norm_label = record_label.strip().lower()
-
-            # Для двуручного жеста обязательно должно быть 2 руки
-            if hands_count == 2 and len(hands_data) < 2:
-                return {
-                    "detected": True,
-                    "gesture": "Требуется 2 руки",
-                    "name": "Требуется 2 руки",
-                    "score": 0.0,
-                    "distance": 0.0,
-                    "dataset_stats": self.get_combined_stats(),
-                    "dataset_info": self.get_combined_info(),
-                }
-
-            try:
-                # ОПТИМИЗАЦИЯ: при сборе серии кадров (1..14) кадры накапливаются в ОЗУ,
-                # а переобучение модели и сброс на диск происходят ТОЛЬКО на последнем кадре серии!
-                is_last = bool(record_finished)
-                engine.add_sample(
-                    name=norm_label,
-                    pose=pose,
-                    auto_train=is_last,
-                    auto_save=is_last,
-                )
-                if is_last:
-                    engine.save_and_train()
-
-                stats = self.get_combined_stats()
-                info = self.get_combined_info()
-                status_suffix = " [сохранено и переобучено]" if is_last else ""
-                print(f"[Запись] Сэмпл для '{norm_label}' сохранён ({hands_count or 1} рук, всего: {stats.get(norm_label, 0)}){status_suffix}")
-
-                return {
-                    "detected": True,
-                    "gesture": f"Запись: {norm_label}",
-                    "name": f"Запись: {norm_label}",
-                    "score": 1.0,
-                    "distance": 1.0,
-                    "dataset_stats": stats,
-                    "dataset_info": info,
-                }
-            except Exception as err:
-                print(f"[Запись] Ошибка сэмпла: {err}")
-                return {
-                    "detected": True,
-                    "gesture": "Ошибка геометрии",
-                    "name": "Ошибка геометрии",
-                    "score": 0.0,
-                    "distance": 0.0,
-                    "dataset_stats": self.get_combined_stats(),
-                    "dataset_info": self.get_combined_info(),
-                }
-
         # Режим классификации / тестирования:
         # Если тумблер установлен на 2 руки, а в кадре только 1 рука:
-        if hands_count == 2 and len(hands_data) < 2:
+        if hands_count == 2 and pose.left_hand is None:
             return {
                 "detected": True,
                 "gesture": "Покажите 2 руки",
@@ -368,8 +406,7 @@ class StaticGestureServer:
         elif code == -1:
             dim = 141 if pose.left_hand is None else 282
             hands_num = 1 if dim == 141 else 2
-            model_exists = hasattr(engine, "models") and dim in engine.models
-            if not model_exists:
+            if engine.model is None:
                 gesture_name = f"Нет модели для {hands_num} рук(и)"
             elif total_samples < 3:
                 gesture_name = f"Мало данных ({total_samples}/3)"
@@ -391,29 +428,15 @@ class StaticGestureServer:
         }
 
     def delete_gesture(self, gesture_name: str) -> None:
-        """Удаляет жест из обоих датасетов (1h и 2h), старого файла и базы данных."""
-        norm_name = gesture_name.strip().lower()
-        self.engine_1h.delete_gesture(norm_name)
-        self.engine_2h.delete_gesture(norm_name)
-        if LEGACY_DATASET_PATH.exists():
-            try:
-                with open(LEGACY_DATASET_PATH, mode="r", encoding="utf-8") as f:
-                    legacy_data = json.load(f)
-                if norm_name in legacy_data:
-                    legacy_data.pop(norm_name)
-                    from project_omilia.gestures import format_dataset_json_inline
-                    with open(LEGACY_DATASET_PATH, mode="w", encoding="utf-8") as f:
-                        f.write(format_dataset_json_inline(legacy_data))
-            except Exception as err:
-                print(f"[Удаление] Ошибка обновления legacy файла: {err}")
-        db.remove_gesture_from_db(DB_PATH, norm_name)
-        print(f"[Удаление] Жест '{norm_name}' успешно удален из датасета")
+        db.delete_static_gesture(self.db_path, gesture_name.strip().lower())
+        self.engine_1h.reload()
+        self.engine_2h.reload()
 
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
             case "train_dataset":
-                self.engine_1h.save_and_train()
-                self.engine_2h.save_and_train()
+                self.engine_1h.reload()
+                self.engine_2h.reload()
                 return {
                     "detected": False,
                     "dataset_stats": self.get_combined_stats(),
@@ -473,10 +496,11 @@ async def lifespan(app: FastAPI):
     global server
     global dynamic_server
     db.init_db(DB_PATH)
-    server = StaticGestureServer(dataset_path_1h=DATASET_PATH_1H, dataset_path_2h=DATASET_PATH_2H)
-    dynamic_server = DynamicGestureServer(dataset_path_1h=DYNAMIC_DATASET_PATH_1H, dataset_path_2h=DYNAMIC_DATASET_PATH_2H)
+    import_static_datasets(DB_PATH)
+    server = StaticGestureServer(DB_PATH)
+    dynamic_server = DynamicGestureServer(DB_PATH)
     total_gestures = len(server.engine_1h.dataset) + len(server.engine_2h.dataset)
-    print(f"Сервер Omiλia запущен. Датасеты: 1H={DATASET_PATH_1H.name}, 2H={DATASET_PATH_2H.name} (всего жестов: {total_gestures})")
+    print(f"Сервер Omiλia запущен. SQLite: {DB_PATH.name}, статических наборов: {total_gestures}")
     yield
 
 
@@ -552,10 +576,11 @@ async def api_get_gestures(request: Request, authorization: str | None = Header(
 
     combined_stats = server.get_combined_stats() if server else {}
 
-    # Собираем список всех жестов, обученных в модели
+    dynamic_hands = dynamic_server.get_ready_gestures() if dynamic_server else {}
+
     gestures_list = []
-    for gesture_name, count in combined_stats.items():
-        norm_name = gesture_name.strip().lower()
+    for norm_name in combined_stats.keys() | dynamic_hands.keys():
+        hands_count = dynamic_hands.get(norm_name)
         meta = GESTURE_METADATA.get(
             norm_name,
             {
@@ -570,9 +595,16 @@ async def api_get_gestures(request: Request, authorization: str | None = Header(
                 "name": norm_name,
                 "title": meta.get("title", norm_name.capitalize()),
                 "category": meta.get("category", "Общие жесты"),
-                "description": meta.get("description", ""),
-                "tip": meta.get("tip", ""),
-                "samples_count": count,
+                "description": (
+                    "Динамический жест. Покажите движение целиком после отсчёта."
+                    if hands_count else meta.get("description", "")
+                ),
+                "tip": (
+                    f"Покажите жест {'одной рукой' if hands_count == 1 else 'двумя руками'} за одну секунду."
+                    if hands_count else meta.get("tip", "")
+                ),
+                "samples_count": COUNT_OF_SAMPLES if hands_count else combined_stats[norm_name],
+                "dynamic_hands_count": hands_count,
                 "is_learned": norm_name in learned_set,
             }
         )
@@ -641,11 +673,15 @@ async def api_blitz_questions(
         return JSONResponse(status_code=401, content={"error": "Требуется авторизация"})
 
     learned = db.get_learned_gestures(DB_PATH, user["id"])
+    static_names = server.get_combined_stats().keys() if server else set()
+    dynamic_hands = dynamic_server.get_ready_gestures() if dynamic_server else {}
+    available_names = static_names | dynamic_hands.keys()
+    learned = [name.strip().lower() for name in learned if name.strip().lower() in available_names]
     if not learned:
         return {
             "status": "ok",
             "questions": [],
-            "message": "У вас пока нет выученных жестов. Изучите хотя бы один жест в каталоге!",
+            "message": "Для блица выучи хотя бы один доступный жест в словаре.",
         }
 
     # Выбираем случайную подвыборку из уже выученных жестов
@@ -653,14 +689,19 @@ async def api_blitz_questions(
     selected = random.sample(learned, sample_size)
 
     questions = []
-    for gname in selected:
-        norm = gname.strip().lower()
-        meta = GESTURE_METADATA.get(norm, {})
+    for name in selected:
+        meta = GESTURE_METADATA.get(name, {})
+        hands_count = dynamic_hands.get(name)
+        tip = meta.get("tip", "Покажите жест на камеру")
+        if hands_count:
+            hand_instruction = "одной рукой" if hands_count == 1 else "двумя руками"
+            tip = f"Покажите жест {hand_instruction} за одну секунду."
         questions.append(
             {
-                "gesture_name": norm,
-                "title": meta.get("title", norm.capitalize()),
-                "tip": meta.get("tip", "Покажите жест на камеру"),
+                "gesture_name": name,
+                "title": meta.get("title", name.capitalize()),
+                "tip": tip,
+                "dynamic_hands_count": hands_count,
             }
         )
 
@@ -688,6 +729,7 @@ def synthesize_speech(text: str = Query(..., min_length=1, max_length=300)):
 async def gesture_ws(websocket: WebSocket):
     await websocket.accept()
     print("[WebSocket] Клиент подключился")
+    recording: list[tuple[str, int, np.ndarray]] = []
 
     try:
         while True:
@@ -704,9 +746,17 @@ async def gesture_ws(websocket: WebSocket):
                 if payload.get("type") == "dynamic_clip":
                     response = dynamic_server.process_dynamic_clip(payload)
                 elif "action" in payload:
-                    response = server.handle_action(payload["action"], payload)
+                    action = payload["action"]
+                    if action == "cancel_static_recording":
+                        recording.clear()
+                        continue
+                    if action == "delete_gesture":
+                        recording.clear()
+                    response = server.handle_action(action, payload)
+                    if action == "get_dataset_stats":
+                        response["dynamic_dataset"] = db.list_dynamic_samples(DB_PATH)
                 else:
-                    response = server.process_frame(payload)
+                    response = server.process_frame(payload, recording)
 
                 await websocket.send_json(response)
             except Exception as err:

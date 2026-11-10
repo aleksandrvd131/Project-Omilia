@@ -31,10 +31,12 @@
       currentIndex: 0,
       holdProgress: 0,
       holdTarget: 1.5,
-      isHoldingCorrect: false,
+      advanceTimer: null,
       lastTimestamp: null,
       isActive: false,
     },
+
+    dynamicAttempt: null,
 
     // WebSocket и MediaPipe
     ws: null,
@@ -46,6 +48,8 @@
     latestPose: null,
     isCameraRunning: false,
   };
+
+  let nextDynamicAttemptId = 0;
 
   // --- Селекторы элементов DOM ---
   const dom = {
@@ -86,6 +90,7 @@
     blitzIntro: document.getElementById('blitz-intro'),
     blitzActive: document.getElementById('blitz-active'),
     blitzFinish: document.getElementById('blitz-finish'),
+    blitzFinishDesc: document.getElementById('blitz-finish-desc'),
     blitzEligibility: document.getElementById('blitz-eligibility'),
     btnStartBlitz: document.getElementById('btn-start-blitz'),
     blitzProgressStep: document.getElementById('blitz-progress-step'),
@@ -96,6 +101,8 @@
     blitzHudGesture: document.getElementById('blitz-hud-gesture'),
     blitzHudScore: document.getElementById('blitz-hud-score'),
     blitzHoldFill: document.getElementById('blitz-hold-fill'),
+    blitzAttemptStatus: document.getElementById('blitz-attempt-status'),
+    btnDynamicBlitz: document.getElementById('btn-dynamic-blitz'),
     blitzQuestionSuccess: document.getElementById('blitz-question-success'),
     btnAbortBlitz: document.getElementById('btn-abort-blitz'),
     btnRepeatBlitz: document.getElementById('btn-repeat-blitz'),
@@ -116,6 +123,7 @@
     practiceModal: document.getElementById('practice-modal'),
     practiceTitle: document.getElementById('practice-title'),
     practiceTipText: document.getElementById('practice-tip-text'),
+    btnDynamicPractice: document.getElementById('btn-dynamic-practice'),
     practiceVideo: document.getElementById('practice-video'),
     practiceCanvas: document.getElementById('practice-canvas'),
     practiceHudGesture: document.getElementById('practice-hud-gesture'),
@@ -173,7 +181,7 @@
     
     // Если уходим с блица, останавливаем камеру
     if (tabId !== 'blitz' && state.cameraTarget === 'blitz') {
-      stopCamera();
+      abortBlitz();
     }
 
     dom.navBtns.forEach((btn) => {
@@ -417,14 +425,138 @@
     state.practice.lastTimestamp = null;
 
     dom.practiceTitle.textContent = `Жест: «${gesture.title || gesture.name}»`;
-    dom.practiceTipText.innerHTML = `Покажите жест <strong>«${escapeHtml(gesture.title || gesture.name)}»</strong> и удерживайте его 1.5 секунды`;
-    dom.practiceHudGesture.textContent = 'Ожидание руки...';
-    dom.practiceHudScore.textContent = 'Точность: —';
+    const isDynamic = Boolean(gesture.dynamic_hands_count);
+    dom.btnDynamicPractice.hidden = !isDynamic;
+    dom.btnDynamicPractice.disabled = false;
+    dom.practiceHoldFill.parentElement.hidden = isDynamic;
+    dom.practiceTipText.textContent = isDynamic
+      ? 'Нажмите «Начать попытку». Покажите жест целиком после отсчёта.'
+      : `Покажите жест «${gesture.title || gesture.name}» и удерживайте его 1.5 секунды`;
+    dom.practiceHudGesture.textContent = isDynamic ? 'Готовьтесь к попытке' : 'Ожидание руки...';
+    dom.practiceHudScore.textContent = isDynamic ? '' : 'Точность: —';
     dom.practiceHoldFill.style.width = '0%';
     dom.practiceSuccessOverlay.style.display = 'none';
 
     dom.practiceModal.style.display = 'flex';
     startCamera('practice');
+  }
+
+  function getCameraGesture() {
+    if (state.cameraTarget === 'practice') return state.practice.gesture;
+    if (state.cameraTarget === 'blitz' && state.blitz.isActive) {
+      return state.blitz.questions[state.blitz.currentIndex];
+    }
+    return null;
+  }
+
+  function startDynamicAttempt() {
+    const gesture = getCameraGesture();
+    if (!gesture?.dynamic_hands_count || state.dynamicAttempt) return;
+
+    const isBlitz = state.cameraTarget === 'blitz';
+    if (isBlitz ? state.blitz.advanceTimer !== null : state.practice.isLearned) return;
+
+    const video = isBlitz ? dom.blitzVideo : dom.practiceVideo;
+    const controls = isBlitz
+      ? { button: dom.btnDynamicBlitz, status: dom.blitzAttemptStatus, gesture: dom.blitzHudGesture, score: dom.blitzHudScore }
+      : { button: dom.btnDynamicPractice, status: dom.practiceTipText, gesture: dom.practiceHudGesture, score: dom.practiceHudScore };
+
+    if (!state.mediaPipeHands || !state.mediaPipePose || video.readyState < 2) {
+      controls.status.textContent = 'Дождитесь запуска камеры.';
+      return;
+    }
+    if (state.ws?.readyState !== WebSocket.OPEN) {
+      ensureWebSocket();
+      controls.status.textContent = 'Дождитесь подключения и начните попытку снова.';
+      return;
+    }
+
+    const clip = window.omiliaDynamicClip;
+    const attempt = {
+      id: ++nextDynamicAttemptId,
+      isBlitz,
+      gesture,
+      controls,
+      startedAt: null,
+      awaitingResult: false,
+      frames: [],
+    };
+    state.dynamicAttempt = attempt;
+    controls.button.disabled = true;
+    controls.gesture.textContent = 'Готовьтесь';
+    controls.score.textContent = '';
+
+    function countdown(secondsLeft) {
+      if (state.dynamicAttempt !== attempt) return;
+      if (secondsLeft > 0) {
+        controls.status.textContent = `Приготовьтесь: ${secondsLeft}…`;
+        setTimeout(() => countdown(secondsLeft - 1), 1000);
+        return;
+      }
+
+      attempt.startedAt = performance.now();
+      controls.status.textContent = 'Покажите жест за одну секунду.';
+      setTimeout(() => {
+        if (state.dynamicAttempt !== attempt) return;
+        try {
+          const frames = clip.selectFrames(attempt.frames, gesture.dynamic_hands_count);
+          if (state.ws?.readyState !== WebSocket.OPEN) {
+            throw new Error('Соединение прервалось. Повторите попытку.');
+          }
+          state.ws.send(JSON.stringify({
+            type: 'dynamic_clip',
+            mode: 'practice',
+            attempt_id: attempt.id,
+            label: gesture.name ?? gesture.gesture_name,
+            hands_count: gesture.dynamic_hands_count,
+            frames,
+          }));
+        } catch (error) {
+          endDynamicAttempt(error.message);
+          return;
+        }
+
+        attempt.awaitingResult = true;
+        controls.status.textContent = 'Проверяем жест…';
+        setTimeout(() => {
+          if (state.dynamicAttempt === attempt) {
+            endDynamicAttempt('Сервер не ответил. Повторите попытку.');
+          }
+        }, 5000);
+      }, clip.durationMs + 100);
+    }
+
+    countdown(clip.prepSeconds);
+  }
+
+  function endDynamicAttempt(message) {
+    const { controls } = state.dynamicAttempt;
+    state.dynamicAttempt = null;
+    controls.button.disabled = false;
+    controls.status.textContent = message;
+  }
+
+  function handleDynamicResult(result) {
+    const attempt = state.dynamicAttempt;
+    if (!attempt?.awaitingResult || result.attempt_id !== attempt.id) return;
+    if (result.status !== 'verified') {
+      endDynamicAttempt(result.reason || 'Повторите попытку.');
+      return;
+    }
+
+    const { controls, gesture, isBlitz } = attempt;
+    controls.gesture.textContent = result.accepted ? 'Жест засчитан' : 'Жест не засчитан';
+    controls.score.textContent = `Расстояние DTW: ${Number(result.distance).toFixed(2)}`;
+    endDynamicAttempt(result.accepted ? 'Жест выполнен правильно.' : 'Повторите движение после отсчёта.');
+    if (!result.accepted) return;
+
+    controls.button.disabled = true;
+    if (isBlitz) {
+      completeBlitzQuestion(gesture);
+    } else {
+      state.practice.isLearned = true;
+      onGestureSuccessfullyLearned(gesture);
+    }
   }
 
   function closePracticeModal() {
@@ -455,11 +587,12 @@
       return;
     }
 
-    const learned = state.currentUser.learned_gestures || [];
+    const learnedNames = new Set(state.currentUser.learned_gestures || []);
+    const learned = state.gestures.filter(gesture => learnedNames.has(gesture.name));
     if (learned.length === 0) {
       dom.blitzEligibility.innerHTML = `
         <div style="background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 1rem; border-radius: 8px; font-weight: 500;">
-          💡 У вас пока нет выученных жестов. Изучите хотя бы один жест в <a href="#" style="color: var(--primary-hover); text-decoration: underline;" id="blitz-link-catalog">словаре жестов</a>!
+          💡 Для блица выучите хотя бы один жест в <a href="#" style="color: var(--primary-hover); text-decoration: underline;" id="blitz-link-catalog">словаре жестов</a>!
         </div>
       `;
       document.getElementById('blitz-link-catalog')?.addEventListener('click', (e) => {
@@ -516,10 +649,31 @@
     dom.blitzProgressStep.textContent = `Вопрос ${index + 1} из ${state.blitz.questions.length}`;
     dom.blitzTargetTitle.textContent = `Жест: «${q.title || q.gesture_name}»`;
     dom.blitzTargetTip.innerHTML = `💡 Подсказка: ${escapeHtml(q.tip || 'Покажите жест на камеру')}`;
-    dom.blitzHudGesture.textContent = 'Ожидание руки...';
-    dom.blitzHudScore.textContent = 'Точность: —';
+    const isDynamic = Boolean(q.dynamic_hands_count);
+    dom.btnDynamicBlitz.hidden = !isDynamic;
+    dom.btnDynamicBlitz.disabled = false;
+    dom.blitzAttemptStatus.textContent = isDynamic
+      ? 'Нажмите «Начать попытку» и покажите жест после отсчёта.'
+      : 'Покажите требуемый жест и удерживайте его 1.5 секунды';
+    dom.blitzHudGesture.textContent = isDynamic ? 'Готовьтесь к попытке' : 'Ожидание руки...';
+    dom.blitzHudScore.textContent = isDynamic ? '' : 'Точность: —';
+    dom.blitzHoldFill.parentElement.hidden = isDynamic;
     dom.blitzHoldFill.style.width = '0%';
     dom.blitzQuestionSuccess.style.display = 'none';
+    if (state.cameraTarget === 'blitz') {
+      state.mediaPipeHands?.setOptions({ maxNumHands: q.dynamic_hands_count || 2 });
+    }
+  }
+
+  function completeBlitzQuestion(question) {
+    if (state.blitz.advanceTimer !== null) return;
+
+    dom.blitzQuestionSuccess.style.display = 'flex';
+    playSpeech(question.title || question.gesture_name);
+    state.blitz.advanceTimer = setTimeout(() => {
+      state.blitz.advanceTimer = null;
+      loadBlitzQuestion(state.blitz.currentIndex + 1);
+    }, 1200);
   }
 
   function finishBlitz() {
@@ -575,6 +729,9 @@
 
     state.ws.onclose = () => {
       state.isWsBusy = false;
+      if (state.dynamicAttempt) {
+        endDynamicAttempt('Соединение прервалось. Начните попытку ещё раз.');
+      }
       console.log('[WebSocket] Соединение закрыто');
     };
   }
@@ -640,17 +797,32 @@
       state.camera = null;
     }
 
+    const handsCount = getCameraGesture()?.dynamic_hands_count;
+    state.mediaPipeHands.setOptions({ maxNumHands: handsCount || 2 });
+
     let appPoseCounter = 0;
     state.camera = new Camera(videoEl, {
       onFrame: async () => {
         if (state.isCameraRunning && state.cameraTarget) {
+          const attempt = state.dynamicAttempt;
+          const capturedAt = performance.now();
+          const elapsed = attempt?.startedAt == null ? -1 : capturedAt - attempt.startedAt;
+          const capturing = elapsed >= 0 && elapsed < window.omiliaDynamicClip.durationMs;
+
           if (state.mediaPipeHands) {
             await state.mediaPipeHands.send({ image: videoEl });
           }
           // ОПТИМИЗАЦИЯ: опрашиваем Pose раз в 4 кадра для разгрузки CPU
           appPoseCounter++;
-          if (state.mediaPipePose && (appPoseCounter % 4 === 0 || !state.latestPose)) {
+          if (state.mediaPipePose && (capturing || appPoseCounter % 4 === 0 || !state.latestPose)) {
             await state.mediaPipePose.send({ image: videoEl });
+          }
+          if (capturing && state.dynamicAttempt === attempt && !attempt.awaitingResult) {
+            attempt.frames.push({
+              t_ms: elapsed,
+              hands_data: structuredClone(state.latestHands),
+              pose_landmarks: structuredClone(state.latestPose),
+            });
           }
           onFrameRender();
         }
@@ -664,6 +836,11 @@
   }
 
   function stopCamera() {
+    state.dynamicAttempt = null;
+    if (state.blitz.advanceTimer !== null) {
+      clearTimeout(state.blitz.advanceTimer);
+      state.blitz.advanceTimer = null;
+    }
     state.isCameraRunning = false;
     if (state.camera) {
       state.camera.stop();
@@ -698,6 +875,8 @@
     }
 
     ctx.restore();
+
+    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
 
     // ОПТИМИЗАЦИЯ: отправка через WebSocket с троттлингом и Flow Control
     const now = performance.now();
@@ -755,6 +934,12 @@
   // ==========================================================
 
   function handleServerPrediction(pred) {
+    if (pred.type === 'dynamic_clip') {
+      handleDynamicResult(pred);
+      return;
+    }
+    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
+
     const now = performance.now();
     const gestureName = pred.gesture || pred.name || '';
     const predictedName = gestureName.trim().toLowerCase();
@@ -807,14 +992,8 @@
         dom.blitzHoldFill.style.width = `${progressPct}%`;
 
         if (state.blitz.holdProgress >= state.blitz.holdTarget) {
-          // Успешный ответ в блице!
           state.blitz.holdProgress = 0;
-          dom.blitzQuestionSuccess.style.display = 'flex';
-          playSpeech(currentQ.title || currentQ.gesture_name);
-
-          setTimeout(() => {
-            loadBlitzQuestion(state.blitz.currentIndex + 1);
-          }, 1200);
+          completeBlitzQuestion(currentQ);
         }
       } else {
         state.blitz.holdProgress = Math.max(0, state.blitz.holdProgress - delta * 1.5);
@@ -984,10 +1163,12 @@
 
     dom.btnClosePracticeModal?.addEventListener('click', closePracticeModal);
     dom.btnPracticeCancel?.addEventListener('click', closePracticeModal);
+    dom.btnDynamicPractice.addEventListener('click', startDynamicAttempt);
     dom.btnPracticeDone?.addEventListener('click', closePracticeModal);
 
     // Блиц-опрос
     dom.btnStartBlitz?.addEventListener('click', startBlitz);
+    dom.btnDynamicBlitz.addEventListener('click', startDynamicAttempt);
     dom.btnAbortBlitz?.addEventListener('click', abortBlitz);
     dom.btnRepeatBlitz?.addEventListener('click', startBlitz);
     dom.btnBlitzToCatalog?.addEventListener('click', () => switchTab('catalog'));

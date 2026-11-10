@@ -232,7 +232,12 @@
         </div>
 
         <div style="text-align: center; font-size: 0.88rem; color: var(--text-muted);">
-          Покажите требуемый жест и удерживайте его 1.5 секунды
+          <p id="blitz-attempt-status" role="status">
+            Покажите требуемый жест и удерживайте его 1.5 секунды
+          </p>
+          <button type="button" class="btn-hero-primary" id="btn-dynamic-blitz" hidden>
+            Начать попытку
+          </button>
         </div>
       </div>
 
@@ -437,9 +442,12 @@
       </div>
 
       <div style="padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
-        <p id="practice-tip-text" style="font-size: 0.9rem; color: var(--text-muted); margin: 0; flex: 1;">
+        <p id="practice-tip-text" role="status" style="font-size: 0.9rem; color: var(--text-muted); margin: 0; flex: 1;">
           Покажите жест на камеру и удерживайте 1.5 секунды
         </p>
+        <button type="button" class="btn-hero-primary" id="btn-dynamic-practice" hidden>
+          Начать попытку
+        </button>
         <button class="btn-hero-secondary" id="btn-practice-cancel">
           Завершить
         </button>
@@ -462,6 +470,7 @@
   </footer>
 
   <!-- Клиентский скрипт приложения -->
+  <script src="/static/dynamic-clip.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
