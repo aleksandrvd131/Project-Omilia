@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
+from tslearn.metrics import dtw
 
 from project_omilia import db
 from project_omilia.body import Pose
@@ -36,7 +37,7 @@ class StaticGesture(Gesture):
     def reload(self) -> None:
         dataset: dict[str, list[np.ndarray]] = {}
         for row in db.get_static_samples(self.db_path, self.hands_count):
-            blob = row["features_blob"] if "features_blob" in row.keys() else None
+            blob = row["features_blob"] if "features_blob" in row else None
             if blob:
                 vector = np.frombuffer(blob, dtype=np.float32)
             else:
@@ -53,13 +54,13 @@ class StaticGesture(Gesture):
                 n_neighbors=min(len(labels), 3),
                 weights="distance",
                 metric="euclidean",
-                algorithm="auto",
+                algorithm="brute",
             )
-            model.fit(np.asarray(vectors, dtype=float), np.asarray(labels))
+            model.fit(np.asarray(vectors, dtype=np.float32), np.asarray(labels))
 
         self.dataset = dataset
         self.labels = labels
-        self.vectors = np.asarray(vectors, dtype=float) if vectors else None
+        self.vectors = np.asarray(vectors, dtype=np.float32) if vectors else None
         self.model = model
 
     def add_samples(self, name: str, vectors: list[np.ndarray]) -> None:
@@ -86,7 +87,7 @@ class StaticGesture(Gesture):
         else:
             data = pose.get_1d_array_two_hands().flatten()
 
-        return np.round(data, 8)
+        return data.astype(np.float32)
 
     """
     Code -255 - Unknown error
@@ -118,13 +119,13 @@ class StaticGesture(Gesture):
             return -1, 0.0, "", 0.0
 
         try:
-            x_arr = np.array([vector], dtype=float)
+            x_arr = vector.reshape(1, -1)
             if x_arr.shape[1] != model.n_features_in_:
                 return -1, 0.0, "", 0.0
 
             # Однократный поиск k-ближайших соседей без повторного вычисления
             distances, indices = model.kneighbors(x_arr)
-            score = round(float(np.mean(distances[0])), 2)
+            score = round(float(np.mean(distances[0][:3])), 2)
             max_distance = 2.0
 
             # Расчёт уверенности в процентах от 0 до 100%
@@ -181,7 +182,7 @@ class DynamicGestures:
         pairwise = []
         for i in range(len(references)):
             for j in range(i + 1, len(references)):
-                pairwise.append(dtw_distance(references[i], references[j]))
+                pairwise.append(dtw(references[i], references[j]))
         if not pairwise:
             return default_threshold
         return round(float(np.mean(pairwise) * 1.35), 2)
@@ -236,20 +237,20 @@ class DynamicGestures:
         if max_distance is None or max_distance <= 0:
             max_distance = self.calculate_adaptive_threshold(references)
 
+        attempt_shape = attempt.shape[1]
         distances = []
         for sample in references:
-            if sample.shape[1] != attempt.shape[1]:
+            if sample.shape[1] != attempt_shape:
                 raise ValueError("Число рук в попытке не совпадает с эталоном.")
-            distances.append(dtw_distance(sample, attempt))
+            distances.append(dtw(sample, attempt))
 
         k_nearest = min(3, len(distances))
-        nearest = sorted(distances)[:k_nearest]
-        mean_nearest = sum(nearest) / k_nearest
-        mean_all = sum(distances) / len(distances)
-
+        nearest = np.partition(distances, k_nearest)[:k_nearest]
+        mean_nearest = np.mean(distances)
+        mean_all = np.mean(distances)
         confidence = max(0.0, min(100.0, round((1.0 - (mean_nearest / max_distance)) * 100, 1)))
 
-        return mean_nearest <= max_distance, {
+        return int(mean_nearest <= max_distance), {
             "mean_all": round(mean_all, 2),
             "minimum": round(nearest[0], 2),
             "mean_nearest_three": round(mean_nearest, 2),

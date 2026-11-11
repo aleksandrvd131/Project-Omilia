@@ -16,7 +16,7 @@
     },
     gestures: [],
     activeTab: 'about',
-    
+
     // Состояние практики (Шаг 2 обучения)
     practice: {
       gesture: null,
@@ -186,7 +186,7 @@
   // Переключение вкладок SPA
   function switchTab(tabId) {
     state.activeTab = tabId;
-    
+
     // Если уходим с блица, останавливаем камеру
     if (tabId !== 'blitz' && state.cameraTarget === 'blitz') {
       abortBlitz();
@@ -842,15 +842,6 @@
 
       state.mediaPipeHands.onResults((results) => {
         let rawHands = results.multiHandLandmarks || [];
-        // Защита от ложного дублирования одной руки ребром
-        if (rawHands.length >= 2) {
-          const h0 = rawHands[0];
-          const h1 = rawHands[1];
-          const distWrist = Math.hypot(h0[0].x - h1[0].x, h0[0].y - h1[0].y);
-          if (distWrist < 0.08) {
-            rawHands = [h0];
-          }
-        }
         state.latestHands = rawHands;
       });
     }
@@ -891,7 +882,7 @@
 
     let lastAnalysisAt = 0;
     let lastPoseAt = 0;
-    const ANALYSIS_INTERVAL_MS = 1000 / 24; // ~41.67 ms (~24 FPS для анализа)
+    const ANALYSIS_INTERVAL_MS = 1000 / 10; // ~41.67 ms (~24 FPS для анализа)
     const POSE_INTERVAL_MS = 250;           // раз в 0.25 с (250 мс)
 
     state.camera = new Camera(videoEl, {
@@ -928,6 +919,10 @@
       },
       width: 640,
       height: 480,
+      frameRate: {
+        max: 30,
+        ideal: 24
+      }
     });
 
     state.isCameraRunning = true;
