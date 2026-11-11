@@ -3,17 +3,15 @@ API-роутер каталога жестов, прогресса обучен�
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from fastapi.responses import JSONResponse
 
+from project_omilia import db
 from project_omilia.api.deps import (
     get_current_user_from_request,
     get_dynamic_server,
     get_static_server,
-    require_admin_user,
     require_current_user,
 )
 from project_omilia.core.config import DB_PATH, GESTURE_METADATA
-from project_omilia import db
 from project_omilia.gestures import COUNT_OF_SAMPLES
 from project_omilia.schemas.gestures import LearnRequest
 from project_omilia.services.dynamic_service import DynamicGestureServer
@@ -50,9 +48,15 @@ async def api_get_gestures(
                 "tip": "Повторите положение кисти перед камерой.",
             },
         )
-        title = db_meta["title"] if db_meta and db_meta.get("title") else fallback_meta.get("title", norm_name.capitalize())
-        category = db_meta["category"] if db_meta and db_meta.get("category") else fallback_meta.get("category", "Общие жесты")
-        description = db_meta["description"] if db_meta and db_meta.get("description") else fallback_meta.get("description", "")
+        title = (
+            db_meta["title"] if db_meta and db_meta.get("title") else fallback_meta.get("title", norm_name.capitalize())
+        )
+        category = (
+            db_meta["category"] if db_meta and db_meta.get("category") else fallback_meta.get("category", "Общие жесты")
+        )
+        description = (
+            db_meta["description"] if db_meta and db_meta.get("description") else fallback_meta.get("description", "")
+        )
         tip = db_meta["tip"] if db_meta and db_meta.get("tip") else fallback_meta.get("tip", "")
 
         hands_count = dynamic_hands.get(norm_name)
@@ -64,12 +68,12 @@ async def api_get_gestures(
                 "title": title,
                 "category": category,
                 "description": (
-                    "Динамический жест. Покажите движение целиком после отсчёта."
-                    if is_dynamic else description
+                    "Динамический жест. Покажите движение целиком после отсчёта." if is_dynamic else description
                 ),
                 "tip": (
                     f"Покажите жест {'одной рукой' if hands_count == 1 else 'двумя руками'} за одну секунду."
-                    if is_dynamic else tip
+                    if is_dynamic
+                    else tip
                 ),
                 "samples_count": COUNT_OF_SAMPLES if is_dynamic else combined_stats.get(norm_name, 0),
                 "dynamic_hands_count": hands_count,

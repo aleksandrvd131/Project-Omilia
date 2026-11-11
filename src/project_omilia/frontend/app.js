@@ -889,21 +889,31 @@
     const handsCount = getCameraGesture()?.dynamic_hands_count;
     state.mediaPipeHands.setOptions({ maxNumHands: handsCount || 2 });
 
-    let appPoseCounter = 0;
+    let lastAnalysisAt = 0;
+    let lastPoseAt = 0;
+    const ANALYSIS_INTERVAL_MS = 1000 / 24; // ~41.67 ms (~24 FPS для анализа)
+    const POSE_INTERVAL_MS = 250;           // раз в 0.25 с (250 мс)
+
     state.camera = new Camera(videoEl, {
       onFrame: async () => {
         if (state.isCameraRunning && state.cameraTarget) {
-          const attempt = state.dynamicAttempt;
           const capturedAt = performance.now();
+          // Ограничение числа кадров для анализа до ~24 FPS
+          if (capturedAt - lastAnalysisAt < ANALYSIS_INTERVAL_MS) {
+            return;
+          }
+          lastAnalysisAt = capturedAt;
+
+          const attempt = state.dynamicAttempt;
           const elapsed = attempt?.startedAt == null ? -1 : capturedAt - attempt.startedAt;
           const capturing = elapsed >= 0 && elapsed < window.omiliaDynamicClip.durationMs;
 
           if (state.mediaPipeHands) {
             await state.mediaPipeHands.send({ image: videoEl });
           }
-          // ОПТИМИЗАЦИЯ: опрашиваем Pose раз в 4 кадра для разгрузки CPU
-          appPoseCounter++;
-          if (state.mediaPipePose && (capturing || appPoseCounter % 4 === 0 || !state.latestPose)) {
+          // ОПТИМИЗАЦИЯ: опрашиваем Pose намного реже — раз в 0.25 с
+          if (state.mediaPipePose && (!state.latestPose || (capturedAt - lastPoseAt >= POSE_INTERVAL_MS))) {
+            lastPoseAt = capturedAt;
             await state.mediaPipePose.send({ image: videoEl });
           }
           if (capturing && state.dynamicAttempt === attempt && !attempt.awaitingResult) {
@@ -967,33 +977,53 @@
 
     if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
 
+    // Если руки не обнаружены в кадре — сразу обновляем подсказку и не шлём пустые кадры на сервер
+    if (handsData.length === 0) {
+      if (state.cameraTarget === 'practice' && !state.practice.isLearned) {
+        if (dom.practiceHudGesture) dom.practiceHudGesture.textContent = '—';
+        if (dom.practiceHudScore) dom.practiceHudScore.textContent = 'Покажите руку';
+      } else if (state.cameraTarget === 'blitz' && !state.blitz.isGameOver) {
+        if (dom.blitzHudGesture) dom.blitzHudGesture.textContent = '—';
+        if (dom.blitzHudScore) dom.blitzHudScore.textContent = 'Покажите руку';
+      }
+      return;
+    }
+
     // СВЕРХБЫСТРЫЙ КЛИЕНТСКИЙ ML-ИНФЕРЕНС (0ms задержка, вычисление прямо в браузере):
     if (state.classifier && handsData.length > 0) {
       const handsMode = handsData.length > 1 ? 2 : 1;
       const clientPred = state.classifier.predict(handsData, state.latestPose, handsMode);
       if (clientPred && clientPred.detected) {
         handleServerPrediction(clientPred);
-        return; // Мгновенный отклик 60 FPS без отправки по сети!
+        return; // Мгновенный отклик без отправки по сети!
       }
     }
 
     // Фоллбэк: отправка через WebSocket, если клиентский классификатор ещё загружается
     const now = performance.now();
     if (state.ws && state.ws.readyState === WebSocket.OPEN && handsData.length > 0) {
-      if (!state.isWsBusy && (now - (state.lastWsSendTime || 0) >= 40)) {
+      if (!state.isWsBusy && (now - (state.lastWsSendTime || 0) >= 41)) {
         state.isWsBusy = true;
         state.lastWsSendTime = now;
         if (state.wsTimeout) clearTimeout(state.wsTimeout);
         state.wsTimeout = setTimeout(() => { state.isWsBusy = false; }, 350);
 
         const payload = {
-          hands_data: handsData,
-          hands: handsData, // Для совместимости
-          pose_landmarks: state.latestPose || null,
+          hands_data: handsData.map(compactLandmarks),
+          pose_landmarks: compactLandmarks(state.latestPose),
         };
         state.ws.send(JSON.stringify(payload));
       }
     }
+  }
+
+  function compactLandmarks(landmarks) {
+    if (!landmarks) return null;
+    return landmarks.map((p) => ({
+      x: Math.round(p.x * 10000) / 10000,
+      y: Math.round(p.y * 10000) / 10000,
+      z: Math.round((p.z || 0) * 10000) / 10000,
+    }));
   }
 
   // Отрисовка скелета руки на холсте

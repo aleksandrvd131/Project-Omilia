@@ -197,6 +197,7 @@ def init_db(db_path: Path) -> None:
         if gesture_count == 0:
             now_iso = datetime.now(timezone.utc).isoformat()
             from project_omilia.core.config import GESTURE_METADATA
+
             for gname, meta in GESTURE_METADATA.items():
                 conn.execute(
                     """
@@ -248,10 +249,13 @@ def init_db(db_path: Path) -> None:
 
 def static_samples_imported(db_path: Path) -> bool:
     with closing(get_connection(db_path)) as conn:
-        return conn.execute(
-            "SELECT 1 FROM gesture_data_migrations WHERE name = ?",
-            (STATIC_SAMPLE_IMPORT,),
-        ).fetchone() is not None
+        return (
+            conn.execute(
+                "SELECT 1 FROM gesture_data_migrations WHERE name = ?",
+                (STATIC_SAMPLE_IMPORT,),
+            ).fetchone()
+            is not None
+        )
 
 
 def import_static_samples(db_path: Path, samples: list[tuple]) -> None:

@@ -3,10 +3,12 @@
 """
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from project_omilia import db
 from project_omilia.api import (
     auth_router,
     blitz_router,
@@ -21,7 +23,6 @@ from project_omilia.core.config import (
     FRONTEND_DIR,
     INDEX_PATH,
 )
-from project_omilia import db
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.static_service import StaticGestureServer, import_static_datasets
 

@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+
 import numpy as np
 
 from project_omilia.errors import IncorrectDataError
@@ -6,6 +7,7 @@ from project_omilia.math import p_dist, scalar_to_vec, vec_norm_angle, vec_norma
 
 POINTS_IN_HAND: int = 21
 POINTS_IN_BODY: int = 33
+
 
 class Hand:
     data: list
@@ -24,9 +26,7 @@ class Hand:
 
     def __init__(self, data: list, is_right: bool):
         if len(data) != POINTS_IN_HAND:
-            raise IncorrectDataError(
-                "Wrong amount of points in hand.\n"
-            )
+            raise IncorrectDataError("Wrong amount of points in hand.\n")
         self.is_right = is_right
         data = [np.array((i.x, i.y, i.z)) for i in data]
         self.data = data
@@ -90,8 +90,8 @@ class Hand:
         result += self.get_shape_features()
         return result
 
-class Pose:
 
+class Pose:
     nose: np.ndarray
     right_wrist: np.ndarray
     left_wrist: np.ndarray
@@ -102,9 +102,7 @@ class Pose:
 
     def __init__(self, data: list, hands: tuple[list, list]):
         if len(data) != POINTS_IN_BODY:
-            raise IncorrectDataError(
-                "Wrong amount of points in body.\n"
-            )
+            raise IncorrectDataError("Wrong amount of points in body.\n")
         else:
             self.nose = np.array((data[0].x, data[0].y, data[0].z))
             self.right_wrist = np.array((data[15].x, data[15].y, data[15].z))
@@ -113,18 +111,18 @@ class Pose:
             self.right_to_nose = self.right_wrist - self.nose
             self.left_to_nose = self.left_wrist - self.nose
             # Vector from each hand to chest center
-            chest_center = np.array((data[11].x + data[12].x, data[11].y + data[12].y, data[11].z + data[12].z))/2
+            chest_center = np.array((data[11].x + data[12].x, data[11].y + data[12].y, data[11].z + data[12].z)) / 2
             self.right_to_chest = self.right_wrist - chest_center
             self.left_to_chest = self.left_wrist - chest_center
 
         # Distance from right hand wrist to hands' wrist
-        is_right_hand = lambda hand_data: p_dist(np.array((hand_data[0].x, hand_data[0].y, hand_data[0].z)), self.right_wrist) \
-            < p_dist(np.array((hand_data[0].x, hand_data[0].y, hand_data[0].z)), self.left_wrist)
+        def is_right_hand(hand_data) -> bool:
+            wrist_vec = np.array((hand_data[0].x, hand_data[0].y, hand_data[0].z))
+            return p_dist(wrist_vec, self.right_wrist) < p_dist(wrist_vec, self.left_wrist)
+
         match len(hands):
             case 0:
-                raise IncorrectDataError(
-                    "No hands found in data.\n"
-                )
+                raise IncorrectDataError("No hands found in data.\n")
             case 1:
                 self.left_hand = None
                 hand_pts = [SimpleNamespace(x=p.x, y=p.y, z=getattr(p, "z", 0.0)) for p in hands[0]]
@@ -163,9 +161,7 @@ class Pose:
             for model use
         """
         if self.left_hand is None:
-            raise IncorrectDataError(
-                "ERROR: Trying to get data from two hands while one hand was given.\n"
-            )
+            raise IncorrectDataError("ERROR: Trying to get data from two hands while one hand was given.\n")
         result: list[np.ndarray] = self.right_hand.get_1d_array()
         result += self.left_hand.get_1d_array()
         result.append(self.right_to_nose)

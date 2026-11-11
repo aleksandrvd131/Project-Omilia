@@ -158,8 +158,9 @@
 
       if (poseLandmarks && poseLandmarks.length >= 17) {
         nose = [poseLandmarks[0].x, poseLandmarks[0].y, poseLandmarks[0].z || 0];
-        rightWrist = [poseLandmarks[15].x, poseLandmarks[15].y, poseLandmarks[15].z || 0];
-        leftWrist = [poseLandmarks[16].x, poseLandmarks[16].y, poseLandmarks[16].z || 0];
+        // В MediaPipe Pose: landmark 15 = левое запястье, landmark 16 = правое запястье
+        leftWrist = [poseLandmarks[15].x, poseLandmarks[15].y, poseLandmarks[15].z || 0];
+        rightWrist = [poseLandmarks[16].x, poseLandmarks[16].y, poseLandmarks[16].z || 0];
         if (poseLandmarks[11] && poseLandmarks[12]) {
           chestCenter = [
             (poseLandmarks[11].x + poseLandmarks[12].x) / 2,

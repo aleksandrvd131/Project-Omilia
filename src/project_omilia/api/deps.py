@@ -3,10 +3,11 @@
 """
 
 from typing import Any
+
 from fastapi import Header, HTTPException, Request, status
 
-from project_omilia.core.config import DB_PATH
 from project_omilia import db
+from project_omilia.core.config import DB_PATH
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.static_service import StaticGestureServer
 
@@ -20,9 +21,7 @@ def get_token_from_request(request: Request, authorization: str | None = None) -
     return None
 
 
-def get_current_user_from_request(
-    request: Request, authorization: str | None = Header(None)
-) -> dict[str, Any] | None:
+def get_current_user_from_request(request: Request, authorization: str | None = Header(None)) -> dict[str, Any] | None:
     """Получает объект текущего пользователя или None, если запрос не авторизован."""
     token = get_token_from_request(request, authorization)
     if token:
@@ -30,9 +29,7 @@ def get_current_user_from_request(
     return None
 
 
-def require_current_user(
-    request: Request, authorization: str | None = Header(None)
-) -> dict[str, Any]:
+def require_current_user(request: Request, authorization: str | None = Header(None)) -> dict[str, Any]:
     """Строгая зависимость: возвращает пользователя либо выбрасывает 401 Unauthorized."""
     user = get_current_user_from_request(request, authorization)
     if not user:
@@ -43,9 +40,7 @@ def require_current_user(
     return user
 
 
-def require_admin_user(
-    request: Request, authorization: str | None = Header(None)
-) -> dict[str, Any]:
+def require_admin_user(request: Request, authorization: str | None = Header(None)) -> dict[str, Any]:
     """Строгая зависимость: требует роль 'admin' (или разрешает при пустой БД), иначе 403 Forbidden."""
     token = get_token_from_request(request, authorization)
     if not db.has_admin_access(DB_PATH, token):

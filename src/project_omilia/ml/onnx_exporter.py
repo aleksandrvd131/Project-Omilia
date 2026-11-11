@@ -14,11 +14,11 @@ import numpy as np
 
 from project_omilia import db
 
-
 # ==========================================================
 # Вспомогательный чистый сериализатор Protobuf для ONNX (IR-8 / Opset-17)
 # Позволяет генерировать валидные .onnx файлы без внешних тяжёлых зависимостей protobuf
 # ==========================================================
+
 
 def _varint(val: int) -> bytes:
     """Кодирование целого числа в Protobuf Varint."""
@@ -178,9 +178,8 @@ def _build_onnx_model_bytes(
 # Экспорт модели и центроидов из SQLite датасета
 # ==========================================================
 
-def get_static_centroids(
-    db_path: Path, hands_count: int
-) -> tuple[list[str], np.ndarray, np.ndarray, dict[str, int]]:
+
+def get_static_centroids(db_path: Path, hands_count: int) -> tuple[list[str], np.ndarray, np.ndarray, dict[str, int]]:
     """
     Вычисляет центроиды классов статических жестов и смещения ближайших эталонов.
     Возвращает: (labels, weight_matrix, bias_vector, sample_counts)

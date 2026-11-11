@@ -3,12 +3,12 @@ WebSocket-эндпоинт для передачи видеокадров и р�
 """
 
 import json
-from typing import Any
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-import numpy as np
 
-from project_omilia.core.config import DB_PATH
+import numpy as np
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from project_omilia import db
+from project_omilia.core.config import DB_PATH
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.static_service import StaticGestureServer
 

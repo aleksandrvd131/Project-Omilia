@@ -3,20 +3,20 @@
 """
 
 import json
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from project_omilia import db
+from project_omilia.body import Pose
 from project_omilia.core.config import (
     DATASET_PATH_1H,
     DATASET_PATH_2H,
     LEGACY_DATASET_PATH,
 )
-from project_omilia import db
 from project_omilia.gestures import StaticGesture
-from project_omilia.body import Pose
 from project_omilia.services.pose_service import make_pose
 
 
@@ -50,12 +50,14 @@ def import_static_datasets(db_path: Path) -> None:
                     continue
                 if vector.shape != (width,) or not np.isfinite(vector).all():
                     raise ValueError(f"Некорректный эталон статического жеста «{name}».")
-                samples.append((
-                    name,
-                    hands,
-                    json.dumps(vector.tolist(), allow_nan=False),
-                    vector.tobytes(),
-                ))
+                samples.append(
+                    (
+                        name,
+                        hands,
+                        json.dumps(vector.tolist(), allow_nan=False),
+                        vector.tobytes(),
+                    )
+                )
 
     db.import_static_samples(db_path, samples)
 
@@ -67,22 +69,27 @@ class StaticGestureServer:
         self.db_path = db_path
         self.engine_1h = StaticGesture(db_path, 1)
         self.engine_2h = StaticGesture(db_path, 2)
+        self._cached_stats: dict[str, int] = {}
+        self._cached_info: dict[str, dict[str, Any]] = {}
+        self._refresh_stats()
 
-    def get_combined_stats(self) -> dict[str, int]:
+    def _refresh_stats(self) -> None:
         stats: dict[str, int] = {}
-        for engine in (self.engine_1h, self.engine_2h):
-            for name, count in engine.get_dataset_stats().items():
-                stats[name] = stats.get(name, 0) + count
-        return stats
-
-    def get_combined_info(self) -> dict[str, dict[str, Any]]:
         info: dict[str, dict[str, Any]] = {}
         for engine in (self.engine_1h, self.engine_2h):
             for name, count in engine.get_dataset_stats().items():
+                stats[name] = stats.get(name, 0) + count
                 item = info.setdefault(name, {"count": 0, "hands": engine.hands_count, "hand_counts": {}})
                 item["count"] += count
                 item["hand_counts"][engine.hands_count] = count
-        return info
+        self._cached_stats = stats
+        self._cached_info = info
+
+    def get_combined_stats(self) -> dict[str, int]:
+        return self._cached_stats
+
+    def get_combined_info(self) -> dict[str, dict[str, Any]]:
+        return self._cached_info
 
     def _record_frame(
         self,
@@ -114,6 +121,7 @@ class StaticGestureServer:
 
             if finished:
                 engine.add_samples(label, [sample for _, _, sample in recording])
+                self._refresh_stats()
                 result = {"status": "saved", "label": label, "count": len(recording)}
             message = f"Запись: {label}"
         except (ValueError, ArithmeticError, sqlite3.Error) as error:
@@ -137,7 +145,9 @@ class StaticGestureServer:
         return response
 
     def process_frame(
-        self, payload: dict[str, Any], recording: list[tuple[str, int, np.ndarray]],
+        self,
+        payload: dict[str, Any],
+        recording: list[tuple[str, int, np.ndarray]],
     ) -> dict[str, Any]:
         hands_data = payload.get("hands_data") or payload.get("hands") or []
         pose_landmarks = payload.get("pose_landmarks")
@@ -157,16 +167,20 @@ class StaticGestureServer:
         if record_label:
             return self._record_frame(payload, pose, recording)
 
+        include_stats = bool(payload.get("include_stats"))
+
         if pose is None:
-            return {
+            res: dict[str, Any] = {
                 "detected": False,
                 "gesture": None,
                 "name": None,
                 "score": None,
                 "distance": None,
-                "dataset_stats": self.get_combined_stats(),
-                "dataset_info": self.get_combined_info(),
             }
+            if include_stats:
+                res["dataset_stats"] = self.get_combined_stats()
+                res["dataset_info"] = self.get_combined_info()
+            return res
 
         # Выбор движка классификации:
         if hands_count == 1:
@@ -178,16 +192,18 @@ class StaticGestureServer:
 
         # Если тумблер установлен на 2 руки, а в кадре только 1 рука:
         if hands_count == 2 and pose.left_hand is None:
-            return {
+            res = {
                 "detected": True,
                 "gesture": "Покажите 2 руки",
                 "name": "Покажите 2 руки",
                 "score": 0.0,
                 "distance": 0.0,
                 "confidence": 0.0,
-                "dataset_stats": self.get_combined_stats(),
-                "dataset_info": self.get_combined_info(),
             }
+            if include_stats:
+                res["dataset_stats"] = self.get_combined_stats()
+                res["dataset_info"] = self.get_combined_info()
+            return res
 
         code, score, prediction, confidence = engine.predict(pose)
 
@@ -208,27 +224,31 @@ class StaticGestureServer:
         else:
             gesture_name = "—"
 
-        return {
+        res = {
             "detected": True,
             "gesture": gesture_name,
             "name": gesture_name,
             "score": score,
             "distance": score,
             "confidence": confidence,
-            "dataset_stats": self.get_combined_stats(),
-            "dataset_info": self.get_combined_info(),
         }
+        if include_stats:
+            res["dataset_stats"] = self.get_combined_stats()
+            res["dataset_info"] = self.get_combined_info()
+        return res
 
     def delete_gesture(self, gesture_name: str) -> None:
         db.delete_gesture(self.db_path, gesture_name.strip().lower())
         self.engine_1h.reload()
         self.engine_2h.reload()
+        self._refresh_stats()
 
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
             case "train_dataset":
                 self.engine_1h.reload()
                 self.engine_2h.reload()
+                self._refresh_stats()
                 return {
                     "detected": False,
                     "dataset_stats": self.get_combined_stats(),

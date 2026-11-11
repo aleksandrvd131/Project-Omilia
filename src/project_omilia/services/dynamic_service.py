@@ -2,16 +2,16 @@
 Сервис обработки динамических жестов с использованием Dynamic Time Warping (DTW).
 """
 
+import sqlite3
 from math import isfinite
 from pathlib import Path
-import sqlite3
 from typing import Any
 
 import numpy as np
 
-from project_omilia.core.config import DYNAMIC_DTW_THRESHOLDS
 from project_omilia import db
-from project_omilia.gestures import COUNT_OF_GESTURES, COUNT_OF_SAMPLES, DynamicGestures
+from project_omilia.core.config import DYNAMIC_DTW_THRESHOLDS
+from project_omilia.gestures import DynamicGestures
 from project_omilia.services.pose_service import make_pose
 
 
@@ -111,7 +111,10 @@ class DynamicGestureServer:
             if mode == "record":
                 count = self.engine.add_sample(label, sequence)
                 return {
-                    **response, "status": "recorded", "label": label, "count": count,
+                    **response,
+                    "status": "recorded",
+                    "label": label,
+                    "count": count,
                     "dynamic_dataset": db.list_dynamic_samples(self.engine.db_path),
                 }
             if mode in ("verify", "practice"):

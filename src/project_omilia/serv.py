@@ -3,8 +3,9 @@
 Делегирует запуск и маршруты в модульное приложение project_omilia.app.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import uvicorn
 
 from project_omilia.app import app

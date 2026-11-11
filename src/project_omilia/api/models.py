@@ -26,7 +26,7 @@ async def get_static_classifier_metadata(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось экспортировать параметры классификатора: {e}",
-        )
+        ) from e
 
 
 @router.get("/static-onnx")
@@ -49,4 +49,4 @@ async def get_static_onnx_model(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось сгенерировать ONNX модель: {e}",
-        )
+        ) from e

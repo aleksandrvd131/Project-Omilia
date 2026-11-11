@@ -4,9 +4,9 @@
 - DynamicGestures: сопоставление траекторий жестов через векторизованный DTW
 """
 
-from pathlib import Path
-from typing import Any
 import json
+from pathlib import Path
+
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 

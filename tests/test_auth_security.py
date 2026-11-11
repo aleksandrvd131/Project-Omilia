@@ -1,7 +1,6 @@
-from pathlib import Path
 import tempfile
-import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from project_omilia import db
 
@@ -18,6 +17,7 @@ def test_password_hashing_and_verification():
 def test_legacy_password_compatibility():
     # Legacy SHA-256 hash using legacy salt "omilia_salt_2026"
     import hashlib
+
     raw_pwd = "OldPassword2026"
     legacy_salt = "omilia_salt_2026"
     legacy_hash = hashlib.sha256((raw_pwd + legacy_salt).encode("utf-8")).hexdigest()

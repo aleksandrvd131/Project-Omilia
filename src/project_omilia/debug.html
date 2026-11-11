@@ -165,7 +165,14 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transform: scaleX(-1);
+      -webkit-transform: scaleX(-1);
+      transition: transform 0.2s ease;
+    }
+
+    .video-viewport.unmirrored canvas {
       transform: none;
+      -webkit-transform: none;
     }
 
     /* HUD overlay on top of video */
@@ -708,6 +715,7 @@
         <span id="ws-text">WebSocket: Подключение...</span>
       </div>
       <div class="status-badge" id="fps-badge">FPS: 0</div>
+      <button type="button" class="status-badge" id="btn-toggle-mirror" style="cursor: pointer; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted);" title="Переключить зеркальное отображение камеры">🔄 Зеркало</button>
     </div>
   </header>
 
@@ -876,7 +884,7 @@
     // Оптимизация WebSocket и инференса
     let isWsBusy = false;
     let lastWsSendTime = 0;
-    const MIN_WS_INTERVAL_MS = 40; // ~25 кадров/сек максимум для классификации
+    const MIN_WS_INTERVAL_MS = 41; // ~24 кадра/сек для классификации и отправки
     let wsTimeout = null;
 
     let lastFrameTime = performance.now();
@@ -1627,18 +1635,30 @@
         latestPose = results.poseLandmarks || null;
       });
 
-      let poseCounter = 0;
+      let lastAnalysisAt = 0;
+      let lastPoseAt = 0;
+      const ANALYSIS_INTERVAL_MS = 1000 / 24; // ~41.67 ms (~24 FPS для анализа)
+      const POSE_INTERVAL_MS = 250;           // раз в 0.25 с (250 мс)
+
       const camera = new Camera(video, {
         onFrame: async () => {
+          const now = performance.now();
+          // Ограничение анализа кадров до ~24 FPS
+          if (now - lastAnalysisAt < ANALYSIS_INTERVAL_MS) {
+            return;
+          }
+          lastAnalysisAt = now;
+
           const attempt = dynamicAttempt?.startedAt != null ? dynamicAttempt : null;
-          const capturedAt = performance.now();
+          const capturedAt = now;
 
           if (handsDetector) {
             await handsDetector.send({ image: video });
           }
 
-          poseCounter++;
-          if (poseDetector && (attempt || poseCounter % 4 === 0 || !latestPose)) {
+          // Поза опрашивается намного реже: раз в 0.25 секунды
+          if (poseDetector && (now - lastPoseAt >= POSE_INTERVAL_MS || !latestPose)) {
+            lastPoseAt = now;
             await poseDetector.send({ image: video });
           }
 
@@ -1650,6 +1670,15 @@
       });
 
       camera.start();
+    }
+
+    function compactLandmarks(landmarks) {
+      if (!landmarks) return null;
+      return landmarks.map((p) => ({
+        x: Math.round(p.x * 10000) / 10000,
+        y: Math.round(p.y * 10000) / 10000,
+        z: Math.round((p.z || 0) * 10000) / 10000,
+      }));
     }
 
     function onFrameRender() {
@@ -1678,6 +1707,13 @@
       // Живой статус готовности рук для выбранного режима жеста
       const currentHandsCount = latestHands ? latestHands.length : 0;
       updateHandsStatus(currentHandsCount);
+
+      // Если не идёт запись и руки не обнаружены — сразу обновляем UI и НЕ шлём пустые кадры на сервер
+      if (!isRecording && !isPreparing && currentHandsCount === 0) {
+        hudGesture.textContent = '—';
+        hudScore.textContent = 'Руки не обнаружены';
+        return;
+      }
 
       // Отправка ориентиров через WebSocket с троттлингом и Flow Control
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1743,15 +1779,15 @@
           // ЖЕСТКАЯ ФИЛЬТРАЦИЯ: если тумблер = 1 рука, на сервер отправляется СТРОГО 1 рука
           let handsToSend = [];
           if (selectedHandMode === 1) {
-            handsToSend = latestHands.slice(0, 1);
+            handsToSend = latestHands.slice(0, 1).map(compactLandmarks);
           } else {
-            handsToSend = latestHands.slice(0, 2);
+            handsToSend = latestHands.slice(0, 2).map(compactLandmarks);
           }
 
           ws.send(JSON.stringify({
             token: getStoredToken(),
             hands_data: handsToSend,
-            pose_landmarks: latestPose,
+            pose_landmarks: compactLandmarks(latestPose),
             record_label: recordLabel,
             record_finished: isLastFrame,
             hands_count: selectedHandMode
@@ -1774,6 +1810,10 @@
       setupCamera().catch(err => {
         console.error('Ошибка доступа к камере:', err);
         wsText.textContent = 'Ошибка: нет доступа к камере';
+      });
+
+      document.getElementById('btn-toggle-mirror')?.addEventListener('click', () => {
+        document.querySelector('.video-viewport')?.classList.toggle('unmirrored');
       });
 
       // Горячие клавиши 1 и 2 для быстрого переключения между одноручным и двуручным жестом

@@ -3,15 +3,16 @@ API-роутер блиц-опроса («Проверить себя»).
 """
 
 import random
+
 from fastapi import APIRouter, Depends, Query
 
+from project_omilia import db
 from project_omilia.api.deps import (
     get_dynamic_server,
     get_static_server,
     require_current_user,
 )
 from project_omilia.core.config import DB_PATH, GESTURE_METADATA
-from project_omilia import db
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.static_service import StaticGestureServer
 

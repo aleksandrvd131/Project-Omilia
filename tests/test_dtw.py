@@ -1,5 +1,7 @@
-from project_omilia import gestures
 import numpy as np
+
+from project_omilia import gestures
+
 
 def test_dtw():
     a = np.array([[0.0], [1.0], [2.0]])

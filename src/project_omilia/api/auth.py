@@ -5,13 +5,12 @@ API-роутер аутентификации и профиля пользова
 from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import JSONResponse
 
+from project_omilia import db
 from project_omilia.api.deps import (
-    get_current_user_from_request,
     get_token_from_request,
     require_current_user,
 )
 from project_omilia.core.config import DB_PATH
-from project_omilia import db
 from project_omilia.schemas.auth import AuthRequest
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
