@@ -270,18 +270,20 @@ class StaticGestureServer:
             self._refresh_stats()
         return added_total
 
-    def delete_gesture(self, gesture_name: str) -> None:
-        db.delete_gesture(self.db_path, gesture_name.strip().lower())
+    def reload(self) -> None:
+        """Перезагружает эталоны из базы данных SQLite и переобучает классификаторы для 1 и 2 рук."""
         self.engine_1h.reload()
         self.engine_2h.reload()
         self._refresh_stats()
 
+    def delete_gesture(self, gesture_name: str) -> None:
+        db.delete_gesture(self.db_path, gesture_name.strip().lower())
+        self.reload()
+
     def handle_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         match action:
             case "train_dataset":
-                self.engine_1h.reload()
-                self.engine_2h.reload()
-                self._refresh_stats()
+                self.reload()
                 return {
                     "detected": False,
                     "dataset_stats": self.get_combined_stats(),

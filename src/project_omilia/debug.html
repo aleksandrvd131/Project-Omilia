@@ -832,6 +832,26 @@
         </div>
       </div>
 
+      <!-- Резервное копирование и экспорт базы -->
+      <div class="card" id="card-backup">
+        <div class="card-title">📦 Резервное копирование базы</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.4;">
+          Экспорт и импорт эталонов жестов (SQLite датасет) в формате JSON.
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button type="button" class="btn-primary" id="btn-export-db" onclick="exportDatabase()" style="flex: 1; justify-content: center;">
+            📥 Экспорт базы
+          </button>
+          
+          <input type="file" id="import-file-input" accept=".json,application/json" style="display: none;" onchange="handleFileImport(event)">
+          <button type="button" id="btn-import-db" onclick="document.getElementById('import-file-input').click()" style="flex: 1; justify-content: center;">
+            📤 Импорт базы
+          </button>
+        </div>
+        
+        <div id="backup-status" style="font-size: 0.8rem; min-height: 1.2rem; line-height: 1.4; display: none; margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: 8px;"></div>
+      </div>
+
       <!-- Dynamic Rules -->
       <div class="card">
         <div class="card-title">Правила РЖЯ (Форма + Движение)</div>
@@ -1261,6 +1281,90 @@
       }
 
       sendAction('delete_gesture', { gesture_name: name });
+    }
+
+    async function exportDatabase() {
+      const statusEl = document.getElementById('backup-status');
+      try {
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.background = 'rgba(56, 189, 248, 0.15)';
+          statusEl.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+          statusEl.style.color = 'var(--primary)';
+          statusEl.textContent = 'Подготовка экспорта базы...';
+        }
+        const res = await fetch('/api/gestures/export');
+        if (!res.ok) {
+          throw new Error(`Ошибка сервера: ${res.status}`);
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'omilia_dataset_export.json';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        if (statusEl) {
+          statusEl.style.background = 'rgba(34, 197, 94, 0.15)';
+          statusEl.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+          statusEl.style.color = 'var(--success)';
+          statusEl.textContent = 'База успешно экспортирована в omilia_dataset_export.json';
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = `Ошибка экспорта: ${err.message}`;
+        }
+      }
+    }
+
+    async function handleFileImport(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const statusEl = document.getElementById('backup-status');
+      try {
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.style.background = 'rgba(56, 189, 248, 0.15)';
+          statusEl.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+          statusEl.style.color = 'var(--primary)';
+          statusEl.textContent = `Загрузка и обработка файла ${file.name}...`;
+        }
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        const res = await fetch('/api/gestures/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.detail || result.error || `Ошибка ${res.status}`);
+        }
+        if (statusEl) {
+          statusEl.style.background = 'rgba(34, 197, 94, 0.15)';
+          statusEl.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+          statusEl.style.color = 'var(--success)';
+          statusEl.textContent = result.message || 'База успешно импортирована!';
+        }
+        lastRenderedStatsJson = null;
+        if (result.dataset_stats && typeof renderDatasetStats === 'function') {
+          renderDatasetStats(result.dataset_stats, result.dataset_info);
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = `Ошибка импорта: ${err.message}`;
+        }
+      } finally {
+        event.target.value = '';
+      }
     }
 
     let prepInterval = null;

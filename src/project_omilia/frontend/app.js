@@ -24,6 +24,7 @@
       holdTarget: 1.5,
       isLearned: false,
       lastTimestamp: null,
+      ghostSilhouette: null,
     },
 
     // Состояние блиц-опроса
@@ -247,6 +248,17 @@
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 1. Отрисовка силуэта-призрака для статических жестов в режиме практики
+    const activeGesture = getCameraGesture();
+    const isDynamicGesture = Boolean(activeGesture?.dynamic_hands_count || activeGesture?.is_dynamic);
+    if (state.cameraTarget === 'practice' && !isDynamicGesture && state.practice.ghostSilhouette) {
+      camera.drawGhostSilhouette(ctx, state.practice.ghostSilhouette, canvas.width, canvas.height, {
+        userHands: state.latestHands || [],
+        isMatch: state.isMatchingGesture,
+      });
+    }
+
+    // 2. Отрисовка отслеживаемых рук пользователя
     const handsData = state.latestHands || [];
     for (const landmarks of handsData) {
       camera.drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height, {

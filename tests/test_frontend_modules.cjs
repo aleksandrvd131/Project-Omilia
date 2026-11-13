@@ -167,3 +167,142 @@ test('Catalog module: calculateLevelStats accurately computes level totals and u
   assert.equal(stats[4].total, 9);
   assert.equal(stats[4].isUnlocked, false);
 });
+
+test('Camera module: checkHandAlignment detects hand alignment correctly', () => {
+  const baseHand = Array.from({ length: 21 }, (_, i) => ({
+    x: 0.5 + i * 0.01,
+    y: 0.6 + i * 0.005,
+    z: 0.0,
+  }));
+
+  // Тождественная рука
+  const identicalHand = baseHand.map((p) => ({ ...p }));
+  assert.equal(Camera.checkHandAlignment(identicalHand, baseHand), true);
+
+  // Слегка смещенная рука (та же анатомическая форма)
+  const translatedHand = baseHand.map((p) => ({ x: p.x + 0.02, y: p.y - 0.02, z: p.z }));
+  assert.equal(Camera.checkHandAlignment(translatedHand, baseHand), true);
+
+  // Принципиально другая форма руки
+  const differentHand = baseHand.map((p) => ({ x: 0.1, y: 0.1, z: 0.0 }));
+  differentHand[4] = { x: 0.9, y: 0.9, z: 0.0 };
+  assert.equal(Camera.checkHandAlignment(differentHand, baseHand), false);
+
+  // Неполная или пустая рука
+  assert.equal(Camera.checkHandAlignment(null, baseHand), false);
+  assert.equal(Camera.checkHandAlignment([], baseHand), false);
+});
+
+test('Camera module: drawGhostSilhouette renders translucent bones and highlights green on match', () => {
+  const ghostHand = [
+    Array.from({ length: 21 }, (_, i) => ({
+      x: 0.5 + i * 0.005,
+      y: 0.5 + i * 0.005,
+      z: 0.0,
+    })),
+  ];
+
+  let strokeStyles = [];
+  let fillStyles = [];
+  let arcCount = 0;
+
+  const mockCtx = {
+    save() {},
+    restore() {},
+    beginPath() {},
+    closePath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {
+      strokeStyles.push(mockCtx.strokeStyle);
+    },
+    fill() {
+      fillStyles.push(mockCtx.fillStyle);
+    },
+    arc() {
+      arcCount++;
+    },
+    lineWidth: 1,
+    strokeStyle: '',
+    fillStyle: '',
+    shadowColor: '',
+    shadowBlur: 0,
+    lineCap: '',
+    lineJoin: '',
+  };
+
+  // 1. Без совпадения — кости отрисованы полупрозрачным цианом
+  Camera.drawGhostSilhouette(mockCtx, ghostHand, 640, 480, { userHands: [], isMatch: false });
+  assert.ok(strokeStyles.some((s) => s.includes('56, 189, 248')));
+  assert.equal(arcCount, 21);
+
+  // 2. Совпадение (isMatch: true) — кости подсвечены ярко-зеленым
+  strokeStyles = [];
+  fillStyles = [];
+  arcCount = 0;
+  Camera.drawGhostSilhouette(mockCtx, ghostHand, 640, 480, { userHands: [], isMatch: true });
+  assert.ok(strokeStyles.some((s) => s.includes('34, 197, 94')));
+  assert.ok(fillStyles.some((s) => s.includes('74, 222, 128')));
+  assert.equal(arcCount, 21);
+});
+
+test('Practice module: fetchGhostSilhouette and openPracticeModal exclude dynamic gestures', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const decodedUrl = decodeURIComponent(url);
+    if (decodedUrl.includes('нет')) {
+      return {
+        ok: true,
+        json: async () => ({ status: 'ok', name: 'нет', is_dynamic: true, silhouette: null }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        status: 'ok',
+        name: 'мир',
+        is_dynamic: false,
+        silhouette: [Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0.0 }))],
+      }),
+    };
+  };
+
+  try {
+    // 1. Динамический жест никогда не возвращает силуэт
+    const dynamicRes = await Practice.fetchGhostSilhouette('нет');
+    assert.equal(dynamicRes, null);
+
+    // 2. Статический жест возвращает 21-точечный силуэт
+    const staticRes = await Practice.fetchGhostSilhouette('мир');
+    assert.ok(Array.isArray(staticRes));
+    assert.equal(staticRes[0].length, 21);
+
+    // 3. openPracticeModal устанавливает ghostSilhouette = null для динамического жеста
+    const stateDynamic = { practice: {} };
+    const dom = {
+      practiceTitle: {},
+      btnDynamicPractice: {},
+      practiceHoldFill: { style: {}, parentElement: {} },
+      practiceTipText: {},
+      practiceHudGesture: {},
+      practiceHudScore: {},
+      practiceSuccessOverlay: { style: {} },
+      practiceModal: { style: {} },
+    };
+    Practice.openPracticeModal({ name: 'нет', is_dynamic: true, dynamic_hands_count: 1 }, stateDynamic, dom);
+    assert.equal(stateDynamic.practice.ghostSilhouette, null);
+
+    // 4. openPracticeModal загружает силуэт для статического жеста
+    const stateStatic = { practice: {} };
+    Practice.openPracticeModal({ name: 'мир', is_dynamic: false }, stateStatic, dom);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(stateStatic.practice.ghostSilhouette);
+    assert.equal(stateStatic.practice.ghostSilhouette[0].length, 21);
+
+    // 5. closePracticeModal очищает ghostSilhouette
+    Practice.closePracticeModal(stateStatic, dom, () => {});
+    assert.equal(stateStatic.practice.ghostSilhouette, null);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

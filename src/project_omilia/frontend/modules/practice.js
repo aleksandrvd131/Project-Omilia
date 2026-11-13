@@ -15,6 +15,43 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  const silhouetteCache = {};
+
+  async function fetchGhostSilhouette(gestureName, state) {
+    if (!gestureName) return null;
+    const key = gestureName.trim().toLowerCase();
+    if (silhouetteCache[key] !== undefined) {
+      if (state && state.practice && state.practice.gesture && state.practice.gesture.name.trim().toLowerCase() === key) {
+        state.practice.ghostSilhouette = silhouetteCache[key];
+      }
+      return silhouetteCache[key];
+    }
+
+    try {
+      const url = `/api/gestures/${encodeURIComponent(key)}/silhouette`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.is_dynamic || !data.silhouette) {
+          silhouetteCache[key] = null;
+          if (state && state.practice && state.practice.gesture && state.practice.gesture.name.trim().toLowerCase() === key) {
+            state.practice.ghostSilhouette = null;
+          }
+          return null;
+        }
+        silhouetteCache[key] = data.silhouette;
+        if (state && state.practice && state.practice.gesture && state.practice.gesture.name.trim().toLowerCase() === key) {
+          state.practice.ghostSilhouette = data.silhouette;
+        }
+        return data.silhouette;
+      }
+    } catch (err) {
+      console.warn('Ошибка загрузки силуэта-призрака:', err);
+    }
+    silhouetteCache[key] = null;
+    return null;
+  }
+
   function openTutorialModal(gesture, state, dom) {
     state.practice.gesture = gesture;
     const ui = window.Omilia?.UI;
@@ -75,9 +112,10 @@
     state.practice.holdProgress = 0;
     state.practice.isLearned = false;
     state.practice.lastTimestamp = null;
+    state.practice.ghostSilhouette = null;
 
     if (dom.practiceTitle) dom.practiceTitle.textContent = `Жест: «${gesture.title || gesture.name}»`;
-    const isDynamic = Boolean(gesture.dynamic_hands_count);
+    const isDynamic = Boolean(gesture.dynamic_hands_count || gesture.is_dynamic);
     if (dom.btnDynamicPractice) {
       dom.btnDynamicPractice.hidden = !isDynamic;
       dom.btnDynamicPractice.disabled = false;
@@ -99,6 +137,11 @@
     if (dom.practiceHoldFill) dom.practiceHoldFill.style.width = '0%';
     if (dom.practiceSuccessOverlay) dom.practiceSuccessOverlay.style.display = 'none';
 
+    // Для статических жестов загружаем анатомический силуэт-призрак (для динамических — никогда)
+    if (!isDynamic) {
+      fetchGhostSilhouette(gesture.name, state);
+    }
+
     if (dom.practiceModal) dom.practiceModal.style.display = 'flex';
     if (onStartCamera) onStartCamera('practice');
   }
@@ -108,6 +151,7 @@
     if (dom.practiceDiagnosticHint) dom.practiceDiagnosticHint.style.display = 'none';
     state.currentProblemFingers = [];
     state.isMatchingGesture = false;
+    state.practice.ghostSilhouette = null;
 
     if (onStopCamera) onStopCamera();
     state.practice.gesture = null;
@@ -191,5 +235,7 @@
     closePracticeModal,
     onGestureSuccessfullyLearned,
     handlePracticePrediction,
+    fetchGhostSilhouette,
+    silhouetteCache,
   };
 });

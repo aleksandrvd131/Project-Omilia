@@ -97,6 +97,136 @@
     }
   }
 
+  const GHOST_FINGER_CONNECTIONS = [
+    [[0, 1], [1, 2], [2, 3], [3, 4]],         // Большой: 0->1->2->3->4
+    [[0, 5], [5, 6], [6, 7], [7, 8]],         // Указательный: 0->5->6->7->8
+    [[9, 10], [10, 11], [11, 12]],            // Средний: 9->10->11->12
+    [[13, 14], [14, 15], [15, 16]],           // Безымянный: 13->14->15->16
+    [[17, 18], [18, 19], [19, 20]],           // Мизинец: 17->18->19->20
+  ];
+  const GHOST_PALM_CONNECTIONS = [
+    [0, 5], [5, 9], [9, 13], [13, 17], [0, 17]
+  ];
+
+  function checkHandAlignment(userLandmarks, ghostLandmarks, threshold = 0.16) {
+    if (!userLandmarks || !ghostLandmarks || userLandmarks.length < 21 || ghostLandmarks.length < 21) {
+      return false;
+    }
+    // 1. Прямая дистанция между точками
+    let directDist = 0;
+    for (let i = 0; i < 21; i++) {
+      directDist += Math.hypot(userLandmarks[i].x - ghostLandmarks[i].x, userLandmarks[i].y - ghostLandmarks[i].y);
+    }
+    const avgDirectDist = directDist / 21;
+    if (avgDirectDist < threshold) return true;
+
+    // 2. Относительное совпадение формы кисти (инвариантное к смещению руки в кадре)
+    const uWrist = userLandmarks[0];
+    const gWrist = ghostLandmarks[0];
+    let shapeDiff = 0;
+    for (let i = 1; i < 21; i++) {
+      const udx = userLandmarks[i].x - uWrist.x;
+      const udy = userLandmarks[i].y - uWrist.y;
+      const gdx = ghostLandmarks[i].x - gWrist.x;
+      const gdy = ghostLandmarks[i].y - gWrist.y;
+      shapeDiff += Math.hypot(udx - gdx, udy - gdy);
+    }
+    const avgShapeDiff = shapeDiff / 20;
+    return avgShapeDiff < 0.12;
+  }
+
+  function drawGhostSilhouette(ctx, ghostData, width, height, options = {}) {
+    if (!ctx || !ghostData) return;
+
+    let handsList = [];
+    if (Array.isArray(ghostData) && ghostData.length > 0) {
+      if (Array.isArray(ghostData[0])) {
+        handsList = ghostData;
+      } else if (ghostData.length >= 21 && typeof ghostData[0].x === 'number') {
+        handsList = [ghostData];
+      }
+    }
+    if (handsList.length === 0) return;
+
+    const userHands = options.userHands || [];
+    const isGlobalMatch = Boolean(options.isMatch);
+
+    for (let hIdx = 0; hIdx < handsList.length; hIdx++) {
+      const hand = handsList[hIdx];
+      if (!hand || hand.length < 21) continue;
+
+      let isAligned = isGlobalMatch;
+      if (!isAligned && userHands.length > 0) {
+        const targetUserHand = userHands[hIdx] || userHands[0];
+        if (targetUserHand && checkHandAlignment(targetUserHand, hand)) {
+          isAligned = true;
+        }
+      }
+
+      ctx.save();
+
+      // Элегантная цветовая гамма: полупрозрачный циан/белый с мягким свечением, либо ярко-зеленый при совпадении
+      const boneColor = isAligned ? 'rgba(34, 197, 94, 0.90)' : 'rgba(56, 189, 248, 0.45)';
+      const glowColor = isAligned ? 'rgba(34, 197, 94, 0.95)' : 'rgba(186, 230, 253, 0.65)';
+      const jointColor = isAligned ? 'rgba(74, 222, 128, 0.95)' : 'rgba(240, 249, 255, 0.75)';
+      const lineWidth = isAligned ? 3.5 : 2.5;
+      const shadowBlur = isAligned ? 14 : 9;
+      const jointRadius = isAligned ? 4.5 : 3.5;
+
+      ctx.strokeStyle = boneColor;
+      ctx.lineWidth = lineWidth;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = shadowBlur;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // 1. Отрисовка основания ладони
+      ctx.beginPath();
+      for (const [startIdx, endIdx] of GHOST_PALM_CONNECTIONS) {
+        const p1 = hand[startIdx];
+        const p2 = hand[endIdx];
+        ctx.moveTo(p1.x * width, p1.y * height);
+        ctx.lineTo(p2.x * width, p2.y * height);
+      }
+      ctx.stroke();
+
+      // 2. Отрисовка костей пальцев (0->1->2->3->4, 0->5->6->7->8, и т.д.)
+      ctx.beginPath();
+      for (let f = 0; f < 5; f++) {
+        for (const [startIdx, endIdx] of GHOST_FINGER_CONNECTIONS[f]) {
+          const p1 = hand[startIdx];
+          const p2 = hand[endIdx];
+          ctx.moveTo(p1.x * width, p1.y * height);
+          ctx.lineTo(p2.x * width, p2.y * height);
+        }
+      }
+      ctx.stroke();
+
+      // 3. Полупрозрачная заливка основания ладони для объёма силуэта
+      ctx.fillStyle = isAligned ? 'rgba(34, 197, 94, 0.08)' : 'rgba(56, 189, 248, 0.06)';
+      ctx.beginPath();
+      ctx.moveTo(hand[0].x * width, hand[0].y * height);
+      ctx.lineTo(hand[5].x * width, hand[5].y * height);
+      ctx.lineTo(hand[9].x * width, hand[9].y * height);
+      ctx.lineTo(hand[13].x * width, hand[13].y * height);
+      ctx.lineTo(hand[17].x * width, hand[17].y * height);
+      ctx.closePath();
+      ctx.fill();
+
+      // 4. Отрисовка суставов (точек MediaPipe)
+      ctx.fillStyle = jointColor;
+      ctx.shadowBlur = shadowBlur / 2;
+      for (let i = 0; i < hand.length; i++) {
+        const p = hand[i];
+        ctx.beginPath();
+        ctx.arc(p.x * width, p.y * height, jointRadius, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+
   function initMediaPipe(state, getExpectedHandsCount) {
     if (state.mediaPipeHands && state.mediaPipePose) return;
 
@@ -236,6 +366,8 @@
   return {
     compactLandmarks,
     drawHandLandmarks,
+    drawGhostSilhouette,
+    checkHandAlignment,
     initMediaPipe,
     startCamera,
     stopCamera,

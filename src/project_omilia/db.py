@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import secrets
@@ -439,6 +440,197 @@ def delete_static_gesture(db_path: Path, gesture_name: str) -> None:
                 """,
                 (gesture_name, gesture_name),
             )
+
+
+def export_dataset(db_path: Path) -> dict[str, Any]:
+    """Экспорт всех записей таблиц gestures и static_gesture_samples в JSON-совместимый словарь."""
+    with closing(get_connection(db_path)) as conn:
+        gestures_rows = conn.execute(
+            """
+            SELECT name, title, category, description, tip, hands_count, is_dynamic, created_at
+            FROM gestures
+            ORDER BY is_dynamic ASC, name ASC
+            """
+        ).fetchall()
+        gestures = [dict(row) for row in gestures_rows]
+
+        samples_rows = conn.execute(
+            """
+            SELECT id, gesture_name, hands_count, features_json, features_blob
+            FROM static_gesture_samples
+            ORDER BY id ASC
+            """
+        ).fetchall()
+        samples = []
+        for row in samples_rows:
+            blob = row["features_blob"]
+            blob_b64 = base64.b64encode(blob).decode("ascii") if blob is not None else None
+            samples.append(
+                {
+                    "id": row["id"],
+                    "gesture_name": row["gesture_name"],
+                    "hands_count": row["hands_count"],
+                    "features_json": row["features_json"],
+                    "features_blob": blob_b64,
+                }
+            )
+
+        return {
+            "version": "1.0",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "total_gestures": len(gestures),
+            "total_samples": len(samples),
+            "gestures": gestures,
+            "static_gesture_samples": samples,
+        }
+
+
+def import_dataset(
+    db_path: Path,
+    data: dict[str, Any],
+    clear_existing_samples: bool = False,
+) -> dict[str, Any]:
+    """
+    Импорт каталога жестов и эталонов static_gesture_samples из JSON-структуры.
+    Выполняет upsert в таблицу gestures и insert в static_gesture_samples.
+    """
+    raw_gestures = data.get("gestures") or []
+    raw_samples = data.get("static_gesture_samples") or []
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    imported_gestures = 0
+    imported_samples = 0
+
+    with closing(get_connection(db_path)) as conn, conn:
+        for g in raw_gestures:
+            if isinstance(g, dict):
+                g_dict = g
+            elif hasattr(g, "model_dump"):
+                g_dict = g.model_dump()
+            else:
+                continue
+
+            name = str(g_dict.get("name", "")).strip().lower()
+            if not name:
+                continue
+
+            title = str(g_dict.get("title") or name.capitalize())
+            category = str(g_dict.get("category") or "Общие жесты")
+            description = str(g_dict.get("description") or "")
+            tip = str(g_dict.get("tip") or "")
+            hands_count = int(g_dict.get("hands_count") or 1)
+            is_dynamic = int(bool(g_dict.get("is_dynamic", False)))
+            created_at = str(g_dict.get("created_at") or now_iso)
+
+            conn.execute(
+                """
+                INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
+                VALUES (:name, :title, :category, :description, :tip, :hands_count, :is_dynamic, :created_at)
+                ON CONFLICT(name) DO UPDATE SET
+                    title = excluded.title,
+                    category = excluded.category,
+                    description = excluded.description,
+                    tip = excluded.tip,
+                    hands_count = excluded.hands_count,
+                    is_dynamic = excluded.is_dynamic
+                """,
+                {
+                    "name": name,
+                    "title": title,
+                    "category": category,
+                    "description": description,
+                    "tip": tip,
+                    "hands_count": hands_count,
+                    "is_dynamic": is_dynamic,
+                    "created_at": created_at,
+                },
+            )
+            imported_gestures += 1
+
+        if clear_existing_samples and raw_samples:
+            target_names = {
+                (s.get("gesture_name") if isinstance(s, dict) else getattr(s, "gesture_name", "")).strip().lower()
+                for s in raw_samples
+            }
+            for t_name in target_names:
+                if t_name:
+                    conn.execute("DELETE FROM static_gesture_samples WHERE LOWER(gesture_name) = ?", (t_name,))
+
+        for s in raw_samples:
+            if isinstance(s, dict):
+                s_dict = s
+            elif hasattr(s, "model_dump"):
+                s_dict = s.model_dump()
+            else:
+                continue
+
+            gesture_name = str(s_dict.get("gesture_name", "")).strip().lower()
+            if not gesture_name:
+                continue
+
+            hands_count = int(s_dict.get("hands_count") or 1)
+            f_json = s_dict.get("features_json")
+            f_blob = s_dict.get("features_blob")
+
+            blob_bytes: bytes | None = None
+            if isinstance(f_blob, str) and f_blob:
+                try:
+                    blob_bytes = base64.b64decode(f_blob)
+                except Exception:
+                    blob_bytes = None
+            elif isinstance(f_blob, (list, tuple)):
+                try:
+                    blob_bytes = np.asarray(f_blob, dtype=np.float32).tobytes()
+                except Exception:
+                    blob_bytes = None
+            elif isinstance(f_blob, (bytes, bytearray)):
+                blob_bytes = bytes(f_blob)
+
+            if blob_bytes is None:
+                if isinstance(f_json, (list, tuple)):
+                    try:
+                        arr = np.asarray(f_json, dtype=np.float32)
+                        blob_bytes = arr.tobytes()
+                        f_json = json.dumps(arr.tolist(), allow_nan=False)
+                    except Exception:
+                        pass
+                elif isinstance(f_json, str) and f_json:
+                    try:
+                        parsed = json.loads(f_json)
+                        arr = np.asarray(parsed, dtype=np.float32)
+                        blob_bytes = arr.tobytes()
+                    except Exception:
+                        pass
+
+            if not isinstance(f_json, str) or not f_json:
+                if blob_bytes is not None:
+                    arr = np.frombuffer(blob_bytes, dtype=np.float32)
+                    f_json = json.dumps(arr.tolist(), allow_nan=False)
+                else:
+                    continue
+
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (gesture_name, gesture_name.capitalize(), "Общие жесты", "", "", hands_count, 0, now_iso),
+            )
+
+            conn.execute(
+                """
+                INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
+                VALUES (?, ?, ?, ?)
+                """,
+                (gesture_name, hands_count, f_json, blob_bytes),
+            )
+            imported_samples += 1
+
+    return {
+        "status": "ok",
+        "imported_gestures": imported_gestures,
+        "imported_samples": imported_samples,
+    }
 
 
 def list_dynamic_samples(db_path: Path) -> list[dict[str, Any]]:

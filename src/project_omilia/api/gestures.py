@@ -3,6 +3,7 @@ API-роутер каталога жестов, прогресса обучен�
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from project_omilia import db
@@ -14,8 +15,9 @@ from project_omilia.api.deps import (
 )
 from project_omilia.core.config import DB_PATH, GESTURE_METADATA
 from project_omilia.gestures import COUNT_OF_SAMPLES
-from project_omilia.schemas.gestures import LearnRequest
+from project_omilia.schemas.gestures import DatasetImportPayload, LearnRequest
 from project_omilia.services.dynamic_service import DynamicGestureServer
+from project_omilia.services.silhouette_service import get_gesture_silhouette
 from project_omilia.services.static_service import StaticGestureServer
 
 router = APIRouter(prefix="/api/gestures", tags=["gestures"])
@@ -232,6 +234,73 @@ async def api_review_gesture(
         "last_reviewed_at": review_result["last_reviewed_at"],
         "gesture_streak": review_result["streak"],
     }
+
+
+@router.get("/export")
+async def api_export_dataset():
+    """Экспорт полной базы данных жестов и сэмплов в JSON файл."""
+    data = db.export_dataset(DB_PATH)
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition": 'attachment; filename="omilia_dataset_export.json"'},
+    )
+
+
+@router.post("/import")
+async def api_import_dataset(
+    payload: DatasetImportPayload,
+    static_server: StaticGestureServer = Depends(get_static_server),
+):
+    """Импорт базы данных жестов и сэмплов с валидацией схемы и перезагрузкой активных моделей."""
+    if not payload.gestures and not payload.static_gesture_samples:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пейлоад импорта пуст: отсутствуют 'gestures' и 'static_gesture_samples'.",
+        )
+
+    for idx, sample in enumerate(payload.static_gesture_samples):
+        if not sample.features_json and not sample.features_blob:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Сэмпл #{idx} ({sample.gesture_name}) не содержит признаков (features_json или features_blob).",
+            )
+
+    result = db.import_dataset(
+        DB_PATH,
+        payload.model_dump(),
+        clear_existing_samples=payload.clear_existing_samples,
+    )
+    static_server.reload()
+
+    return {
+        "status": "ok",
+        "message": f"Успешно импортировано {result['imported_gestures']} жестов и {result['imported_samples']} сэмплов",
+        "imported_gestures": result["imported_gestures"],
+        "imported_samples": result["imported_samples"],
+        "dataset_stats": static_server.get_combined_stats(),
+        "dataset_info": static_server.get_combined_info(),
+    }
+
+
+@router.get("/{gesture_name}/silhouette")
+async def api_get_gesture_silhouette(
+    gesture_name: str,
+    static_server: StaticGestureServer = Depends(get_static_server),
+    dynamic_server: DynamicGestureServer = Depends(get_dynamic_server),
+):
+    """Возвращает 21 анатомическую точку MediaPipe (силуэт-призрак) для статического жеста."""
+    silhouette_data = get_gesture_silhouette(
+        gesture_name,
+        db_path=DB_PATH,
+        static_server=static_server,
+        dynamic_server=dynamic_server,
+    )
+    if silhouette_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Жест '{gesture_name}' не найден",
+        )
+    return {"status": "ok", **silhouette_data}
 
 
 @router.delete("/{gesture_name}")
