@@ -47,6 +47,25 @@
     },
   ];
 
+  // Карта уровней для всех известных жестов учебной программы (Уровни 1-4)
+  const KNOWN_GESTURE_LEVELS = {
+    // Level 1: Дактильный алфавит
+    'а': 1, 'б': 1, 'в': 1, 'г': 1, 'д': 1, 'е': 1, 'и': 1, 'о': 1, 'с': 1, 'у': 1,
+    // Level 2: Числительные и счёт
+    '1': 2, '2': 2, '3': 2, '4': 2, '5': 2, '10': 2,
+    // Level 3: Базовый этикет
+    'привет': 3, 'спасибо': 3, 'помоги': 3, 'пожалуйста': 3, 'да': 3, 'нет': 3, 'мир': 3, 'хорошо': 3,
+    // Level 4: Семья и окружение
+    'дом': 4, 'мама': 4, 'папа': 4, 'семья': 4, 'любовь': 4, 'стоп': 4, 'книга': 4, 'я': 4, 'ты': 4,
+  };
+
+  const LEVEL_TITLES = {
+    1: 'Дактильный алфавит',
+    2: 'Числительные и счёт',
+    3: 'Базовый этикет',
+    4: 'Семья и окружение',
+  };
+
   const filters = {
     search: '',
     category: 'all',
@@ -72,6 +91,12 @@
 
     const name = (gesture.name || '').trim().toLowerCase();
     const cat = (gesture.category || '').toLowerCase();
+
+    // 0. Точное сопоставление по реестру жестов программы
+    if (KNOWN_GESTURE_LEVELS[name]) {
+      const lvl = KNOWN_GESTURE_LEVELS[name];
+      return { level: lvl, level_title: LEVEL_TITLES[lvl] };
+    }
 
     // 1. По категории
     if (cat.includes('алфавит') || cat.includes('дактиль')) {
@@ -100,11 +125,11 @@
       return { level: 2, level_title: 'Числительные и счёт' };
     }
 
-    if (['привет', 'спасибо', 'помоги', 'да', 'нет', 'пожалуйста', 'здравствуйте', 'до свидания', 'прости', 'извини'].includes(name)) {
+    if (['привет', 'спасибо', 'помоги', 'да', 'нет', 'пожалуйста', 'здравствуйте', 'до свидания', 'прости', 'извини', 'мир', 'хорошо', 'благодарю'].includes(name)) {
       return { level: 3, level_title: 'Базовый этикет' };
     }
 
-    if (['дом', 'мама', 'папа', 'семья', 'друг', 'ты', 'я', 'мы', 'вы', 'они'].includes(name)) {
+    if (['дом', 'мама', 'папа', 'семья', 'друг', 'ты', 'я', 'мы', 'вы', 'они', 'брат', 'сестра', 'любовь', 'стоп', 'книга'].includes(name)) {
       return { level: 4, level_title: 'Семья и окружение' };
     }
 
@@ -193,7 +218,13 @@
 
       // 2. Фильтр по категории
       if (cat === 'learned' && !g.is_learned) return false;
-      if (cat !== 'all' && cat !== 'learned' && g.category !== cat) return false;
+      if (cat !== 'all' && cat !== 'learned') {
+        const gCat = (g.category || '').toLowerCase();
+        const fCat = String(cat).toLowerCase();
+        if (gCat !== fCat && !gCat.includes(fCat) && !fCat.includes(gCat)) {
+          return false;
+        }
+      }
 
       // 3. Текстовый поиск
       if (q) {
@@ -532,17 +563,23 @@
   /**
    * Отрисовка чипов фильтрации по уровням рядом с категориями.
    */
-  function renderLevelFilterChips(state, dom, onOpenTutorial) {
+  function renderLevelFilterChips(state, dom, onOpenTutorial, levelStats) {
     const { levelFilters } = ensureCurriculumDOM(dom);
     if (!levelFilters) return;
 
+    const totalAll = (state.gestures || []).length;
+    const l1 = levelStats?.[1]?.total ?? 0;
+    const l2 = levelStats?.[2]?.total ?? 0;
+    const l3 = levelStats?.[3]?.total ?? 0;
+    const l4 = levelStats?.[4]?.total ?? 0;
+
     levelFilters.innerHTML = `
       <span class="level-filter-label">Уровень:</span>
-      <button class="filter-chip ${filters.level === 'all' ? 'active' : ''}" data-level="all">Все уровни</button>
-      <button class="filter-chip ${filters.level == 1 ? 'active' : ''}" data-level="1">Ур. 1: Дактиль</button>
-      <button class="filter-chip ${filters.level == 2 ? 'active' : ''}" data-level="2">Ур. 2: Счёт</button>
-      <button class="filter-chip ${filters.level == 3 ? 'active' : ''}" data-level="3">Ур. 3: Этикет</button>
-      <button class="filter-chip ${filters.level == 4 ? 'active' : ''}" data-level="4">Ур. 4: Семья</button>
+      <button class="filter-chip ${filters.level === 'all' ? 'active' : ''}" data-level="all">Все уровни ${totalAll > 0 ? `(${totalAll})` : ''}</button>
+      <button class="filter-chip ${filters.level == 1 ? 'active' : ''}" data-level="1">Ур. 1: Дактиль ${l1 > 0 ? `(${l1})` : ''}</button>
+      <button class="filter-chip ${filters.level == 2 ? 'active' : ''}" data-level="2">Ур. 2: Счёт ${l2 > 0 ? `(${l2})` : ''}</button>
+      <button class="filter-chip ${filters.level == 3 ? 'active' : ''}" data-level="3">Ур. 3: Этикет ${l3 > 0 ? `(${l3})` : ''}</button>
+      <button class="filter-chip ${filters.level == 4 ? 'active' : ''}" data-level="4">Ур. 4: Семья ${l4 > 0 ? `(${l4})` : ''}</button>
     `;
 
     levelFilters.querySelectorAll('.filter-chip').forEach((chip) => {
@@ -551,6 +588,80 @@
         chip.classList.add('active');
 
         filters.level = chip.dataset.level === 'all' ? 'all' : Number(chip.dataset.level);
+        renderCatalog(state, dom, onOpenTutorial);
+      });
+    });
+  }
+
+  /**
+   * Отрисовка и синхронизация чипов категорий со счётчиками жестов.
+   */
+  function updateCategoryFilterChips(state, dom, onOpenTutorial) {
+    const catContainer = dom.categoryFilters || document.getElementById('category-filters');
+    if (!catContainer) return;
+
+    const categoryCounts = {};
+    (state.gestures || []).forEach((g) => {
+      const c = (g.category || 'Общие жесты').trim();
+      categoryCounts[c] = (categoryCounts[c] || 0) + 1;
+    });
+
+    if (Object.keys(categoryCounts).length === 0) {
+      categoryCounts['Дактиль (Алфавит)'] = 0;
+      categoryCounts['Числительные'] = 0;
+      categoryCounts['Базовый этикет'] = 0;
+      categoryCounts['Семья и окружение'] = 0;
+    }
+
+    const currentCat = filters.category;
+    let chipsHtml = `
+      <button class="filter-chip ${currentCat === 'all' ? 'active' : ''}" data-category="all">Все жесты</button>
+    `;
+
+    const primaryOrder = [
+      'Дактиль (Алфавит)',
+      'Числительные',
+      'Базовый этикет',
+      'Приветствия',
+      'Вежливость',
+      'Базовые',
+      'Семья и окружение',
+      'Семья',
+      'Общие жесты',
+    ];
+
+    const sortedCats = Object.keys(categoryCounts).sort((a, b) => {
+      const idxA = primaryOrder.indexOf(a);
+      const idxB = primaryOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    sortedCats.forEach((c) => {
+      const cnt = categoryCounts[c] || 0;
+      chipsHtml += `
+        <button class="filter-chip ${currentCat === c ? 'active' : ''}" data-category="${c}">
+          ${c} ${cnt > 0 ? `(${cnt})` : ''}
+        </button>
+      `;
+    });
+
+    const learnedCount = (state.gestures || []).filter((g) => g.is_learned).length;
+    chipsHtml += `
+      <button class="filter-chip ${currentCat === 'learned' ? 'active' : ''}" data-category="learned">
+        ✓ Только выученные ${learnedCount > 0 ? `(${learnedCount})` : ''}
+      </button>
+    `;
+
+    catContainer.innerHTML = chipsHtml;
+
+    catContainer.querySelectorAll('.filter-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        catContainer.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        filters.category = chip.dataset.category;
         renderCatalog(state, dom, onOpenTutorial);
       });
     });
@@ -600,7 +711,8 @@
 
     // Отрисовываем компоненты дорожной карты и чипов уровней
     renderRoadmapView(state, dom, levelStats, onOpenTutorial);
-    renderLevelFilterChips(state, dom, onOpenTutorial);
+    renderLevelFilterChips(state, dom, onOpenTutorial, levelStats);
+    updateCategoryFilterChips(state, dom, onOpenTutorial);
 
     dom.gesturesGrid.innerHTML = '';
 
@@ -651,7 +763,7 @@
 
       const handsBadge = gesture.dynamic_hands_count
         ? '⚡ Движение'
-        : (gesture.hands_count === 2 || gesture.name === 'дом' ? '👐 2 руки' : '✋ 1 рука');
+        : (gesture.hands_count === 2 || ['дом', 'книга', 'семья', '10'].includes(gesture.name) ? '👐 2 руки' : '✋ 1 рука');
 
       const lockBanner = !isLevelUnlocked
         ? `<div class="gesture-lock-banner">
@@ -705,7 +817,9 @@
    */
   function setupCatalogFilters(state, dom, onOpenTutorial) {
     ensureCurriculumDOM(dom);
-    renderLevelFilterChips(state, dom, onOpenTutorial);
+    const levelStats = calculateLevelStats(state.gestures);
+    renderLevelFilterChips(state, dom, onOpenTutorial, levelStats);
+    updateCategoryFilterChips(state, dom, onOpenTutorial);
 
     dom.catalogSearch?.addEventListener('input', (e) => {
       filters.search = e.target.value;
@@ -721,23 +835,16 @@
       dom.btnClearSearch.style.display = 'none';
       renderCatalog(state, dom, onOpenTutorial);
     });
-
-    dom.categoryFilters?.querySelectorAll('.filter-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        dom.categoryFilters.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
-        filters.category = chip.dataset.category;
-        renderCatalog(state, dom, onOpenTutorial);
-      });
-    });
   }
 
   return {
     filters,
     CURRICULUM_LEVELS,
+    KNOWN_GESTURE_LEVELS,
     getGestureLevelInfo,
     calculateLevelStats,
     getFilteredGestures,
+    updateCategoryFilterChips,
     loadCatalog,
     renderCatalog,
     setupCatalogFilters,

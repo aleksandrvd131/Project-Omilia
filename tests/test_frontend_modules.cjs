@@ -6,6 +6,7 @@ const Camera = require('../src/project_omilia/frontend/modules/camera.js');
 const Socket = require('../src/project_omilia/frontend/modules/socket.js');
 const Practice = require('../src/project_omilia/frontend/modules/practice.js');
 const Blitz = require('../src/project_omilia/frontend/modules/blitz.js');
+const Catalog = require('../src/project_omilia/frontend/modules/catalog.js');
 
 test('UI module: escapeHtml escapes dangerous characters', () => {
   assert.equal(UI.escapeHtml('hello <script>alert("1")</script> & \'world\''), 'hello &lt;script&gt;alert(&quot;1&quot;)&lt;/script&gt; &amp; &#039;world&#039;');
@@ -105,4 +106,64 @@ test('Blitz module: handleBlitzPrediction advances hold progress on match', () =
   assert.equal(state.blitz.holdProgress, 0.5);
   assert.equal(dom.blitzHudGesture.textContent, 'спасибо');
   assert.match(dom.blitzHudScore.textContent, /92%/);
+});
+
+test('Catalog module: getGestureLevelInfo correctly maps all curriculum levels (1-4)', () => {
+  const lvl1 = ['а', 'б', 'в', 'г', 'д', 'е', 'и', 'о', 'с', 'у'];
+  const lvl2 = ['1', '2', '3', '4', '5'];
+  const lvl3 = ['привет', 'спасибо', 'помоги', 'пожалуйста', 'да', 'нет', 'мир', 'хорошо'];
+  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'я', 'ты'];
+
+  for (const name of lvl1) {
+    const info = Catalog.getGestureLevelInfo({ name });
+    assert.equal(info.level, 1, `Expected level 1 for ${name}`);
+    assert.equal(info.level_title, 'Дактильный алфавит');
+  }
+
+  for (const name of lvl2) {
+    const info = Catalog.getGestureLevelInfo({ name });
+    assert.equal(info.level, 2, `Expected level 2 for ${name}`);
+    assert.equal(info.level_title, 'Числительные и счёт');
+  }
+
+  for (const name of lvl3) {
+    const info = Catalog.getGestureLevelInfo({ name });
+    assert.equal(info.level, 3, `Expected level 3 for ${name}`);
+    assert.equal(info.level_title, 'Базовый этикет');
+  }
+
+  for (const name of lvl4) {
+    const info = Catalog.getGestureLevelInfo({ name });
+    assert.equal(info.level, 4, `Expected level 4 for ${name}`);
+    assert.equal(info.level_title, 'Семья и окружение');
+  }
+});
+
+test('Catalog module: calculateLevelStats accurately computes level totals and unlock conditions', () => {
+  const lvl1 = ['а', 'б', 'в', 'г', 'д', 'е', 'и', 'о', 'с', 'у'];
+  const lvl2 = ['1', '2', '3', '4', '5'];
+  const lvl3 = ['привет', 'спасибо', 'помоги', 'пожалуйста', 'да', 'нет', 'мир', 'хорошо'];
+  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'я', 'ты'];
+
+  const mockGestures = [
+    ...lvl1.map((n, i) => ({ name: n, is_learned: i < 7 })), // 7/10 = 70% learned
+    ...lvl2.map((n) => ({ name: n, is_learned: false })),
+    ...lvl3.map((n) => ({ name: n, is_learned: false })),
+    ...lvl4.map((n) => ({ name: n, is_learned: false })),
+  ];
+
+  const stats = Catalog.calculateLevelStats(mockGestures);
+  assert.equal(stats[1].total, 10);
+  assert.equal(stats[1].learned, 7);
+  assert.equal(stats[1].percentage, 70);
+  assert.equal(stats[1].isUnlocked, true);
+
+  assert.equal(stats[2].total, 5);
+  assert.equal(stats[2].isUnlocked, true); // Level 1 is >= 70%, unlocking Level 2
+
+  assert.equal(stats[3].total, 8);
+  assert.equal(stats[3].isUnlocked, false); // Level 2 is 0%, Level 3 remains locked
+
+  assert.equal(stats[4].total, 9);
+  assert.equal(stats[4].isUnlocked, false);
 });

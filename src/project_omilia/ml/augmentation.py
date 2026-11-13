@@ -139,3 +139,8 @@ def augment_static_samples(
             result.append(aug)
 
     return result
+
+
+# Псевдоним для удобства интеграции
+augment_sample = augment_static_vector
+

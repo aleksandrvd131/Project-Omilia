@@ -279,34 +279,13 @@
     }
 
     const targetGesture = getTargetGestureName();
-    const sent = socket.sendPayload({
+    socket.sendPayload({
       token: state.authToken || localStorage.getItem('omilia_token') || '',
       hands_data: handsToSend,
       pose_landmarks: camera.compactLandmarks(state.latestPose),
       hands_count: expectedHands,
       target_gesture: targetGesture || undefined,
     });
-
-    if (!sent && !socket.isOpen() && state.classifier && handsData.length > 0) {
-      const clientPred = state.classifier.predict(handsData, state.latestPose, expectedHands);
-      if (clientPred && clientPred.detected) {
-        if (targetGesture && window.OmiliaInference?.OmiliaDiagnostics && state.classifier.models[expectedHands]) {
-          const model = state.classifier.models[expectedHands];
-          const classIdx = model.labels ? model.labels.indexOf(targetGesture) : -1;
-          if (classIdx >= 0 && model.centroids && model.centroids[classIdx]) {
-            const userVec = state.classifier.extractor.extract(handsData, state.latestPose, expectedHands);
-            if (userVec) {
-              clientPred.diagnostics = window.OmiliaInference.OmiliaDiagnostics.diagnose(
-                userVec,
-                model.centroids[classIdx],
-                expectedHands
-              );
-            }
-          }
-        }
-        handleServerPrediction(clientPred);
-      }
-    }
   }
 
   // --- Обработка распознанного жеста ---
@@ -647,9 +626,6 @@
 
   // --- Инициализация приложения ---
   async function init() {
-    if (window.OmiliaInference && window.OmiliaInference.OmiliaStaticClassifier) {
-      state.classifier = new window.OmiliaInference.OmiliaStaticClassifier();
-    }
     bindEvents();
     await checkAuth();
     await catalog.loadCatalog(state, dom, openTutorialModal);

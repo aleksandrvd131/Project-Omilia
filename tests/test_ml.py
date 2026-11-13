@@ -8,7 +8,13 @@ from pathlib import Path
 import numpy as np
 
 from project_omilia import db
-from project_omilia.gestures import DynamicGestures, dtw_distance
+from project_omilia.gestures import (
+    CURRICULUM_LEVELS,
+    GESTURE_DEFINITIONS,
+    DynamicGestures,
+    dtw_distance,
+    get_curriculum_level,
+)
 from project_omilia.ml.onnx_exporter import (
     export_classifier_metadata,
     export_onnx_model_bytes,
@@ -67,3 +73,41 @@ def test_onnx_model_exporter_generates_valid_binary():
         onnx_bytes = export_onnx_model_bytes(db_path, hands_count=1)
         assert isinstance(onnx_bytes, bytes)
         assert len(onnx_bytes) > 500  # Модель содержит узлы Gemm, Softmax и тензоры весов
+
+
+def test_curriculum_definitions_and_level_mapping():
+    """Тестирование полноты словаря GESTURE_DEFINITIONS и функции get_curriculum_level для всех жестов Slovo."""
+    lvl1 = ["а", "б", "в", "г", "д", "е", "и", "о", "с", "у"]
+    lvl2 = ["1", "2", "3", "4", "5"]
+    lvl3 = ["привет", "спасибо", "помоги", "пожалуйста", "да", "нет", "мир", "хорошо"]
+    lvl4 = ["дом", "мама", "папа", "семья", "любовь", "стоп", "книга", "я", "ты"]
+
+    assert len(CURRICULUM_LEVELS) == 4
+
+    for name in lvl1:
+        assert name in GESTURE_DEFINITIONS, f"Gesture '{name}' is missing in GESTURE_DEFINITIONS"
+        defn = GESTURE_DEFINITIONS[name]
+        assert defn.level == 1
+        assert defn.level_title == "Дактильный алфавит"
+        assert get_curriculum_level(name) == (1, "Дактильный алфавит")
+
+    for name in lvl2:
+        assert name in GESTURE_DEFINITIONS, f"Gesture '{name}' is missing in GESTURE_DEFINITIONS"
+        defn = GESTURE_DEFINITIONS[name]
+        assert defn.level == 2
+        assert defn.level_title == "Числительные и счёт"
+        assert get_curriculum_level(name) == (2, "Числительные и счёт")
+
+    for name in lvl3:
+        assert name in GESTURE_DEFINITIONS, f"Gesture '{name}' is missing in GESTURE_DEFINITIONS"
+        defn = GESTURE_DEFINITIONS[name]
+        assert defn.level == 3
+        assert defn.level_title == "Базовый этикет"
+        assert get_curriculum_level(name) == (3, "Базовый этикет")
+
+    for name in lvl4:
+        assert name in GESTURE_DEFINITIONS, f"Gesture '{name}' is missing in GESTURE_DEFINITIONS"
+        defn = GESTURE_DEFINITIONS[name]
+        assert defn.level == 4
+        assert defn.level_title == "Семья и окружение"
+        assert get_curriculum_level(name) == (4, "Семья и окружение")
