@@ -45,9 +45,7 @@ def sakoe_chiba_dtw(
         return 0.0
 
     if s1.shape[-1] != s2.shape[-1]:
-        raise ValueError(
-            f"Несовпадающая размерность признаков кадров: {s1.shape[-1]} != {s2.shape[-1]}."
-        )
+        raise ValueError(f"Несовпадающая размерность признаков кадров: {s1.shape[-1]} != {s2.shape[-1]}.")
 
     len_diff = abs(n - m)
     if radius is None:

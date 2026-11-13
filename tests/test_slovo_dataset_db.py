@@ -2,10 +2,8 @@
 Тесты интеграции набора данных Slovo RSL в SQLite базу данных и модели StaticGesture.
 """
 
-import json
-
 from project_omilia import db
-from project_omilia.core.config import DATASET_PATH_1H, DATASET_PATH_2H, DB_PATH
+from project_omilia.core.config import DB_PATH
 from project_omilia.gestures import StaticGesture
 from project_omilia.ml.slovo_generator import (
     SLOVO_GESTURES,
@@ -13,8 +11,14 @@ from project_omilia.ml.slovo_generator import (
 )
 
 
+def setup_module():
+    """Гарантирует инициализацию базы данных и эталонов перед тестами."""
+    db.init_db(DB_PATH)
+
+
 def test_slovo_gestures_in_sqlite_db():
     """Проверяет наличие метаданных всех жестов Slovo в таблице gestures."""
+    db.init_db(DB_PATH)
     all_gestures = db.get_all_gestures(DB_PATH)
     gesture_map = {g["name"]: g for g in all_gestures}
 
@@ -29,6 +33,7 @@ def test_slovo_gestures_in_sqlite_db():
 
 def test_slovo_samples_in_sqlite_db():
     """Проверяет наличие не менее 20 сэмплов для каждого жеста Slovo в static_gesture_samples."""
+    db.init_db(DB_PATH)
     samples_1h = db.get_static_samples(DB_PATH, hands_count=1)
     samples_2h = db.get_static_samples(DB_PATH, hands_count=2)
 
@@ -51,6 +56,7 @@ def test_slovo_samples_in_sqlite_db():
 
 def test_static_gesture_models_reload_and_classification():
     """Проверяет перезагрузку StaticGesture(DB_PATH, 1) и StaticGesture(DB_PATH, 2) и точность классификации."""
+    db.init_db(DB_PATH)
     model_1h = StaticGesture(DB_PATH, hands_count=1)
     assert model_1h.model is not None, "Модель StaticGesture для 1 руки не обучена"
     assert len(model_1h.dataset) >= 17
@@ -71,27 +77,19 @@ def test_static_gesture_models_reload_and_classification():
             assert pred == name, f"2-ручный жест '{name}' классифицирован как '{pred}'"
 
 
-def test_json_datasets_consistency():
-    """Проверяет целостность и согласованность omilia_static_1h.json и omilia_static_2h.json."""
-    assert DATASET_PATH_1H.is_file()
-    assert DATASET_PATH_2H.is_file()
+def test_sqlite_datasets_consistency():
+    """Проверяет целостность и бинарную согласованность сэмплов в SQLite omilia.db."""
+    db.init_db(DB_PATH)
+    samples_1h = db.get_static_samples(DB_PATH, hands_count=1)
+    samples_2h = db.get_static_samples(DB_PATH, hands_count=2)
 
-    with open(DATASET_PATH_1H, "r", encoding="utf-8") as f:
-        data_1h = json.load(f)
+    assert len(samples_1h) >= 20, "Недостаточно 1-ручных сэмплов в static_gesture_samples"
+    assert len(samples_2h) >= 20, "Недостаточно 2-ручных сэмплов в static_gesture_samples"
 
-    with open(DATASET_PATH_2H, "r", encoding="utf-8") as f:
-        data_2h = json.load(f)
+    for row in samples_1h:
+        assert row["features_blob"] is not None
+        assert len(row["features_blob"]) == 141 * 4  # 141 float32 (564 байта)
 
-    for name, sdef in SLOVO_GESTURES.items():
-        if sdef.hands_count == 1:
-            assert name in data_1h, f"Жест '{name}' отсутствует в omilia_static_1h.json"
-            samples = data_1h[name]
-            assert len(samples) >= 20
-            for vec in samples:
-                assert len(vec) == 141
-        else:
-            assert name in data_2h, f"Жест '{name}' отсутствует в omilia_static_2h.json"
-            samples = data_2h[name]
-            assert len(samples) >= 20
-            for vec in samples:
-                assert len(vec) == 282
+    for row in samples_2h:
+        assert row["features_blob"] is not None
+        assert len(row["features_blob"]) == 282 * 4  # 282 float32 (1128 байт)

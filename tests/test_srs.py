@@ -43,13 +43,17 @@ def test_calculate_sm2_progression():
     assert res1.repetitions == 1
 
     # Второе успешное повторение (repetitions=1 -> 2, interval=6)
-    res2 = db.calculate_sm2(ease_factor=res1.ease_factor, interval_days=res1.interval_days, repetitions=res1.repetitions, quality=4)
+    res2 = db.calculate_sm2(
+        ease_factor=res1.ease_factor, interval_days=res1.interval_days, repetitions=res1.repetitions, quality=4
+    )
     assert res2.ease_factor == 2.6  # 2.6 + (0.1 - 0.1) = 2.6
     assert res2.interval_days == 6
     assert res2.repetitions == 2
 
     # Третье успешное повторение (repetitions=2 -> 3, interval=round(6 * 2.7)=16)
-    res3 = db.calculate_sm2(ease_factor=res2.ease_factor, interval_days=res2.interval_days, repetitions=res2.repetitions, quality=5)
+    res3 = db.calculate_sm2(
+        ease_factor=res2.ease_factor, interval_days=res2.interval_days, repetitions=res2.repetitions, quality=5
+    )
     assert res3.ease_factor == 2.7  # 2.6 + 0.1 = 2.7
     assert res3.interval_days == int(round(6 * 2.7))
     assert res3.repetitions == 3
@@ -161,7 +165,14 @@ def test_db_migration_from_legacy_learned_gestures():
 
         with db.get_connection(db_path) as conn:
             cols = [c[1] for c in conn.execute("PRAGMA table_info(learned_gestures)").fetchall()]
-            for expected_col in ("ease_factor", "interval_days", "repetitions", "next_review_at", "last_reviewed_at", "streak"):
+            for expected_col in (
+                "ease_factor",
+                "interval_days",
+                "repetitions",
+                "next_review_at",
+                "last_reviewed_at",
+                "streak",
+            ):
                 assert expected_col in cols
 
             # Существующая запись сохранилась и получила значения по умолчанию

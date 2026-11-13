@@ -234,10 +234,29 @@ def init_db(db_path: Path) -> None:
             """
         )
 
-        # Автоматическая миграция базовых метаданных жестов в SQLite при первом запуске
-        gesture_count = conn.execute("SELECT COUNT(*) FROM gestures").fetchone()[0]
-        if gesture_count == 0:
-            now_iso = datetime.now(timezone.utc).isoformat()
+        # Автоматическая миграция метаданных жестов в SQLite при первом запуске или обновлении
+        now_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            from project_omilia.gestures import GESTURE_DEFINITIONS
+
+            for gname, gdef in GESTURE_DEFINITIONS.items():
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        gname.strip().lower(),
+                        gdef.title,
+                        gdef.category,
+                        gdef.description,
+                        gdef.tip,
+                        gdef.hands_count,
+                        1 if gdef.is_dynamic else 0,
+                        now_iso,
+                    ),
+                )
+        except Exception:
             from project_omilia.core.config import GESTURE_METADATA
 
             for gname, meta in GESTURE_METADATA.items():
@@ -257,28 +276,25 @@ def init_db(db_path: Path) -> None:
                         now_iso,
                     ),
                 )
-            # Добавляем жесты из static_gesture_samples, которых могло не быть в словаре
-            static_names = [
-                r[0] for r in conn.execute("SELECT DISTINCT gesture_name FROM static_gesture_samples").fetchall()
-            ]
-            for sname in static_names:
-                sname_clean = sname.strip().lower()
-                conn.execute(
+
+        # Автоматическое наполнение сэмплов жестов Slovo в static_gesture_samples
+        slovo_sample_count = conn.execute(
+            "SELECT COUNT(*) FROM static_gesture_samples WHERE gesture_name = 'г'"
+        ).fetchone()[0]
+        if slovo_sample_count == 0:
+            try:
+                from project_omilia.ml.slovo_generator import build_db_records
+
+                slovo_records = build_db_records(num_augmented_per_gesture=20)
+                conn.executemany(
                     """
-                    INSERT OR IGNORE INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
+                    VALUES (?, ?, ?, ?)
                     """,
-                    (
-                        sname_clean,
-                        sname_clean.capitalize(),
-                        "Общие жесты",
-                        f"Статический жест «{sname_clean}».",
-                        "Повторите положение кисти перед камерой.",
-                        1,
-                        0,
-                        now_iso,
-                    ),
+                    slovo_records,
                 )
+            except Exception:
+                pass
 
         conn.execute(
             """
@@ -1224,21 +1240,23 @@ def get_daily_warmup(
         hands_count = r["hands_count"] if r["hands_count"] is not None else 1
         is_dynamic = bool(r["is_dynamic"]) if r["is_dynamic"] is not None else False
 
-        results.append({
-            "name": gname,
-            "gesture_name": gname,
-            "title": title,
-            "category": category,
-            "description": description,
-            "tip": tip,
-            "hands_count": hands_count,
-            "is_dynamic": is_dynamic,
-            "ease_factor": r["ease_factor"] if r["ease_factor"] is not None else 2.5,
-            "interval_days": r["interval_days"] if r["interval_days"] is not None else 1,
-            "repetitions": r["repetitions"] if r["repetitions"] is not None else 0,
-            "next_review_at": r["next_review_at"],
-            "last_reviewed_at": r["last_reviewed_at"],
-            "streak": r["streak"] if r["streak"] is not None else 0,
-        })
+        results.append(
+            {
+                "name": gname,
+                "gesture_name": gname,
+                "title": title,
+                "category": category,
+                "description": description,
+                "tip": tip,
+                "hands_count": hands_count,
+                "is_dynamic": is_dynamic,
+                "ease_factor": r["ease_factor"] if r["ease_factor"] is not None else 2.5,
+                "interval_days": r["interval_days"] if r["interval_days"] is not None else 1,
+                "repetitions": r["repetitions"] if r["repetitions"] is not None else 0,
+                "next_review_at": r["next_review_at"],
+                "last_reviewed_at": r["last_reviewed_at"],
+                "streak": r["streak"] if r["streak"] is not None else 0,
+            }
+        )
 
     return results

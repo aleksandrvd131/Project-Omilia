@@ -143,4 +143,3 @@ def augment_static_samples(
 
 # Псевдоним для удобства интеграции
 augment_sample = augment_static_vector
-

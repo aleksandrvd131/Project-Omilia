@@ -255,6 +255,7 @@ def build_hand_landmarks(
 # Спецификации канонических жестов Slovo RSL
 # ============================================================================
 
+
 def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
     """Строит полный словарь всех 17 новых жестов Slovo RSL."""
     defs: dict[str, SlovoGestureDefinition] = {}
@@ -274,7 +275,14 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "side", "index": "extended", "index_spread": 0.0, "middle": "fist", "ring": "fist", "pinky": "fist"},
+                {
+                    "thumb": "side",
+                    "index": "extended",
+                    "index_spread": 0.0,
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
                 is_right=True,
             )
         ],
@@ -292,7 +300,14 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "d_touch", "index": "extended", "index_spread": 0.0, "middle": "o_curve", "ring": "o_curve", "pinky": "o_curve"},
+                {
+                    "thumb": "d_touch",
+                    "index": "extended",
+                    "index_spread": 0.0,
+                    "middle": "o_curve",
+                    "ring": "o_curve",
+                    "pinky": "o_curve",
+                },
                 is_right=True,
             )
         ],
@@ -328,7 +343,14 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "fist", "index": "fist", "middle": "fist", "ring": "fist", "pinky": "extended", "pinky_spread": 0.0},
+                {
+                    "thumb": "fist",
+                    "index": "fist",
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "extended",
+                    "pinky_spread": 0.0,
+                },
                 is_right=True,
             )
         ],
@@ -382,7 +404,14 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "spread", "index": "fist", "middle": "fist", "ring": "fist", "pinky": "extended", "pinky_spread": 0.28},
+                {
+                    "thumb": "spread",
+                    "index": "fist",
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "extended",
+                    "pinky_spread": 0.28,
+                },
                 is_right=True,
             )
         ],
@@ -403,7 +432,14 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "fist", "index": "extended", "index_spread": 0.0, "middle": "fist", "ring": "fist", "pinky": "fist"},
+                {
+                    "thumb": "fist",
+                    "index": "extended",
+                    "index_spread": 0.0,
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
                 is_right=True,
             )
         ],
@@ -421,7 +457,15 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "fist", "index": "extended", "index_spread": -0.02, "middle": "extended", "middle_spread": 0.02, "ring": "fist", "pinky": "fist"},
+                {
+                    "thumb": "fist",
+                    "index": "extended",
+                    "index_spread": -0.02,
+                    "middle": "extended",
+                    "middle_spread": 0.02,
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
                 is_right=True,
             )
         ],
@@ -439,7 +483,15 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "spread", "index": "extended", "index_spread": -0.05, "middle": "extended", "middle_spread": 0.05, "ring": "fist", "pinky": "fist"},
+                {
+                    "thumb": "spread",
+                    "index": "extended",
+                    "index_spread": -0.05,
+                    "middle": "extended",
+                    "middle_spread": 0.05,
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
                 is_right=True,
             )
         ],
@@ -534,7 +586,15 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "fist", "index": "extended", "index_spread": -0.28, "middle": "extended", "middle_spread": 0.24, "ring": "fist", "pinky": "fist"},
+                {
+                    "thumb": "fist",
+                    "index": "extended",
+                    "index_spread": -0.28,
+                    "middle": "extended",
+                    "middle_spread": 0.24,
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
                 is_right=True,
             )
         ],
@@ -552,7 +612,15 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         hands_landmarks=[
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
-                {"thumb": "spread", "index": "extended", "index_spread": -0.05, "middle": "fist", "ring": "fist", "pinky": "extended", "pinky_spread": 0.22},
+                {
+                    "thumb": "spread",
+                    "index": "extended",
+                    "index_spread": -0.05,
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "extended",
+                    "pinky_spread": 0.22,
+                },
                 is_right=True,
             )
         ],
@@ -639,6 +707,7 @@ SLOVO_GESTURES: dict[str, SlovoGestureDefinition] = _build_slovo_definitions()
 # ============================================================================
 # Публичный API для dataset_builder и тестов
 # ============================================================================
+
 
 def get_slovo_gesture(name: str) -> SlovoGestureDefinition:
     """Возвращает метаданные и анатомические точки жеста по имени."""
