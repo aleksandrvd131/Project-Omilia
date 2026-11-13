@@ -997,3 +997,39 @@ footer {
   color: var(--text-muted);
   margin-top: auto;
 }
+
+/* Диагностические биометрические подсказки в HUD */
+.diagnostic-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(245, 158, 11, 0.22);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 999px;
+  color: #fbbf24;
+  font-size: 0.82rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.15s ease-out;
+  transition: all 0.2s ease;
+  max-width: 100%;
+}
+
+.diagnostic-hint.matching {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #34d399;
+}
+
+.diagnostic-hint-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.diagnostic-hint-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

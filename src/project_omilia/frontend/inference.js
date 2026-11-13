@@ -386,9 +386,129 @@
     }
   }
 
+  const FINGER_NAMES = [
+    'большой палец',
+    'указательный палец',
+    'средний палец',
+    'безымянный палец',
+    'мизинец',
+  ];
+  const FINGER_KEYS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+
+  /**
+   * Диагностический анализатор биометрии и генератор подсказок
+   */
+  const OmiliaDiagnostics = {
+    diagnose(userVec, targetVec, handsCount = 1) {
+      if (!userVec || !targetVec) return null;
+      const expectedDim = 141 * handsCount;
+      if (userVec.length !== expectedDim || targetVec.length !== expectedDim) return null;
+
+      let sumSq = 0;
+      for (let i = 0; i < expectedDim; i++) {
+        const d = userVec[i] - targetVec[i];
+        sumSq += d * d;
+      }
+      const score = Math.round(Math.sqrt(sumSq) * 100) / 100;
+
+      const hints = [];
+      const problemFingers = [];
+      const fingerStatus = {};
+
+      const diagnoseHand = (offset, prefix = '') => {
+        // 1. Нормаль ладони (offset + 60..62)
+        const un = [userVec[offset + 60], userVec[offset + 61], userVec[offset + 62]];
+        const tn = [targetVec[offset + 60], targetVec[offset + 61], targetVec[offset + 62]];
+        const unNorm = Vec.normalize(un);
+        const tnNorm = Vec.normalize(tn);
+        const dot = Vec.dot(unNorm, tnNorm);
+
+        if (dot < 0.70) {
+          const dz = tnNorm[2] - unNorm[2];
+          const dx = tnNorm[0] - unNorm[0];
+          const dy = tnNorm[1] - unNorm[1];
+          if (dz > 0.45) {
+            hints.push(`${prefix}Поверните ладонь к экрану`);
+          } else if (dz < -0.45) {
+            hints.push(`${prefix}Поверните ладонь тыльной стороной к экрану`);
+          } else if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0.4) hints.push(`${prefix}Поверните ладонь правее`);
+            else if (dx < -0.4) hints.push(`${prefix}Поверните ладонь левее`);
+          } else {
+            if (dy > 0.4) hints.push(`${prefix}Направьте ладонь ниже`);
+            else if (dy < -0.4) hints.push(`${prefix}Направьте ладонь выше`);
+          }
+        }
+
+        // 2. Сгибание пальцев (offset + 63..107)
+        const bendDiffs = [];
+        for (let f = 0; f < 5; f++) {
+          const key = FINGER_KEYS[f];
+          const name = FINGER_NAMES[f];
+          const base = offset + 63 + f * 9;
+          const uBend = userVec[base] + userVec[base + 3] + userVec[base + 6];
+          const tBend = targetVec[base] + targetVec[base + 3] + targetVec[base + 6];
+          const diff = uBend - tBend;
+
+          if (diff > 0.38) {
+            fingerStatus[key] = 'straighten';
+            problemFingers.push(f);
+            bendDiffs.push({ diff, hint: `${prefix}Выпрямите ${name}` });
+          } else if (diff < -0.38) {
+            fingerStatus[key] = 'bend';
+            problemFingers.push(f);
+            bendDiffs.push({ diff: -diff, hint: `${prefix}Согните ${name}` });
+          } else {
+            fingerStatus[key] = 'ok';
+          }
+        }
+
+        bendDiffs.sort((a, b) => b.diff - a.diff);
+        for (const item of bendDiffs) hints.push(item.hint);
+
+        // 3. Пинч (кончики указательного и большого: offset + 120)
+        if (targetVec[offset + 120] < 0.40 && userVec[offset + 120] > 0.70) {
+          hints.push(`${prefix}Сомкните кончики большого и указательного пальцев`);
+        }
+      };
+
+      if (handsCount === 1) {
+        diagnoseHand(0);
+        // Смещение относительно груди (138..140). В кадре +Y направлен вниз
+        const dy = userVec[139] - targetVec[139];
+        const dx = targetVec[138] - userVec[138];
+        if (dy > 0.38) hints.push('Поднимите руку чуть выше');
+        else if (dy < -0.38) hints.push('Опустите руку чуть ниже');
+        else if (dx > 0.38) hints.push('Сдвиньте руку чуть правее');
+        else if (dx < -0.38) hints.push('Сдвиньте руку чуть левее');
+      } else {
+        diagnoseHand(0, 'Правая рука: ');
+        diagnoseHand(135, 'Левая рука: ');
+      }
+
+      const isMatching = score <= 1.25 && problemFingers.length === 0 && hints.length === 0;
+      let primaryHint = null;
+      if (isMatching) {
+        primaryHint = '✨ Отлично! Удерживайте позу...';
+      } else if (hints.length > 0) {
+        primaryHint = `💡 Подсказка: ${hints[0]}`;
+      }
+
+      return {
+        isMatching,
+        score,
+        primaryHint,
+        hints: hints.slice(0, 4),
+        problemFingers,
+        fingerStatus,
+      };
+    },
+  };
+
   return {
     Vec,
     OmiliaFeatureExtractor,
     OmiliaStaticClassifier,
+    OmiliaDiagnostics,
   };
 });

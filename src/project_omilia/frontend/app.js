@@ -43,6 +43,8 @@
     ws: null,
     camera: null,
     cameraTarget: null, // 'practice' или 'blitz'
+    currentProblemFingers: [],
+    isMatchingGesture: false,
     mediaPipeHands: null,
     mediaPipePose: null,
     latestHands: [],
@@ -108,6 +110,7 @@
     blitzCanvas: document.getElementById('blitz-canvas'),
     blitzHudGesture: document.getElementById('blitz-hud-gesture'),
     blitzHudScore: document.getElementById('blitz-hud-score'),
+    blitzDiagnosticHint: document.getElementById('blitz-diagnostic-hint'),
     blitzHoldFill: document.getElementById('blitz-hold-fill'),
     blitzAttemptStatus: document.getElementById('blitz-attempt-status'),
     btnDynamicBlitz: document.getElementById('btn-dynamic-blitz'),
@@ -137,6 +140,7 @@
     practiceHudGesture: document.getElementById('practice-hud-gesture'),
     practiceHudScore: document.getElementById('practice-hud-score'),
     practiceHoldFill: document.getElementById('practice-hold-fill'),
+    practiceDiagnosticHint: document.getElementById('practice-diagnostic-hint'),
     practiceSuccessOverlay: document.getElementById('practice-success-overlay'),
     practiceSuccessMsg: document.getElementById('practice-success-msg'),
     btnPracticeDone: document.getElementById('btn-practice-done'),
@@ -540,6 +544,13 @@
     return gesture?.hands_count || gesture?.dynamic_hands_count || 1;
   }
 
+  function getTargetGestureName() {
+    const gesture = getCameraGesture();
+    if (!gesture) return '';
+    const name = gesture.gesture_name || gesture.name || '';
+    return name.trim().toLowerCase();
+  }
+
   function startDynamicAttempt() {
     const gesture = getCameraGesture();
     if (!gesture?.dynamic_hands_count || state.dynamicAttempt) return;
@@ -655,6 +666,9 @@
 
   function closePracticeModal() {
     dom.practiceModal.style.display = 'none';
+    if (dom.practiceDiagnosticHint) dom.practiceDiagnosticHint.style.display = 'none';
+    state.currentProblemFingers = [];
+    state.isMatchingGesture = false;
     stopCamera();
     state.practice.gesture = null;
     loadCatalog();
@@ -1028,11 +1042,13 @@
         if (state.wsTimeout) clearTimeout(state.wsTimeout);
         state.wsTimeout = setTimeout(() => { state.isWsBusy = false; }, 350);
 
+        const targetGesture = getTargetGestureName();
         const payload = {
           token: state.authToken || localStorage.getItem('omilia_token') || '',
           hands_data: handsToSend,
           pose_landmarks: compactLandmarks(state.latestPose),
           hands_count: expectedHands,
+          target_gesture: targetGesture || undefined,
         };
         state.ws.send(JSON.stringify(payload));
       }
@@ -1040,6 +1056,21 @@
       // Резервный режим на клиенте, если WebSocket временно отключен
       const clientPred = state.classifier.predict(handsData, state.latestPose, expectedHands);
       if (clientPred && clientPred.detected) {
+        const targetName = getTargetGestureName();
+        if (targetName && window.OmiliaInference?.OmiliaDiagnostics && state.classifier.models[expectedHands]) {
+          const model = state.classifier.models[expectedHands];
+          const classIdx = model.labels ? model.labels.indexOf(targetName) : -1;
+          if (classIdx >= 0 && model.centroids && model.centroids[classIdx]) {
+            const userVec = state.classifier.extractor.extract(handsData, state.latestPose, expectedHands);
+            if (userVec) {
+              clientPred.diagnostics = window.OmiliaInference.OmiliaDiagnostics.diagnose(
+                userVec,
+                model.centroids[classIdx],
+                expectedHands
+              );
+            }
+          }
+        }
         handleServerPrediction(clientPred);
       }
     }
@@ -1054,34 +1085,74 @@
     }));
   }
 
-  // Отрисовка скелета руки на холсте
+  // Отрисовка скелета руки на холсте с биометрической подсветкой ошибок
   function drawHandLandmarks(ctx, landmarks, width, height) {
-    const connections = [
-      [0, 1], [1, 2], [2, 3], [3, 4], // Большой палец
-      [0, 5], [5, 6], [6, 7], [7, 8], // Указательный
-      [5, 9], [9, 10], [10, 11], [11, 12], // Средний
-      [9, 13], [13, 14], [14, 15], [15, 16], // Безымянный
-      [13, 17], [17, 18], [18, 19], [19, 20], // Мизинец
-      [0, 17], // Основание ладони
+    const fingerConnections = [
+      [[0, 1], [1, 2], [2, 3], [3, 4]],         // Большой (палец 0)
+      [[0, 5], [5, 6], [6, 7], [7, 8]],         // Указательный (палец 1)
+      [[5, 9], [9, 10], [10, 11], [11, 12]],    // Средний (палец 2)
+      [[9, 13], [13, 14], [14, 15], [15, 16]],  // Безымянный (палец 3)
+      [[13, 17], [17, 18], [18, 19], [19, 20]], // Мизинец (палец 4)
     ];
+    const palmBase = [0, 17];
 
-    // Линии связей (Изумрудно-зелёные)
+    const isMatch = state.isMatchingGesture;
+    const problemFingers = state.currentProblemFingers || [];
+
+    // 1. Отрисовка основания ладони
     ctx.lineWidth = 3;
-    ctx.strokeStyle = '#10b981';
-    for (const [startIdx, endIdx] of connections) {
-      const p1 = landmarks[startIdx];
-      const p2 = landmarks[endIdx];
+    ctx.strokeStyle = isMatch ? '#10b981' : '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(landmarks[palmBase[0]].x * width, landmarks[palmBase[0]].y * height);
+    ctx.lineTo(landmarks[palmBase[1]].x * width, landmarks[palmBase[1]].y * height);
+    ctx.stroke();
+
+    // 2. Отрисовка каждого пальца с биометрической подсветкой
+    for (let f = 0; f < 5; f++) {
+      const isProblem = problemFingers.includes(f);
+      if (isMatch) {
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 3.5;
+      } else if (isProblem) {
+        ctx.strokeStyle = '#f59e0b'; // Янтарный цвет для пальца, требующего корректировки
+        ctx.lineWidth = 4.5;
+      } else {
+        ctx.strokeStyle = '#38bdf8'; // Небесно-голубой по умолчанию
+        ctx.lineWidth = 3;
+      }
+
       ctx.beginPath();
-      ctx.moveTo(p1.x * width, p1.y * height);
-      ctx.lineTo(p2.x * width, p2.y * height);
+      for (const [startIdx, endIdx] of fingerConnections[f]) {
+        const p1 = landmarks[startIdx];
+        const p2 = landmarks[endIdx];
+        ctx.moveTo(p1.x * width, p1.y * height);
+        ctx.lineTo(p2.x * width, p2.y * height);
+      }
       ctx.stroke();
     }
 
-    // Точки суставов (Яркие мятные точки)
-    ctx.fillStyle = '#34d399';
-    for (const point of landmarks) {
+    // 3. Отрисовка суставов (точек)
+    for (let i = 0; i < landmarks.length; i++) {
+      const p = landmarks[i];
+      let fIdx = -1;
+      if (i >= 1 && i <= 4) fIdx = 0;
+      else if (i >= 5 && i <= 8) fIdx = 1;
+      else if (i >= 9 && i <= 12) fIdx = 2;
+      else if (i >= 13 && i <= 16) fIdx = 3;
+      else if (i >= 17 && i <= 20) fIdx = 4;
+
+      const isProblem = fIdx >= 0 && problemFingers.includes(fIdx);
+
+      if (isMatch) {
+        ctx.fillStyle = '#34d399';
+      } else if (isProblem) {
+        ctx.fillStyle = '#fbbf24';
+      } else {
+        ctx.fillStyle = '#7dd3fc';
+      }
+
       ctx.beginPath();
-      ctx.arc(point.x * width, point.y * height, 4.5, 0, 2 * Math.PI);
+      ctx.arc(p.x * width, p.y * height, isProblem ? 5.5 : 4.0, 0, 2 * Math.PI);
       ctx.fill();
     }
   }
@@ -1107,6 +1178,35 @@
       distText = `Точность: ${Math.round(confidenceVal)}%`;
     } else if (scoreVal !== undefined && scoreVal !== null) {
       distText = `Дистанция: ${Number(scoreVal).toFixed(2)}`;
+    }
+
+    const targetName = getTargetGestureName();
+    const isMatching = Boolean(targetName && predictedName === targetName);
+    state.isMatchingGesture = isMatching;
+
+    // Обновление диагностической биометрической подсказки
+    const hintEl = state.cameraTarget === 'practice' ? dom.practiceDiagnosticHint : dom.blitzDiagnosticHint;
+    if (hintEl) {
+      if (isMatching) {
+        hintEl.style.display = 'flex';
+        hintEl.classList.add('matching');
+        const icon = hintEl.querySelector('.diagnostic-hint-icon');
+        const text = hintEl.querySelector('.diagnostic-hint-text');
+        if (icon) icon.textContent = '✨';
+        if (text) text.textContent = 'Поза правильная! Удерживайте...';
+        state.currentProblemFingers = [];
+      } else if (pred.diagnostics && pred.diagnostics.primary_hint) {
+        hintEl.style.display = 'flex';
+        hintEl.classList.remove('matching');
+        const icon = hintEl.querySelector('.diagnostic-hint-icon');
+        const text = hintEl.querySelector('.diagnostic-hint-text');
+        if (icon) icon.textContent = '💡';
+        if (text) text.textContent = pred.diagnostics.primary_hint;
+        state.currentProblemFingers = pred.diagnostics.problem_fingers || [];
+      } else {
+        hintEl.style.display = 'none';
+        state.currentProblemFingers = [];
+      }
     }
 
     // --- Обработка в режиме практики (Шаг 2) ---

@@ -18,6 +18,7 @@ from project_omilia.core.config import (
 )
 from project_omilia.gestures import StaticGesture
 from project_omilia.ml.augmentation import augment_static_samples
+from project_omilia.ml.diagnostics import diagnose_static_gesture
 from project_omilia.services.pose_service import make_pose
 
 
@@ -236,6 +237,17 @@ class StaticGestureServer:
             "distance": score,
             "confidence": confidence,
         }
+
+        # Биометрическая диагностика при наличии целевого жеста (режимы практики и блица)
+        target_gesture = payload.get("target_gesture")
+        if target_gesture and isinstance(target_gesture, str):
+            target_name = target_gesture.strip().lower()
+            if target_name in engine.dataset and engine.dataset[target_name]:
+                target_centroid = np.mean(engine.dataset[target_name], axis=0).astype(np.float32)
+                user_vec = engine.extract_vector(pose)
+                active_hands = 1 if engine.hands_count == 1 else 2
+                res["diagnostics"] = diagnose_static_gesture(user_vec, target_centroid, hands_count=active_hands)
+
         if include_stats:
             res["dataset_stats"] = self.get_combined_stats()
             res["dataset_info"] = self.get_combined_info()
