@@ -44,19 +44,23 @@ async def api_blitz_questions(
     selected = random.sample(learned, sample_size)
 
     questions = []
+    combined_info = static_server.get_combined_info()
     for name in selected:
         meta = GESTURE_METADATA.get(name, {})
-        hands_count = dynamic_hands.get(name)
+        dyn_hands = dynamic_hands.get(name)
+        static_info = combined_info.get(name)
+        hands_count = dyn_hands if dyn_hands else (static_info["hands"] if static_info else 1)
         tip = meta.get("tip", "Покажите жест на камеру")
-        if hands_count:
-            hand_instruction = "одной рукой" if hands_count == 1 else "двумя руками"
+        if dyn_hands:
+            hand_instruction = "одной рукой" if dyn_hands == 1 else "двумя руками"
             tip = f"Покажите жест {hand_instruction} за одну секунду."
         questions.append(
             {
                 "gesture_name": name,
                 "title": meta.get("title", name.capitalize()),
                 "tip": tip,
-                "dynamic_hands_count": hands_count,
+                "hands_count": hands_count,
+                "dynamic_hands_count": dyn_hands,
             }
         )
 

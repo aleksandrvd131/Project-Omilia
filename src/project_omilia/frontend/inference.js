@@ -158,9 +158,9 @@
 
       if (poseLandmarks && poseLandmarks.length >= 17) {
         nose = [poseLandmarks[0].x, poseLandmarks[0].y, poseLandmarks[0].z || 0];
-        // В MediaPipe Pose: landmark 15 = левое запястье, landmark 16 = правое запястье
-        leftWrist = [poseLandmarks[15].x, poseLandmarks[15].y, poseLandmarks[15].z || 0];
-        rightWrist = [poseLandmarks[16].x, poseLandmarks[16].y, poseLandmarks[16].z || 0];
+        // В body.py: data[15] — правое запястье, data[16] — левое запястье
+        rightWrist = [poseLandmarks[15].x, poseLandmarks[15].y, poseLandmarks[15].z || 0];
+        leftWrist = [poseLandmarks[16].x, poseLandmarks[16].y, poseLandmarks[16].z || 0];
         if (poseLandmarks[11] && poseLandmarks[12]) {
           chestCenter = [
             (poseLandmarks[11].x + poseLandmarks[12].x) / 2,
@@ -169,16 +169,17 @@
           ];
         }
       } else {
-        // Оценка центров по кисти при отсутствии скелета тела
+        // Оценка центров по кисти при отсутствии скелета тела (соответствует pose_service.py)
         const h0 = handsData[0][0];
-        nose = [h0.x, h0.y - 0.25, h0.z || 0];
+        nose = [0.5, 0.25, 0];
         rightWrist = [h0.x, h0.y, h0.z || 0];
-        chestCenter = [h0.x, h0.y + 0.15, h0.z || 0];
+        leftWrist = handsData.length > 1 ? [handsData[1][0].x, handsData[1][0].y, handsData[1][0].z || 0] : [-1.0, -1.0, 0];
+        chestCenter = [0.5, 0.45, 0];
       }
 
       const isRightHand = (handPts) => {
         const hw = [handPts[0].x, handPts[0].y, handPts[0].z || 0];
-        return Vec.dist(hw, rightWrist) <= Vec.dist(hw, leftWrist);
+        return Vec.dist(hw, rightWrist) < Vec.dist(hw, leftWrist);
       };
 
       if (handsCount === 1) {
@@ -351,12 +352,17 @@
       const confidence = Math.max(0, Math.min(100, Math.round((1 - minDistance / maxDistance) * 100)));
 
       let gestureName = '';
-      if (minDistance > maxDistance) {
-        gestureName = 'Неизвестный жест';
-      } else if (bestClassIdx >= 0) {
-        gestureName = model.labels[bestClassIdx];
+      if (minDistance > maxDistance || bestClassIdx < 0) {
+        return {
+          detected: false,
+          gesture: null,
+          name: null,
+          score: score,
+          distance: score,
+          confidence: 0,
+        };
       } else {
-        gestureName = '—';
+        gestureName = model.labels[bestClassIdx];
       }
 
       return {

@@ -245,14 +245,14 @@ class DynamicGestures:
             distances.append(dtw(sample, attempt))
 
         k_nearest = min(3, len(distances))
-        nearest = np.partition(distances, k_nearest)[:k_nearest]
-        mean_nearest = np.mean(distances)
-        mean_all = np.mean(distances)
+        nearest = np.partition(distances, k_nearest - 1)[:k_nearest]
+        mean_nearest = float(np.mean(nearest))
+        mean_all = float(np.mean(distances))
         confidence = max(0.0, min(100.0, round((1.0 - (mean_nearest / max_distance)) * 100, 1)))
 
-        return int(mean_nearest <= max_distance), {
+        return bool(mean_nearest <= max_distance), {
             "mean_all": round(mean_all, 2),
-            "minimum": round(nearest[0], 2),
+            "minimum": round(float(np.min(distances)), 2),
             "mean_nearest_three": round(mean_nearest, 2),
             "confidence": confidence,
             "threshold": round(max_distance, 2),

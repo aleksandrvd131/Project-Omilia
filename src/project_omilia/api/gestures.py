@@ -32,6 +32,7 @@ async def api_get_gestures(
     learned_set = set(g.strip().lower() for g in db.get_learned_gestures(DB_PATH, user["id"])) if user else set()
 
     combined_stats = static_server.get_combined_stats()
+    combined_info = static_server.get_combined_info()
     dynamic_hands = dynamic_server.get_ready_gestures()
     db_gestures = {g["name"]: g for g in db.get_all_gestures(DB_PATH)}
 
@@ -59,8 +60,12 @@ async def api_get_gestures(
         )
         tip = db_meta["tip"] if db_meta and db_meta.get("tip") else fallback_meta.get("tip", "")
 
-        hands_count = dynamic_hands.get(norm_name)
-        is_dynamic = bool(hands_count or (db_meta and db_meta.get("is_dynamic")))
+        dyn_hands = dynamic_hands.get(norm_name)
+        is_dynamic = bool(dyn_hands or (db_meta and db_meta.get("is_dynamic")))
+
+        static_info = combined_info.get(norm_name)
+        static_hands = static_info["hands"] if static_info else (db_meta.get("hands_count") if db_meta else 1)
+        hands_count = dyn_hands if is_dynamic else (static_hands or 1)
 
         gestures_list.append(
             {
@@ -76,7 +81,8 @@ async def api_get_gestures(
                     else tip
                 ),
                 "samples_count": COUNT_OF_SAMPLES if is_dynamic else combined_stats.get(norm_name, 0),
-                "dynamic_hands_count": hands_count,
+                "hands_count": hands_count,
+                "dynamic_hands_count": dyn_hands,
                 "is_dynamic": is_dynamic,
                 "is_learned": norm_name in learned_set,
             }

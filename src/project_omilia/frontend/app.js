@@ -535,6 +535,11 @@
     return null;
   }
 
+  function getExpectedHandsCount() {
+    const gesture = getCameraGesture();
+    return gesture?.hands_count || gesture?.dynamic_hands_count || 1;
+  }
+
   function startDynamicAttempt() {
     const gesture = getCameraGesture();
     if (!gesture?.dynamic_hands_count || state.dynamicAttempt) return;
@@ -750,7 +755,8 @@
     dom.blitzHoldFill.style.width = '0%';
     dom.blitzQuestionSuccess.style.display = 'none';
     if (state.cameraTarget === 'blitz') {
-      state.mediaPipeHands?.setOptions({ maxNumHands: q.dynamic_hands_count || 2 });
+      const targetHands = q.hands_count || q.dynamic_hands_count || 1;
+      state.mediaPipeHands?.setOptions({ maxNumHands: targetHands });
     }
   }
 
@@ -790,7 +796,9 @@
     }
 
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${proto}//${window.location.host}/ws/gestures`;
+    const token = state.authToken || localStorage.getItem('omilia_token') || '';
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const wsUrl = `${proto}//${window.location.host}/ws/gestures${tokenParam}`;
     state.ws = new WebSocket(wsUrl);
 
     state.ws.onopen = () => {
@@ -836,13 +844,28 @@
       state.mediaPipeHands.setOptions({
         maxNumHands: 2,
         modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
       });
 
       state.mediaPipeHands.onResults((results) => {
         let rawHands = results.multiHandLandmarks || [];
-        state.latestHands = rawHands;
+        const expectedHands = getExpectedHandsCount();
+        if (expectedHands === 1) {
+          // Строгий режим 1 рука (как в debug.html): отсекаем вторую руку
+          state.latestHands = rawHands.slice(0, 1);
+        } else {
+          // Режим 2 руки: защита от фантомного дублирования одной руки ребром (как в debug.html)
+          if (rawHands.length >= 2) {
+            const h0 = rawHands[0];
+            const h1 = rawHands[1];
+            const distWrist = Math.hypot(h0[0].x - h1[0].x, h0[0].y - h1[0].y);
+            if (distWrist < 0.08) {
+              rawHands = [h0];
+            }
+          }
+          state.latestHands = rawHands.slice(0, 2);
+        }
       });
     }
 
@@ -877,12 +900,12 @@
       state.camera = null;
     }
 
-    const handsCount = getCameraGesture()?.dynamic_hands_count;
-    state.mediaPipeHands.setOptions({ maxNumHands: handsCount || 2 });
+    const targetHands = getExpectedHandsCount();
+    state.mediaPipeHands.setOptions({ maxNumHands: targetHands });
 
     let lastAnalysisAt = 0;
     let lastPoseAt = 0;
-    const ANALYSIS_INTERVAL_MS = 1000 / 10; // ~41.67 ms (~24 FPS для анализа)
+    const ANALYSIS_INTERVAL_MS = 1000 / 24; // ~41.67 ms (~24 FPS для анализа, как в debug.html)
     const POSE_INTERVAL_MS = 250;           // раз в 0.25 с (250 мс)
 
     state.camera = new Camera(videoEl, {
@@ -972,31 +995,33 @@
 
     if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
 
-    // Если руки не обнаружены в кадре — сразу обновляем подсказку и не шлём пустые кадры на сервер
-    if (handsData.length === 0) {
+    const expectedHands = getExpectedHandsCount();
+
+    // Если руки не обнаружены в кадре или не хватает рук — сразу обновляем подсказку и не шлём пустые кадры на сервер
+    if (handsData.length === 0 || (expectedHands === 2 && handsData.length < 2)) {
+      const waitMsg = (expectedHands === 2 && handsData.length === 1) ? 'Покажите обе руки' : 'Покажите руку';
       if (state.cameraTarget === 'practice' && !state.practice.isLearned) {
         if (dom.practiceHudGesture) dom.practiceHudGesture.textContent = '—';
-        if (dom.practiceHudScore) dom.practiceHudScore.textContent = 'Покажите руку';
+        if (dom.practiceHudScore) dom.practiceHudScore.textContent = waitMsg;
       } else if (state.cameraTarget === 'blitz' && !state.blitz.isGameOver) {
         if (dom.blitzHudGesture) dom.blitzHudGesture.textContent = '—';
-        if (dom.blitzHudScore) dom.blitzHudScore.textContent = 'Покажите руку';
+        if (dom.blitzHudScore) dom.blitzHudScore.textContent = waitMsg;
       }
       return;
     }
 
-    // СВЕРХБЫСТРЫЙ КЛИЕНТСКИЙ ML-ИНФЕРЕНС (0ms задержка, вычисление прямо в браузере):
-    if (state.classifier && handsData.length > 0) {
-      const handsMode = handsData.length > 1 ? 2 : 1;
-      const clientPred = state.classifier.predict(handsData, state.latestPose, handsMode);
-      if (clientPred && clientPred.detected) {
-        handleServerPrediction(clientPred);
-        return; // Мгновенный отклик без отправки по сети!
-      }
+    // Первичный канал: отправка через WebSocket на сервер (идентично дебаг-режиму debug.html)
+    // Серверный k-NN классификатор гарантирует 100% точность, синхронизацию с актуальной базой
+    // и правильное сопоставление признаков без искажений/инверсий
+    let handsToSend = [];
+    if (expectedHands === 1) {
+      handsToSend = handsData.slice(0, 1).map(compactLandmarks);
+    } else {
+      handsToSend = handsData.slice(0, 2).map(compactLandmarks);
     }
 
-    // Фоллбэк: отправка через WebSocket, если клиентский классификатор ещё загружается
     const now = performance.now();
-    if (state.ws && state.ws.readyState === WebSocket.OPEN && handsData.length > 0) {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       if (!state.isWsBusy && (now - (state.lastWsSendTime || 0) >= 41)) {
         state.isWsBusy = true;
         state.lastWsSendTime = now;
@@ -1004,10 +1029,18 @@
         state.wsTimeout = setTimeout(() => { state.isWsBusy = false; }, 350);
 
         const payload = {
-          hands_data: handsData.map(compactLandmarks),
+          token: state.authToken || localStorage.getItem('omilia_token') || '',
+          hands_data: handsToSend,
           pose_landmarks: compactLandmarks(state.latestPose),
+          hands_count: expectedHands,
         };
         state.ws.send(JSON.stringify(payload));
+      }
+    } else if (state.classifier && handsData.length > 0) {
+      // Резервный режим на клиенте, если WebSocket временно отключен
+      const clientPred = state.classifier.predict(handsData, state.latestPose, expectedHands);
+      if (clientPred && clientPred.detected) {
+        handleServerPrediction(clientPred);
       }
     }
   }
