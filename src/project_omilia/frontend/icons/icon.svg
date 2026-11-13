@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#10b981" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  <!-- Main app icon background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <!-- Inner badge with primary brand gradient -->
+  <rect x="76" y="76" width="360" height="360" rx="72" fill="url(#primaryGrad)" filter="url(#shadow)" />
+  <!-- Omega symbol (Ω) -->
+  <text x="256" y="328" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="230" font-weight="800" text-anchor="middle" fill="#ffffff">Ω</text>
+</svg>

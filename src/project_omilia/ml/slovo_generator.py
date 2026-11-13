@@ -3,7 +3,7 @@
 
 Модуль синтеза канонических 21-точечных 3D-моделей кистей рук для распознавания
 жестов Русского жестового языка (РЖЯ) на топологии MediaPipe Hands:
-- Уровень 1 (Дактильный алфавит): 'г', 'д', 'е', 'и', 'о', 'с', 'у'
+- Уровень 1 (Дактильный алфавит): 33 буквы (а, б, в, г, д, е, ё, ж, з, и, й, к, л, м, н, о, п, р, с, т, у, ф, х, ц, ч, ш, щ, ъ, ы, ь, э, ю, я)
 - Уровень 2 (Числительные и счёт): '1', '2', '3', '4', '5'
 - Уровни 3 и 4 (Повседневные жесты): 'хорошо', 'мир', 'любовь', 'стоп', 'книга' (2 руки)
 
@@ -182,6 +182,30 @@ def build_hand_landmarks(
         # Жесты «стоп» и «книга» — палец вытянут вдоль ладони
         d1 = np.array([-0.012 * s, -0.030, -0.005])
         d2 = np.array([-0.008 * s, -0.026, -0.002])
+    elif t_mode == "touch_index":
+        # Буква «А» и «Б» — большой палец согнут вдоль кулака сбоку
+        d1 = np.array([0.010 * s, -0.012, -0.020])
+        d2 = np.array([0.004 * s, 0.016, -0.016])
+    elif t_mode == "across":
+        # Буква «Т» — большой палец просунут под указательный поперек ладони
+        d1 = np.array([0.035 * s, -0.025, -0.018])
+        d2 = np.array([0.020 * s, -0.005, -0.016])
+    elif t_mode == "k_between":
+        # Буква «К» — большой палец поднят между указательным и средним
+        d1 = np.array([0.020 * s, -0.038, -0.008])
+        d2 = np.array([0.014 * s, -0.030, -0.004])
+    elif t_mode == "arch":
+        # Буква «Ж» — большой палец согнут дугой (веер)
+        d1 = np.array([-0.025 * s, -0.024, -0.018])
+        d2 = np.array([-0.018 * s, -0.018, -0.016])
+    elif t_mode == "l_spread":
+        # Буква «Л» — большой палец отставлен под углом шалашиком
+        d1 = np.array([-0.034 * s, -0.024, -0.005])
+        d2 = np.array([-0.028 * s, -0.018, -0.002])
+    elif t_mode == "o_index_touch":
+        # Буквы «Ф», «Ю» — кольцо большого и указательного пальцев
+        d1 = np.array([0.006 * s, -0.032, -0.020])
+        d2 = np.array([0.002 * s, -0.024, -0.018])
     else:
         # Кулак: палец согнут поверх пальцев («1», «2», «мир», «и», «е»)
         d1 = np.array([0.025 * s, -0.018, -0.022])
@@ -207,12 +231,13 @@ def build_hand_landmarks(
 
         if mode == "extended":
             spread = finger_specs.get(f"{fname}_spread", def_spread)
-            dir_v = _norm_vec(np.array([np.sin(spread), -np.cos(spread), 0.0]))
+            tilt = finger_specs.get(f"{fname}_tilt", 0.0)
+            dir_v = _norm_vec(np.array([np.sin(spread), -np.cos(spread), tilt]))
             p_pip = mcp + dir_v * l1
             p_dip = p_pip + dir_v * l2
             p_tip = p_dip + dir_v * l3
         elif mode == "claw":
-            # Буква «Е» — полусогнутый гребень
+            # Буквы «Е», «Ё» — полусогнутый гребень
             p_pip = mcp + np.array([0.0, -0.018, -0.025])
             p_dip = p_pip + np.array([0.0, 0.015, -0.020])
             p_tip = p_dip + np.array([0.0, 0.022, -0.005])
@@ -222,10 +247,45 @@ def build_hand_landmarks(
             p_dip = p_pip + np.array([-0.010 * s, -0.012, -0.020])
             p_tip = p_dip + np.array([0.012 * s, 0.008, -0.018])
         elif mode == "o_curve":
-            # Буква «О» и база буквы «Д» — пальцы согнуты в кольцо
+            # Буквы «О», «Д», «Ф», «Ю» — пальцы согнуты в кольцо
             p_pip = mcp + np.array([-0.012 * s, -0.025, -0.020])
             p_dip = p_pip + np.array([-0.008 * s, -0.005, -0.025])
             p_tip = p_dip + np.array([-0.005 * s, 0.020, -0.015])
+        elif mode == "hooked":
+            # Буквы «З», «Р», «Ч», «й», «я» — палец согнут крючком вперед-вниз
+            p_pip = mcp + np.array([0.0, -0.026, -0.020])
+            p_dip = p_pip + np.array([0.0, 0.012, -0.022])
+            p_tip = p_dip + np.array([0.0, 0.022, 0.005])
+        elif mode == "hooked_side":
+            # Буквы «Х», «щ» — палец согнут дугой вбок
+            p_pip = mcp + np.array([-0.018 * s, -0.022, -0.015])
+            p_dip = p_pip + np.array([-0.012 * s, 0.010, -0.018])
+            p_tip = p_dip + np.array([0.005 * s, 0.020, 0.002])
+        elif mode == "down":
+            # Буквы «М», «Н» — пальцы опущены под прямым углом вниз
+            spread = finger_specs.get(f"{fname}_spread", def_spread)
+            p_pip = mcp + np.array([np.sin(spread) * 0.01, 0.005, -0.035])
+            p_dip = p_pip + np.array([0.0, 0.028, -0.012])
+            p_tip = p_dip + np.array([0.0, 0.026, 0.005])
+        elif mode == "horizontal":
+            # Буква «П» — пальцы направлены горизонтально вбок
+            h_dir = _norm_vec(np.array([-0.95 * s, -0.25, 0.0]))
+            p_pip = mcp + h_dir * l1
+            p_dip = p_pip + h_dir * l2
+            p_tip = p_dip + h_dir * l3
+        elif mode == "arch":
+            # Буква «Ж» — пальцы согнуты дугой веером
+            spread = finger_specs.get(f"{fname}_spread", def_spread)
+            dir_v = _norm_vec(np.array([np.sin(spread), -np.cos(spread), 0.0]))
+            p_pip = mcp + dir_v * l1 * 0.85 + np.array([0.0, 0.0, -0.018])
+            p_dip = p_pip + dir_v * l2 * 0.65 + np.array([0.0, 0.0, -0.022])
+            p_tip = p_dip + dir_v * l3 * 0.45 + np.array([0.0, 0.015, -0.010])
+        elif mode == "forward":
+            # Буквы «Н», «Э» — пальцы направлены вперед
+            dir_v = _norm_vec(np.array([0.0, -0.2, -0.95]))
+            p_pip = mcp + dir_v * l1
+            p_dip = p_pip + dir_v * l2
+            p_tip = p_dip + dir_v * l3
         else:
             # Кулак (плотно согнутый палец)
             p_pip = mcp + np.array([0.0, -0.005, -0.026])
@@ -257,12 +317,86 @@ def build_hand_landmarks(
 
 
 def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
-    """Строит полный словарь всех 17 новых жестов Slovo RSL."""
+    """Строит полный словарь всех жестов Slovo RSL (33 буквы дактиля + числительные + повседневные)."""
     defs: dict[str, SlovoGestureDefinition] = {}
 
     # ------------------------------------------------------------------------
-    # Уровень 1: Дактильный алфавит ('г', 'д', 'е', 'и', 'о', 'с', 'у')
+    # Уровень 1: Дактильный алфавит (все 33 буквы русского дактиля: а-я)
     # ------------------------------------------------------------------------
+    defs["а"] = SlovoGestureDefinition(
+        name="а",
+        title="Буква А",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Пальцы сжаты в кулак, большой палец прижат сбоку к указательному.",
+        tip="Кулак направлен ладонью к зрителю, большой палец прижат сбоку.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "touch_index", "index": "fist", "middle": "fist", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["б"] = SlovoGestureDefinition(
+        name="б",
+        title="Буква Б",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Четыре пальца прямые вверх, большой палец согнут и прижат к основанию ладони.",
+        tip="Пальцы сомкнуты вместе и направлены строго вверх.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "touch_index",
+                    "index": "extended",
+                    "index_spread": -0.02,
+                    "middle": "extended",
+                    "middle_spread": 0.0,
+                    "ring": "extended",
+                    "ring_spread": 0.01,
+                    "pinky": "extended",
+                    "pinky_spread": 0.02,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["в"] = SlovoGestureDefinition(
+        name="в",
+        title="Буква В",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Четыре прямых пальца направлены вверх, большой палец отставлен под прямым углом в сторону.",
+        tip="Держите четыре пальца вместе вертикально, отставив большой вбок.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "side",
+                    "index": "extended",
+                    "index_spread": -0.02,
+                    "middle": "extended",
+                    "middle_spread": 0.0,
+                    "ring": "extended",
+                    "ring_spread": 0.02,
+                    "pinky": "extended",
+                    "pinky_spread": 0.04,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
     defs["г"] = SlovoGestureDefinition(
         name="г",
         title="Буква Г",
@@ -331,6 +465,70 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         ],
     )
 
+    defs["ё"] = SlovoGestureDefinition(
+        name="ё",
+        title="Буква Ё",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Пальцы полусогнуты гребнем буквы Е, большой палец отставлен горизонтально вбок.",
+        tip="Согните пальцы гребнем вперед, отведя большой палец в сторону.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "side", "index": "claw", "middle": "claw", "ring": "claw", "pinky": "claw"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ж"] = SlovoGestureDefinition(
+        name="ж",
+        title="Буква Ж",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Все пять пальцев растопырены и согнуты полукругом дугой (лапка паука).",
+        tip="Растопырьте полусогнутые пальцы веером перед камерой.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "arch",
+                    "index": "arch",
+                    "index_spread": -0.25,
+                    "middle": "arch",
+                    "middle_spread": 0.0,
+                    "ring": "arch",
+                    "ring_spread": 0.20,
+                    "pinky": "arch",
+                    "pinky_spread": 0.38,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["з"] = SlovoGestureDefinition(
+        name="з",
+        title="Буква З",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный палец согнут крючком вперед, остальные пальцы сжаты в кулак.",
+        tip="Согните указательный палец крючком вперед, остальные пальцы сожмите.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "fist", "index": "hooked", "middle": "fist", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
     defs["и"] = SlovoGestureDefinition(
         name="и",
         title="Буква И",
@@ -356,6 +554,126 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         ],
     )
 
+    defs["й"] = SlovoGestureDefinition(
+        name="й",
+        title="Буква Й",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Мизинец согнут крючком (знак Й с краткой), остальные пальцы сжаты в кулак.",
+        tip="Согните мизинец крючком вверх, остальные пальцы сожмите в кулак.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "fist", "index": "fist", "middle": "fist", "ring": "fist", "pinky": "hooked"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["к"] = SlovoGestureDefinition(
+        name="к",
+        title="Буква К",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и средний пальцы выпрямлены вверх буквой V, большой поднят между ними.",
+        tip="Поместите большой палец между выпрямленными указательным и средним.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "k_between",
+                    "index": "extended",
+                    "index_spread": -0.12,
+                    "middle": "extended",
+                    "middle_spread": 0.12,
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["л"] = SlovoGestureDefinition(
+        name="л",
+        title="Буква Л",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой и указательный пальцы выпрямлены под углом шалашиком (буква Л).",
+        tip="Выпрямите большой и указательный пальцы углом шалашика, остальные сожмите.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "l_spread",
+                    "index": "extended",
+                    "index_spread": -0.22,
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["м"] = SlovoGestureDefinition(
+        name="м",
+        title="Буква М",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Три пальца (указательный, средний, безымянный) согнуты вниз под прямым углом.",
+        tip="Опустите три средних пальца вниз козырьком перед камерой, мизинец прижат.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "palm",
+                    "index": "down",
+                    "index_spread": -0.06,
+                    "middle": "down",
+                    "middle_spread": 0.0,
+                    "ring": "down",
+                    "ring_spread": 0.06,
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["н"] = SlovoGestureDefinition(
+        name="н",
+        title="Буква Н",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и средний пальцы вытянуты горизонтально вперед (две перекладины Н).",
+        tip="Вытяните указательный и средний пальцы вперед перед камерой, остальные сожмите.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "palm",
+                    "index": "forward",
+                    "middle": "forward",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
     defs["о"] = SlovoGestureDefinition(
         name="о",
         title="Буква О",
@@ -374,6 +692,49 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
         ],
     )
 
+    defs["п"] = SlovoGestureDefinition(
+        name="п",
+        title="Буква П",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и средний пальцы выпрямлены параллельно горизонтально вбок.",
+        tip="Вытяните указательный и средний пальцы горизонтально в сторону, остальные сожмите.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "fist", "index": "horizontal", "middle": "horizontal", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["р"] = SlovoGestureDefinition(
+        name="р",
+        title="Буква Р",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный палец направлен вверх, средний согнут дугой вперед (петелька буквы Р).",
+        tip="Выпрямите указательный палец вверх, согнув средний палец дугой перед ним.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "fist",
+                    "index": "extended",
+                    "index_spread": 0.0,
+                    "middle": "hooked",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
     defs["с"] = SlovoGestureDefinition(
         name="с",
         title="Буква С",
@@ -387,6 +748,24 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
             build_hand_landmarks(
                 (0.60, 0.65, 0.0),
                 {"thumb": "c_curve", "index": "c_curve", "middle": "c_curve", "ring": "c_curve", "pinky": "c_curve"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["т"] = SlovoGestureDefinition(
+        name="т",
+        title="Буква Т",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой палец просунут под согнутый указательный в плотном кулаке.",
+        tip="Сожмите кулак, подложив большой палец под согнутый указательный.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "across", "index": "fist", "middle": "fist", "ring": "fist", "pinky": "fist"},
                 is_right=True,
             )
         ],
@@ -411,6 +790,287 @@ def _build_slovo_definitions() -> dict[str, SlovoGestureDefinition]:
                     "ring": "fist",
                     "pinky": "extended",
                     "pinky_spread": 0.28,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ф"] = SlovoGestureDefinition(
+        name="ф",
+        title="Буква Ф",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой и указательный пальцы образуют кольцо, средний, безымянный и мизинец прямые вверх.",
+        tip="Сомкните большой и указательный пальцы в круг, три остальных выпрямите вверх.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "o_index_touch",
+                    "index": "o_curve",
+                    "middle": "extended",
+                    "middle_spread": -0.05,
+                    "ring": "extended",
+                    "ring_spread": 0.08,
+                    "pinky": "extended",
+                    "pinky_spread": 0.22,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["х"] = SlovoGestureDefinition(
+        name="х",
+        title="Буква Х",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный палец согнут плавной дугой вбок, большой палец отставлен.",
+        tip="Согните указательный палец дугой в сторону, остальные пальцы сожмите.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "spread", "index": "hooked_side", "middle": "fist", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ц"] = SlovoGestureDefinition(
+        name="ц",
+        title="Буква Ц",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и средний пальцы выпрямлены вместе вверх, мизинец отведен вбок (хвостик Ц).",
+        tip="Держите указательный и средний пальцы вместе вверх, а мизинец отведите в сторону.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "fist",
+                    "index": "extended",
+                    "index_spread": -0.02,
+                    "middle": "extended",
+                    "middle_spread": 0.02,
+                    "ring": "fist",
+                    "pinky": "extended",
+                    "pinky_spread": 0.35,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ч"] = SlovoGestureDefinition(
+        name="ч",
+        title="Буква Ч",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Четыре пальца полусогнуты крючком вперед в форме чашечки/ковшика (буква Ч).",
+        tip="Согните четыре пальца ковшиком вперед, ладонь направлена в камеру.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "fist", "index": "hooked", "middle": "hooked", "ring": "hooked", "pinky": "hooked"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ш"] = SlovoGestureDefinition(
+        name="ш",
+        title="Буква Ш",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Три пальца (указательный, средний, безымянный) выпрямлены вверх трезубцем буквы Ш.",
+        tip="Поднимите три пальца вертикально вверх, большой придерживает мизинец.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "palm",
+                    "index": "extended",
+                    "index_spread": -0.16,
+                    "middle": "extended",
+                    "middle_spread": 0.0,
+                    "ring": "extended",
+                    "ring_spread": 0.16,
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["щ"] = SlovoGestureDefinition(
+        name="щ",
+        title="Буква Щ",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Три пальца выпрямлены вверх как Ш, а мизинец согнут дугой вбок (хвостик буквы Щ).",
+        tip="Поднимите три пальца вверх трезубцем, а мизинец отогните вбок хвостиком.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "palm",
+                    "index": "extended",
+                    "index_spread": -0.16,
+                    "middle": "extended",
+                    "middle_spread": 0.0,
+                    "ring": "extended",
+                    "ring_spread": 0.16,
+                    "pinky": "hooked_side",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ъ"] = SlovoGestureDefinition(
+        name="ъ",
+        title="Буква Ъ",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой палец вбок, указательный выпрямлен вперед, средний согнут дугой (буква Ъ).",
+        tip="Отведите большой палец вбок, указательный выпрямите, а средний согните дугой.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "side",
+                    "index": "extended",
+                    "index_spread": -0.05,
+                    "middle": "hooked",
+                    "ring": "fist",
+                    "pinky": "fist",
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ы"] = SlovoGestureDefinition(
+        name="ы",
+        title="Буква Ы",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и мизинец выпрямлены вверх («рожки»), средний и безымянный в кольце с большим.",
+        tip="Выпрямите указательный и мизинец вверх, соединив средний и безымянный с большим.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "o_curve",
+                    "index": "extended",
+                    "index_spread": -0.08,
+                    "middle": "o_curve",
+                    "ring": "o_curve",
+                    "pinky": "extended",
+                    "pinky_spread": 0.24,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ь"] = SlovoGestureDefinition(
+        name="ь",
+        title="Буква Ь",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой и указательный пальцы образуют округлую петельку буквы Ь внизу.",
+        tip="Соедините указательный и большой пальцы дугой внизу, остальные сожмите в кулак.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "o_curve", "index": "c_curve", "middle": "fist", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["э"] = SlovoGestureDefinition(
+        name="э",
+        title="Буква Э",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой и указательный пальцы образуют дугу буквы Э, средний выдвинут вперед как язычок.",
+        tip="Сделайте дугу большим и указательным пальцами, выставив средний палец вперед посередине.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {"thumb": "c_curve", "index": "c_curve", "middle": "forward", "ring": "fist", "pinky": "fist"},
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["ю"] = SlovoGestureDefinition(
+        name="ю",
+        title="Буква Ю",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Большой и указательный пальцы сомкнуты в кольцо сбоку, а мизинец поднят вверх (буква Ю).",
+        tip="Сомкните большой и указательный пальцы в кольцо, подняв мизинец строго вверх.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "o_index_touch",
+                    "index": "o_curve",
+                    "middle": "fist",
+                    "ring": "fist",
+                    "pinky": "extended",
+                    "pinky_spread": 0.0,
+                },
+                is_right=True,
+            )
+        ],
+    )
+
+    defs["я"] = SlovoGestureDefinition(
+        name="я",
+        title="Буква Я",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный палец поднят вверх, средний согнут петелькой, большой отставлен в сторону.",
+        tip="Поднимите указательный палец, отведите большой вбок, а средний согните дугой перед ладонью.",
+        hands_count=1,
+        hands_landmarks=[
+            build_hand_landmarks(
+                (0.60, 0.65, 0.0),
+                {
+                    "thumb": "spread",
+                    "index": "extended",
+                    "index_spread": -0.08,
+                    "middle": "hooked",
+                    "ring": "fist",
+                    "pinky": "fist",
                 },
                 is_right=True,
             )

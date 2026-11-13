@@ -286,7 +286,7 @@
     if (ensureWebSocket) ensureWebSocket();
     initMediaPipe(state, getExpectedHandsCount);
 
-    const videoEl = target === 'practice' ? dom.practiceVideo : dom.blitzVideo;
+    const videoEl = target === 'practice' ? dom?.practiceVideo : dom?.blitzVideo;
     if (!videoEl || !state.mediaPipeHands) return;
 
     if (state.camera) {
@@ -303,6 +303,7 @@
     const POSE_INTERVAL_MS = 250;           // раз в 0.25 с (250 мс)
 
     if (typeof Camera !== 'undefined') {
+      const activeFacingMode = getFacingMode(state);
       state.camera = new Camera(videoEl, {
         onFrame: async () => {
           if (state.isCameraRunning && state.cameraTarget) {
@@ -336,6 +337,7 @@
         },
         width: 640,
         height: 480,
+        facingMode: activeFacingMode,
         frameRate: {
           max: 30,
           ideal: 24,
@@ -345,6 +347,70 @@
       state.isCameraRunning = true;
       state.camera.start();
     }
+  }
+
+  let currentFacingMode = 'user';
+
+  function getFacingMode(state) {
+    return state?.facingMode || currentFacingMode;
+  }
+
+  function setFacingMode(mode, state) {
+    if (mode === 'user' || mode === 'environment') {
+      currentFacingMode = mode;
+      if (state) {
+        state.facingMode = mode;
+      }
+    }
+    return currentFacingMode;
+  }
+
+  async function getAvailableVideoInputs() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
+      return null;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter((d) => d.kind === 'videoinput');
+    } catch {
+      return null;
+    }
+  }
+
+  async function switchCamera(state, dom, callbacks = {}) {
+    const videoInputs = await getAvailableVideoInputs();
+    if (videoInputs && videoInputs.length <= 1) {
+      console.info('Only one video input detected; camera switch skipped.');
+      return getFacingMode(state);
+    }
+
+    const currentMode = getFacingMode(state);
+    const nextMode = currentMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode, state);
+
+    if (dom) {
+      const targetCanvas =
+        state?.cameraTarget === 'blitz' ? dom.blitzCanvas : dom.practiceCanvas || dom.blitzCanvas;
+      const container =
+        targetCanvas?.parentElement ||
+        dom.cameraContainer ||
+        (typeof document !== 'undefined' ? document.querySelector('.camera-container') : null);
+      if (container && container.classList) {
+        if (nextMode === 'environment') {
+          container.classList.remove('mirrored');
+        } else {
+          container.classList.add('mirrored');
+        }
+      }
+    }
+
+    if (state && state.isCameraRunning && state.cameraTarget) {
+      const target = state.cameraTarget;
+      stopCamera(state);
+      startCamera(target, state, dom, callbacks);
+    }
+
+    return nextMode;
   }
 
   function stopCamera(state) {
@@ -371,5 +437,8 @@
     initMediaPipe,
     startCamera,
     stopCamera,
+    getFacingMode,
+    setFacingMode,
+    switchCamera,
   };
 });

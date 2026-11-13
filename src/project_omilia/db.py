@@ -243,8 +243,15 @@ def init_db(db_path: Path) -> None:
             for gname, gdef in GESTURE_DEFINITIONS.items():
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
+                    INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        title = excluded.title,
+                        category = excluded.category,
+                        description = excluded.description,
+                        tip = excluded.tip,
+                        hands_count = excluded.hands_count,
+                        is_dynamic = excluded.is_dynamic
                     """,
                     (
                         gname.strip().lower(),
@@ -278,25 +285,6 @@ def init_db(db_path: Path) -> None:
                     ),
                 )
 
-        # Автоматическое наполнение сэмплов жестов Slovo в static_gesture_samples
-        slovo_sample_count = conn.execute(
-            "SELECT COUNT(*) FROM static_gesture_samples WHERE gesture_name = 'г'"
-        ).fetchone()[0]
-        if slovo_sample_count == 0:
-            try:
-                from project_omilia.ml.slovo_generator import build_db_records
-
-                slovo_records = build_db_records(num_augmented_per_gesture=20)
-                conn.executemany(
-                    """
-                    INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    slovo_records,
-                )
-            except Exception:
-                pass
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS gesture_data_migrations (
@@ -304,6 +292,68 @@ def init_db(db_path: Path) -> None:
             )
             """
         )
+
+        # Автоматическое наполнение сэмплов жестов Slovo в static_gesture_samples (все 33 буквы дактиля и жесты Slovo)
+        dactyl_migration = "slovo_dactyl_33_v1"
+        has_dactyl_migration = (
+            conn.execute(
+                "SELECT 1 FROM gesture_data_migrations WHERE name = ?",
+                (dactyl_migration,),
+            ).fetchone()
+            is not None
+        )
+        try:
+            from project_omilia.ml.slovo_generator import (
+                SLOVO_GESTURES,
+                build_db_records,
+                generate_augmented_samples,
+            )
+
+            if not has_dactyl_migration:
+                # Очищаем устаревшие/неканонические сэмплы для жестов из SLOVO_GESTURES
+                placeholders = ",".join("?" for _ in SLOVO_GESTURES)
+                conn.execute(
+                    f"DELETE FROM static_gesture_samples WHERE gesture_name IN ({placeholders})",
+                    tuple(SLOVO_GESTURES.keys()),
+                )
+                all_records = build_db_records(num_augmented_per_gesture=20, seed=42)
+                conn.executemany(
+                    """
+                    INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    all_records,
+                )
+                conn.execute(
+                    "INSERT OR IGNORE INTO gesture_data_migrations (name) VALUES (?)",
+                    (dactyl_migration,),
+                )
+            else:
+                existing_sample_gestures = {
+                    row[0]
+                    for row in conn.execute("SELECT DISTINCT gesture_name FROM static_gesture_samples").fetchall()
+                }
+                missing_gestures = [name for name in SLOVO_GESTURES if name not in existing_sample_gestures]
+                if missing_gestures:
+                    missing_records: list[tuple[str, int, str, bytes]] = []
+                    for idx, name in enumerate(missing_gestures):
+                        g = SLOVO_GESTURES[name]
+                        samples = generate_augmented_samples(name, num_samples=20, seed=42 + idx)
+                        for vec in samples:
+                            vec_f32 = vec.astype(np.float32)
+                            features_json = json.dumps(vec_f32.tolist(), allow_nan=False)
+                            features_blob = vec_f32.tobytes()
+                            missing_records.append((name, g.hands_count, features_json, features_blob))
+
+                    conn.executemany(
+                        """
+                        INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        missing_records,
+                    )
+        except Exception:
+            pass
 
 
 def static_samples_imported(db_path: Path) -> bool:

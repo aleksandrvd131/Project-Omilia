@@ -26,14 +26,40 @@ from project_omilia.ml.slovo_generator import (
 )
 
 EXPECTED_GESTURES_1H = [
-    # Level 1: Дактильный алфавит
+    # Level 1: Дактильный алфавит (все 33 буквы: а-я)
+    "а",
+    "б",
+    "в",
     "г",
     "д",
     "е",
+    "ё",
+    "ж",
+    "з",
     "и",
+    "й",
+    "к",
+    "л",
+    "м",
+    "н",
     "о",
+    "п",
+    "р",
     "с",
+    "т",
     "у",
+    "ф",
+    "х",
+    "ц",
+    "ч",
+    "ш",
+    "щ",
+    "ъ",
+    "ы",
+    "ь",
+    "э",
+    "ю",
+    "я",
     # Level 2: Числительные и счёт
     "1",
     "2",
@@ -51,12 +77,12 @@ EXPECTED_GESTURES_2H = ["книга"]
 
 
 def test_slovo_gestures_presence_and_topology():
-    """Проверяет присутствие всех 17 жестов и валидность 21 ключевой точки MediaPipe."""
+    """Проверяет присутствие всех 43 жестов (33 буквы дактиля) и валидность 21 ключевой точки MediaPipe."""
     all_gestures = get_all_slovo_gestures()
     expected_all = set(EXPECTED_GESTURES_1H + EXPECTED_GESTURES_2H)
 
     assert set(all_gestures.keys()) == expected_all
-    assert len(all_gestures) == 17
+    assert len(all_gestures) == 43
 
     for name, g in all_gestures.items():
         assert get_slovo_gesture(name) == g
@@ -144,7 +170,7 @@ def test_slovo_knn_classification_with_augmentation():
 def test_slovo_db_records_generation():
     """Проверяет генерацию записей базы данных SQLite для dataset_builder."""
     records = build_db_records(num_augmented_per_gesture=10, seed=123)
-    assert len(records) == 10 * 17
+    assert len(records) == 10 * 43
 
     for name, hands_count, features_json, features_blob in records:
         assert name in SLOVO_GESTURES
@@ -160,7 +186,7 @@ def test_slovo_db_records_generation():
         assert np.allclose(parsed, from_blob, atol=1e-5)
 
     meta_records = build_gesture_metadata_records()
-    assert len(meta_records) == 17
+    assert len(meta_records) == 43
     for rec in meta_records:
         assert rec[0] in SLOVO_GESTURES
         assert rec[7] in (1, 2)  # hands_count

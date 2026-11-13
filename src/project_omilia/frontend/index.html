@@ -2,8 +2,18 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Project Omiλia — Изучение русского жестового языка с ИИ</title>
+
+  <!-- PWA и мобильные метатеги -->
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Omiλia">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
   
   <!-- Шрифт Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -241,7 +251,8 @@
               <span class="hud-label">ИИ Распознал:</span>
               <div class="hud-actions">
                 <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
-                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🔄</button>
+                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🪞</button>
+                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
               </div>
             </div>
             <span class="hud-gesture" id="blitz-hud-gesture">—</span>
@@ -251,6 +262,9 @@
               <span class="diagnostic-hint-text"></span>
             </div>
           </div>
+
+          <!-- Плавающая кнопка смены камеры для мобильных устройств -->
+          <button type="button" class="btn-floating-camera-switch btn-switch-camera" title="Переключить камеру">🔄</button>
 
           <div class="hold-meter">
             <div id="blitz-hold-fill" class="hold-meter-fill"></div>
@@ -526,7 +540,8 @@
             <span class="hud-label">ИИ Распознал:</span>
             <div class="hud-actions">
               <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
-              <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🔄</button>
+              <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🪞</button>
+              <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
             </div>
           </div>
           <span class="hud-gesture" id="practice-hud-gesture">—</span>
@@ -536,6 +551,9 @@
             <span class="diagnostic-hint-text"></span>
           </div>
         </div>
+
+        <!-- Плавающая кнопка смены камеры для мобильных устройств -->
+        <button type="button" class="btn-floating-camera-switch btn-switch-camera" title="Переключить камеру">🔄</button>
 
         <div class="hold-meter">
           <div id="practice-hold-fill" class="hold-meter-fill"></div>
@@ -588,5 +606,16 @@
   <script src="/static/modules/practice.js"></script>
   <script src="/static/modules/blitz.js"></script>
   <script src="/static/app.js"></script>
+
+  <!-- Регистрация Service Worker (PWA) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('SW registration failed:', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

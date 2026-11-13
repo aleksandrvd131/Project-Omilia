@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from project_omilia import db
 from project_omilia.app import create_app
-from project_omilia.core.config import BASE_DIR, DEBUG_PATH, FRONTEND_DIR
+from project_omilia.core.config import DEBUG_PATH
 from project_omilia.gestures import StaticGesture
 
 

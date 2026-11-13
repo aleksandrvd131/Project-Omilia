@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const UI = require('../src/project_omilia/frontend/modules/ui.js');
 const Camera = require('../src/project_omilia/frontend/modules/camera.js');
@@ -109,10 +111,13 @@ test('Blitz module: handleBlitzPrediction advances hold progress on match', () =
 });
 
 test('Catalog module: getGestureLevelInfo correctly maps all curriculum levels (1-4)', () => {
-  const lvl1 = ['а', 'б', 'в', 'г', 'д', 'е', 'и', 'о', 'с', 'у'];
+  const lvl1 = [
+    'а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о',
+    'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я',
+  ];
   const lvl2 = ['1', '2', '3', '4', '5'];
   const lvl3 = ['привет', 'спасибо', 'помоги', 'пожалуйста', 'да', 'нет', 'мир', 'хорошо'];
-  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'я', 'ты'];
+  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'ты'];
 
   for (const name of lvl1) {
     const info = Catalog.getGestureLevelInfo({ name });
@@ -140,22 +145,25 @@ test('Catalog module: getGestureLevelInfo correctly maps all curriculum levels (
 });
 
 test('Catalog module: calculateLevelStats accurately computes level totals and unlock conditions', () => {
-  const lvl1 = ['а', 'б', 'в', 'г', 'д', 'е', 'и', 'о', 'с', 'у'];
+  const lvl1 = [
+    'а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о',
+    'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я',
+  ];
   const lvl2 = ['1', '2', '3', '4', '5'];
   const lvl3 = ['привет', 'спасибо', 'помоги', 'пожалуйста', 'да', 'нет', 'мир', 'хорошо'];
-  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'я', 'ты'];
+  const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'ты'];
 
   const mockGestures = [
-    ...lvl1.map((n, i) => ({ name: n, is_learned: i < 7 })), // 7/10 = 70% learned
+    ...lvl1.map((n, i) => ({ name: n, is_learned: i < 24 })), // 24/33 = 73% learned
     ...lvl2.map((n) => ({ name: n, is_learned: false })),
     ...lvl3.map((n) => ({ name: n, is_learned: false })),
     ...lvl4.map((n) => ({ name: n, is_learned: false })),
   ];
 
   const stats = Catalog.calculateLevelStats(mockGestures);
-  assert.equal(stats[1].total, 10);
-  assert.equal(stats[1].learned, 7);
-  assert.equal(stats[1].percentage, 70);
+  assert.equal(stats[1].total, 33);
+  assert.equal(stats[1].learned, 24);
+  assert.equal(stats[1].percentage, 73);
   assert.equal(stats[1].isUnlocked, true);
 
   assert.equal(stats[2].total, 5);
@@ -164,7 +172,7 @@ test('Catalog module: calculateLevelStats accurately computes level totals and u
   assert.equal(stats[3].total, 8);
   assert.equal(stats[3].isUnlocked, false); // Level 2 is 0%, Level 3 remains locked
 
-  assert.equal(stats[4].total, 9);
+  assert.equal(stats[4].total, 8);
   assert.equal(stats[4].isUnlocked, false);
 });
 
@@ -304,5 +312,125 @@ test('Practice module: fetchGhostSilhouette and openPracticeModal exclude dynami
     assert.equal(stateStatic.practice.ghostSilhouette, null);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test('Camera module: facingMode defaults to user and switches between user and environment', async () => {
+  // 1. По умолчанию режим фронтальной камеры 'user'
+  Camera.setFacingMode('user');
+  assert.equal(Camera.getFacingMode(), 'user');
+
+  const state = { facingMode: 'user', isCameraRunning: false };
+  const containerClasses = new Set(['camera-container', 'mirrored']);
+  const dom = {
+    practiceCanvas: {
+      parentElement: {
+        classList: {
+          contains: (cls) => containerClasses.has(cls),
+          add: (cls) => containerClasses.add(cls),
+          remove: (cls) => containerClasses.delete(cls),
+        },
+      },
+    },
+  };
+
+  // 2. Переключение с 'user' на 'environment'
+  const mode1 = await Camera.switchCamera(state, dom);
+  assert.equal(mode1, 'environment');
+  assert.equal(state.facingMode, 'environment');
+  assert.equal(containerClasses.has('mirrored'), false, 'mirrored class should be removed for environment camera');
+
+  // 3. Обратное переключение с 'environment' на 'user'
+  const mode2 = await Camera.switchCamera(state, dom);
+  assert.equal(mode2, 'user');
+  assert.equal(state.facingMode, 'user');
+  assert.equal(containerClasses.has('mirrored'), true, 'mirrored class should be added back for user camera');
+});
+
+test('Camera module: switchCamera respects device availability and restarts active camera', async () => {
+  const origDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+
+  try {
+    // 1. При наличии только одного видеоустройства переключение отклоняется
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          enumerateDevices: async () => [{ kind: 'videoinput', deviceId: 'cam1' }],
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const stateSingle = { facingMode: 'user', isCameraRunning: false };
+    const resSingle = await Camera.switchCamera(stateSingle);
+    assert.equal(resSingle, 'user', 'Should keep user facingMode when single device exists');
+    assert.equal(stateSingle.facingMode, 'user');
+
+    // 2. При наличии 2 и более видеоустройств переключение выполняется
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          enumerateDevices: async () => [
+            { kind: 'videoinput', deviceId: 'cam1' },
+            { kind: 'videoinput', deviceId: 'cam2' },
+          ],
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    let stopCalled = false;
+    const stateRunning = {
+      facingMode: 'user',
+      isCameraRunning: true,
+      cameraTarget: 'practice',
+      camera: {
+        stop: () => {
+          stopCalled = true;
+        },
+      },
+      latestHands: [],
+    };
+
+    const resMulti = await Camera.switchCamera(stateRunning, null, {});
+    assert.equal(resMulti, 'environment');
+    assert.equal(stateRunning.facingMode, 'environment');
+    assert.equal(stopCalled, true, 'Running camera should be stopped before restart');
+  } finally {
+    if (origDesc) {
+      Object.defineProperty(globalThis, 'navigator', origDesc);
+    }
+  }
+});
+
+test('PWA Manifest: loads valid manifest with required fields and icons', () => {
+  const manifestPath = path.resolve(__dirname, '../src/project_omilia/frontend/manifest.json');
+  assert.ok(fs.existsSync(manifestPath), 'manifest.json must exist');
+
+  const raw = fs.readFileSync(manifestPath, 'utf8');
+  const manifest = JSON.parse(raw);
+
+  assert.equal(manifest.name, 'Omiλia - Тренажер РЖЯ');
+  assert.equal(manifest.short_name, 'Omiλia');
+  assert.equal(manifest.display, 'standalone');
+  assert.ok(manifest.theme_color, 'theme_color is required');
+  assert.ok(manifest.background_color, 'background_color is required');
+  assert.ok(Array.isArray(manifest.icons), 'icons must be an array');
+  assert.ok(manifest.icons.length >= 2, 'at least 2 icons expected');
+
+  const iconsDir = path.resolve(__dirname, '../src/project_omilia/frontend/icons');
+  assert.ok(fs.existsSync(iconsDir), 'icons directory must exist');
+
+  for (const icon of manifest.icons) {
+    assert.ok(icon.src, 'icon src is required');
+    assert.ok(icon.sizes, 'icon sizes is required');
+    assert.ok(icon.type, 'icon type is required');
+
+    // Проверка физического наличия файла на диске
+    const relativePath = icon.src.replace('/static/', '');
+    const iconFilePath = path.resolve(__dirname, '../src/project_omilia/frontend', relativePath);
+    assert.ok(fs.existsSync(iconFilePath), `Icon file ${iconFilePath} must exist on disk`);
   }
 });

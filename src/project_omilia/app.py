@@ -63,6 +63,31 @@ def create_app() -> FastAPI:
             return FileResponse(INDEX_PATH)
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"error": "index.html not found"})
 
+    # PWA манифест и Service Worker
+    @app.get("/manifest.json", tags=["pwa"])
+    async def manifest():
+        """PWA Web App Manifest."""
+        manifest_path = FRONTEND_DIR / "manifest.json"
+        if manifest_path.exists():
+            return FileResponse(
+                manifest_path,
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"error": "manifest.json not found"})
+
+    @app.get("/sw.js", tags=["pwa"])
+    async def service_worker():
+        """PWA Service Worker."""
+        sw_path = FRONTEND_DIR / "sw.js"
+        if sw_path.exists():
+            return FileResponse(
+                sw_path,
+                media_type="application/javascript; charset=utf-8",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"error": "sw.js not found"})
+
     # Маршруты панели разработчика
     @app.get("/dev", tags=["pages"])
     @app.get("/debug", tags=["pages"])

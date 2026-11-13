@@ -43,6 +43,7 @@
     // Камера и распознавание
     camera: null,
     cameraTarget: null, // 'practice' или 'blitz'
+    facingMode: 'user', // 'user' или 'environment'
     currentProblemFingers: [],
     isMatchingGesture: false,
     mediaPipeHands: null,
@@ -615,6 +616,21 @@
       btn.addEventListener('click', (e) => {
         const container = e.target.closest('.camera-container') || document.querySelector('.camera-container');
         if (container) container.classList.toggle('mirrored');
+      });
+    });
+
+    // Переключение камеры (фронтальная / основная)
+    document.querySelectorAll('.btn-switch-camera').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (camera?.switchCamera) {
+          await camera.switchCamera(state, dom, {
+            getExpectedHandsCount: () =>
+              state.cameraTarget === 'practice' ? state.practice.gesture?.hands_count || 1 : 1,
+            onFrameRender,
+            ensureWebSocket: socket?.ensureWebSocket,
+          });
+        }
       });
     });
 
