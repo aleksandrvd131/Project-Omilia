@@ -3,6 +3,7 @@ API-роутер каталога жестов, прогресса обучен�
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel, Field
 
 from project_omilia import db
 from project_omilia.api.deps import (
@@ -142,6 +143,94 @@ async def api_learn_gesture(
         "status": "ok",
         "learned_gestures": learned,
         "learned_count": len(learned),
+    }
+
+
+class ReviewRequest(BaseModel):
+    gesture_name: str = Field(..., min_length=1, max_length=100, description="Имя жеста")
+    quality: int = Field(..., ge=0, le=5, description="Оценка ответа по шкале SM-2 (0-5)")
+    username: str | None = Field(None, description="Имя пользователя (если запрос без токена)")
+
+
+@router.get("/warmup")
+async def api_get_warmup(
+    request: Request,
+    limit: int = 5,
+    username: str | None = None,
+    authorization: str | None = Header(None),
+):
+    """Возвращает список жестов для ежедневной разминки (SM-2 SRS)."""
+    user = get_current_user_from_request(request, authorization)
+    target_username = user["username"] if user else username
+
+    if not target_username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Требуется авторизация или указание username",
+        )
+
+    warmup_gestures = db.get_daily_warmup(DB_PATH, target_username, limit=limit)
+    streak = db.get_user_streak(DB_PATH, target_username)
+    return {
+        "status": "ok",
+        "warmup": warmup_gestures,
+        "gestures": warmup_gestures,
+        "count": len(warmup_gestures),
+        "streak": streak,
+    }
+
+
+@router.post("/review")
+async def api_review_gesture(
+    data: ReviewRequest,
+    request: Request,
+    authorization: str | None = Header(None),
+):
+    """Оценка жеста в рамках интервального повторения (SM-2) и обновление прогресса."""
+    user = get_current_user_from_request(request, authorization)
+    target_username = user["username"] if user else data.username
+
+    if not target_username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Требуется авторизация или указание username",
+        )
+
+    norm_name = data.gesture_name.strip().lower()
+    if not norm_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Имя жеста не указано",
+        )
+
+    try:
+        review_result = db.review_gesture(
+            target_username,
+            norm_name,
+            data.quality,
+            db_path=DB_PATH,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка сохранения повторения жеста: {e}",
+        ) from e
+
+    return {
+        "status": "ok",
+        "review": review_result,
+        "streak": review_result.get("user_streak", 0),
+        "ease_factor": review_result["ease_factor"],
+        "interval_days": review_result["interval_days"],
+        "repetitions": review_result["repetitions"],
+        "next_review_at": review_result["next_review_at"],
+        "last_reviewed_at": review_result["last_reviewed_at"],
+        "gesture_streak": review_result["streak"],
     }
 
 

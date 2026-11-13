@@ -57,9 +57,12 @@
         </ul>
       </nav>
 
-      <!-- Блок пользователя в шапке -->
-      <div class="user-actions" id="header-user-area">
-        <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+      <!-- Блок серии и пользователя в шапке -->
+      <div class="header-user-group">
+        <div class="streak-badge" id="header-streak-badge" title="Дни практики подряд">🔥 <span id="streak-days-count">0</span> дн.</div>
+        <div class="user-actions" id="header-user-area">
+          <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+        </div>
       </div>
     </div>
   </header>
@@ -357,6 +360,10 @@
             <div class="stat-number" id="stat-percent-count">0%</div>
             <div class="stat-label">Общий прогресс</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-streak-count">0 🔥</div>
+            <div class="stat-label">Серия дней</div>
+          </div>
         </div>
 
         <!-- Прогресс изучения -->
@@ -375,6 +382,54 @@
           <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem;">Освоенные жесты:</h4>
           <div id="profile-learned-badges" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
             <!-- Список выученных жестов -->
+          </div>
+        </div>
+
+        <!-- Достижения и награды -->
+        <div class="card" id="profile-achievements-card">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <h3 class="card-title" style="margin-bottom: 0.2rem;">Достижения и награды</h3>
+              <p class="card-subtitle" style="margin-bottom: 0;">Открывайте уникальные бейджи за успехи в обучении и регулярные тренировки</p>
+            </div>
+            <span id="profile-achievements-counter" style="font-weight: 700; color: var(--primary-hover); font-size: 0.95rem;">0 / 5</span>
+          </div>
+
+          <div class="achievements-grid" id="profile-achievements-grid">
+            <div class="achievement-card locked" data-achievement-id="first_word" id="badge-first_word">
+              <div class="achievement-icon">👋</div>
+              <div class="achievement-title">Первое слово</div>
+              <div class="achievement-desc">Выучен 1 жест</div>
+              <div class="achievement-status">🔒 0 / 1</div>
+            </div>
+
+            <div class="achievement-card locked" data-achievement-id="expert_5" id="badge-expert_5">
+              <div class="achievement-icon">📚</div>
+              <div class="achievement-title">Знаток</div>
+              <div class="achievement-desc">Выучено 5 жестов</div>
+              <div class="achievement-status">🔒 0 / 5</div>
+            </div>
+
+            <div class="achievement-card locked" data-achievement-id="blitz_sniper" id="badge-blitz_sniper">
+              <div class="achievement-icon">🎯</div>
+              <div class="achievement-title">Снайпер блица</div>
+              <div class="achievement-desc">Пройден блиц-опрос</div>
+              <div class="achievement-status">🔒 0 / 1</div>
+            </div>
+
+            <div class="achievement-card locked" data-achievement-id="master_10" id="badge-master_10">
+              <div class="achievement-icon">👑</div>
+              <div class="achievement-title">Мастер РЖЯ</div>
+              <div class="achievement-desc">Выучено 10+ жестов</div>
+              <div class="achievement-status">🔒 0 / 10</div>
+            </div>
+
+            <div class="achievement-card locked" data-achievement-id="streak_3" id="badge-streak_3">
+              <div class="achievement-icon">🔥</div>
+              <div class="achievement-title">Ударный режим</div>
+              <div class="achievement-desc">Серия занятий 3+ дня</div>
+              <div class="achievement-status">🔒 0 / 3 дн.</div>
+            </div>
           </div>
         </div>
 

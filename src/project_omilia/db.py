@@ -10,11 +10,13 @@ import json
 import secrets
 import sqlite3
 from contextlib import closing
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from project_omilia.core.config import DB_PATH, GESTURE_METADATA
 
 SCRYPT_N = 16384
 SCRYPT_R = 8
@@ -110,9 +112,49 @@ def init_db(db_path: Path) -> None:
                 user_id INTEGER NOT NULL,
                 gesture_name TEXT COLLATE NOCASE NOT NULL,
                 learned_at TEXT NOT NULL,
+                ease_factor REAL NOT NULL DEFAULT 2.5,
+                interval_days INTEGER NOT NULL DEFAULT 1,
+                repetitions INTEGER NOT NULL DEFAULT 0,
+                next_review_at TEXT,
+                last_reviewed_at TEXT,
+                streak INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (user_id, gesture_name),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
+            """
+        )
+        # Миграция: добавление колонок SRS в learned_gestures, если таблица уже существовала
+        cols_learned = [c[1] for c in conn.execute("PRAGMA table_info(learned_gestures)").fetchall()]
+        if "ease_factor" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN ease_factor REAL NOT NULL DEFAULT 2.5")
+        if "interval_days" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN interval_days INTEGER NOT NULL DEFAULT 1")
+        if "repetitions" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN repetitions INTEGER NOT NULL DEFAULT 0")
+        if "next_review_at" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN next_review_at TEXT")
+        if "last_reviewed_at" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN last_reviewed_at TEXT")
+        if "streak" not in cols_learned:
+            conn.execute("ALTER TABLE learned_gestures ADD COLUMN streak INTEGER NOT NULL DEFAULT 0")
+
+        # Таблица истории повторений (для детальной аналитики и точного расчёта streak)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                gesture_name TEXT NOT NULL,
+                quality INTEGER NOT NULL,
+                reviewed_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_reviews_user_date
+            ON user_reviews (user_id, reviewed_at)
             """
         )
         conn.execute(
@@ -603,10 +645,13 @@ def mark_gesture_learned(db_path: Path, user_id: int, gesture_name: str) -> bool
         with get_connection(db_path) as conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO learned_gestures (user_id, gesture_name, learned_at)
-                VALUES (?, ?, ?)
+                INSERT OR IGNORE INTO learned_gestures (
+                    user_id, gesture_name, learned_at,
+                    ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at, streak
+                )
+                VALUES (?, ?, ?, 2.5, 1, 0, ?, NULL, 0)
                 """,
-                (user_id, norm_name, now),
+                (user_id, norm_name, now, now),
             )
             conn.commit()
             return True
@@ -628,3 +673,572 @@ def get_learned_gestures(db_path: Path, user_id: int) -> list[str]:
             (user_id,),
         )
         return [row["gesture_name"] for row in cursor.fetchall()]
+
+
+# ============================================================================
+# Алгоритм SM-2 (SuperMemo-2), интервальные повторения (SRS) и разминка (Daily Warmup)
+# ============================================================================
+
+
+class SM2Result(tuple):
+    """Результат расчёта алгоритма интервальных повторений SM-2.
+    Поддерживает распаковку (tuple unpacking), атрибуты (.ease_factor, .interval_days, .repetitions)
+    и доступ по ключам словаря (['ease_factor']).
+    """
+
+    def __new__(cls, ease_factor: float, interval_days: int, repetitions: int):
+        return super().__new__(cls, (ease_factor, interval_days, repetitions))
+
+    @property
+    def ease_factor(self) -> float:
+        return self[0]
+
+    @property
+    def interval_days(self) -> int:
+        return self[1]
+
+    @property
+    def repetitions(self) -> int:
+        return self[2]
+
+    def __getitem__(self, item: Any) -> Any:
+        if isinstance(item, str):
+            mapping = {
+                "ease_factor": self[0],
+                "interval_days": self[1],
+                "repetitions": self[2],
+            }
+            if item in mapping:
+                return mapping[item]
+            raise KeyError(item)
+        return super().__getitem__(item)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except (KeyError, IndexError):
+            return default
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ease_factor": self[0],
+            "interval_days": self[1],
+            "repetitions": self[2],
+        }
+
+    def __repr__(self) -> str:
+        return f"SM2Result(ease_factor={self[0]}, interval_days={self[1]}, repetitions={self[2]})"
+
+
+def calculate_sm2(
+    ease_factor: float,
+    interval_days: int,
+    repetitions: int,
+    quality: int,
+) -> SM2Result:
+    """Реализация классического алгоритма интервальных повторений SuperMemo 2 (SM-2).
+
+    :param ease_factor: Коэффициент лёгкости (EF >= 1.3, начальный 2.5)
+    :param interval_days: Предыдущий интервал повторения в днях (>= 1)
+    :param repetitions: Число последовательных успешных повторений
+    :param quality: Оценка качества воспроизведения (0-5)
+    :return: SM2Result(ease_factor, interval_days, repetitions)
+    """
+    try:
+        q = int(quality)
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"Оценка качества должна быть целым числом, получено: {quality}") from err
+
+    if not (0 <= q <= 5):
+        raise ValueError(f"Оценка качества должна быть в диапазоне от 0 до 5, получено: {q}")
+
+    ef = float(ease_factor)
+    reps = int(repetitions)
+    interval = int(interval_days)
+
+    # Формула обновления коэффициента лёгкости SM-2:
+    # EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+    delta = 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)
+    new_ef = round(max(1.3, ef + delta), 2)
+
+    if q < 3:
+        # Неудачное повторение: сброс счётчика повторений и интервала
+        new_reps = 0
+        new_interval = 1
+    else:
+        # Успешное повторение
+        if reps == 0:
+            new_interval = 1
+        elif reps == 1:
+            new_interval = 6
+        else:
+            new_interval = max(1, int(round(interval * new_ef)))
+        new_reps = reps + 1
+
+    return SM2Result(new_ef, new_interval, new_reps)
+
+
+def _parse_date(ts_str: Any) -> date | None:
+    """Вспомогательная функция безопасного парсинга даты из строки таймстампа."""
+    if not ts_str:
+        return None
+    if isinstance(ts_str, datetime):
+        return ts_str.date()
+    if isinstance(ts_str, date):
+        return ts_str
+    try:
+        s = str(ts_str).strip()
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+    except Exception:
+        try:
+            return datetime.strptime(str(ts_str)[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+
+def get_user_streak(
+    *args: Any,
+    db_path: Path | None = None,
+    username: str | None = None,
+    reference_date: date | str | None = None,
+    **kwargs: Any,
+) -> int:
+    """Вычисляет серию дней непрерывных занятий/повторений (streak) для пользователя.
+    Поддерживает вызовы get_user_streak(username), get_user_streak(db_path, username)
+    и передачу параметров по ключевым словам.
+    """
+    resolved_path = db_path
+    resolved_user = username
+
+    if len(args) == 2:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+            resolved_user = args[1]
+        else:
+            resolved_user = args[0]
+            if isinstance(args[1], Path):
+                resolved_path = args[1]
+            elif isinstance(args[1], (date, str)):
+                reference_date = args[1]
+    elif len(args) == 1:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+        else:
+            resolved_user = args[0]
+
+    if db_path is not None:
+        resolved_path = db_path
+    if username is not None:
+        resolved_user = username
+    if "reference_date" in kwargs:
+        reference_date = kwargs["reference_date"]
+    if resolved_path is None:
+        resolved_path = DB_PATH
+
+    if not resolved_user:
+        return 0
+
+    with closing(get_connection(resolved_path)) as conn:
+        cursor = conn.cursor()
+        user_row = None
+        if isinstance(resolved_user, int) or (isinstance(resolved_user, str) and resolved_user.isdigit()):
+            user_row = cursor.execute("SELECT id, username FROM users WHERE id = ?", (int(resolved_user),)).fetchone()
+        if not user_row:
+            user_row = cursor.execute(
+                "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)",
+                (str(resolved_user).strip(),),
+            ).fetchone()
+
+        if not user_row:
+            return 0
+        user_id = user_row["id"]
+
+        dates_set: set[date] = set()
+
+        # 1. Из истории повторений (user_reviews)
+        try:
+            rev_rows = cursor.execute(
+                "SELECT reviewed_at FROM user_reviews WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            for r in rev_rows:
+                d = _parse_date(r["reviewed_at"])
+                if d:
+                    dates_set.add(d)
+        except sqlite3.OperationalError:
+            pass
+
+        # 2. Из выученных жестов (learned_at, last_reviewed_at)
+        lg_rows = cursor.execute(
+            "SELECT learned_at, last_reviewed_at FROM learned_gestures WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+        for r in lg_rows:
+            d1 = _parse_date(r["learned_at"])
+            if d1:
+                dates_set.add(d1)
+            d2 = _parse_date(r["last_reviewed_at"])
+            if d2:
+                dates_set.add(d2)
+
+    if not dates_set:
+        return 0
+
+    if reference_date is not None:
+        if isinstance(reference_date, str):
+            ref_d = _parse_date(reference_date) or datetime.now(timezone.utc).date()
+        elif isinstance(reference_date, datetime):
+            ref_d = reference_date.date()
+        else:
+            ref_d = reference_date
+    else:
+        ref_d = datetime.now(timezone.utc).date()
+
+    yesterday = ref_d - timedelta(days=1)
+
+    if ref_d in dates_set:
+        check_day = ref_d
+    elif yesterday in dates_set:
+        check_day = yesterday
+    else:
+        return 0
+
+    streak = 0
+    while check_day in dates_set:
+        streak += 1
+        check_day = check_day - timedelta(days=1)
+
+    return streak
+
+
+def review_gesture(
+    *args: Any,
+    db_path: Path | None = None,
+    username: str | None = None,
+    gesture_name: str | None = None,
+    quality: int | None = None,
+    reviewed_at: str | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Фиксирует результат повторения жеста пользователем с пересчётом параметров SM-2.
+    Поддерживает сигнатуры review_gesture(username, gesture_name, quality)
+    и review_gesture(db_path, username, gesture_name, quality).
+    """
+    resolved_path = db_path
+    resolved_user = username
+    resolved_gesture = gesture_name
+    resolved_quality = quality
+
+    if len(args) == 4:
+        resolved_path = Path(args[0])
+        resolved_user = args[1]
+        resolved_gesture = args[2]
+        resolved_quality = args[3]
+    elif len(args) == 3:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+            resolved_user = args[1]
+            resolved_gesture = args[2]
+        else:
+            resolved_user = args[0]
+            resolved_gesture = args[1]
+            resolved_quality = args[2]
+    elif len(args) == 2:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+            resolved_user = args[1]
+        else:
+            resolved_user = args[0]
+            resolved_gesture = args[1]
+    elif len(args) == 1:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+        else:
+            resolved_user = args[0]
+
+    if db_path is not None:
+        resolved_path = db_path
+    if username is not None:
+        resolved_user = username
+    if gesture_name is not None:
+        resolved_gesture = gesture_name
+    if quality is not None:
+        resolved_quality = quality
+    if "reviewed_at" in kwargs:
+        reviewed_at = kwargs["reviewed_at"]
+
+    if resolved_path is None:
+        resolved_path = DB_PATH
+    if not resolved_user:
+        raise ValueError("Имя пользователя (username) не указано")
+    if not resolved_gesture:
+        raise ValueError("Имя жеста (gesture_name) не указано")
+    if resolved_quality is None:
+        raise ValueError("Оценка качества (quality) не указана")
+
+    q = int(resolved_quality)
+    if not (0 <= q <= 5):
+        raise ValueError(f"Оценка качества должна быть в диапазоне от 0 до 5, получено: {q}")
+
+    norm_name = str(resolved_gesture).strip().lower()
+
+    if reviewed_at:
+        try:
+            review_dt = datetime.fromisoformat(reviewed_at.replace("Z", "+00:00"))
+            if review_dt.tzinfo is None:
+                review_dt = review_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            review_dt = datetime.now(timezone.utc)
+    else:
+        review_dt = datetime.now(timezone.utc)
+
+    now_iso = review_dt.isoformat()
+
+    with closing(get_connection(resolved_path)) as conn, conn:
+        cursor = conn.cursor()
+
+        # Разрешаем пользователя в БД (или создаём при необходимости)
+        user_row = None
+        if isinstance(resolved_user, int) or (isinstance(resolved_user, str) and str(resolved_user).isdigit()):
+            user_row = cursor.execute("SELECT id, username FROM users WHERE id = ?", (int(resolved_user),)).fetchone()
+        if not user_row:
+            user_row = cursor.execute(
+                "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)",
+                (str(resolved_user).strip(),),
+            ).fetchone()
+
+        if not user_row:
+            user_str = str(resolved_user).strip()
+            pwd = hash_password("default_password_123")
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, 'user', ?)",
+                (user_str, pwd, now_iso),
+            )
+            user_id = cursor.lastrowid
+            user_name_str = user_str
+        else:
+            user_id = user_row["id"]
+            user_name_str = user_row["username"]
+
+        # Получаем текущее состояние SRS для данного жеста
+        lg_row = cursor.execute(
+            """
+            SELECT ease_factor, interval_days, repetitions, streak, learned_at
+            FROM learned_gestures
+            WHERE user_id = ? AND LOWER(gesture_name) = ?
+            """,
+            (user_id, norm_name),
+        ).fetchone()
+
+        if lg_row:
+            current_ef = float(lg_row["ease_factor"]) if lg_row["ease_factor"] is not None else 2.5
+            current_interval = int(lg_row["interval_days"]) if lg_row["interval_days"] is not None else 1
+            current_reps = int(lg_row["repetitions"]) if lg_row["repetitions"] is not None else 0
+            current_streak = int(lg_row["streak"]) if lg_row["streak"] is not None else 0
+            learned_at = lg_row["learned_at"] or now_iso
+        else:
+            current_ef = 2.5
+            current_interval = 1
+            current_reps = 0
+            current_streak = 0
+            learned_at = now_iso
+
+        sm2_res = calculate_sm2(current_ef, current_interval, current_reps, q)
+        new_ef = sm2_res.ease_factor
+        new_interval = sm2_res.interval_days
+        new_reps = sm2_res.repetitions
+
+        new_streak = current_streak + 1 if q >= 3 else 0
+        next_review_dt = review_dt + timedelta(days=new_interval)
+        next_review_iso = next_review_dt.isoformat()
+
+        # Сохраняем прогресс жеста
+        cursor.execute(
+            """
+            INSERT INTO learned_gestures (
+                user_id, gesture_name, learned_at,
+                ease_factor, interval_days, repetitions,
+                next_review_at, last_reviewed_at, streak
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, gesture_name) DO UPDATE SET
+                ease_factor = excluded.ease_factor,
+                interval_days = excluded.interval_days,
+                repetitions = excluded.repetitions,
+                next_review_at = excluded.next_review_at,
+                last_reviewed_at = excluded.last_reviewed_at,
+                streak = excluded.streak
+            """,
+            (
+                user_id,
+                norm_name,
+                learned_at,
+                new_ef,
+                new_interval,
+                new_reps,
+                next_review_iso,
+                now_iso,
+                new_streak,
+            ),
+        )
+
+        # Добавляем в историю повторений
+        try:
+            cursor.execute(
+                """
+                INSERT INTO user_reviews (user_id, gesture_name, quality, reviewed_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (user_id, norm_name, q, now_iso),
+            )
+        except sqlite3.OperationalError:
+            pass
+
+    u_streak = get_user_streak(user_name_str, db_path=resolved_path, reference_date=review_dt.date())
+
+    return {
+        "user_id": user_id,
+        "username": user_name_str,
+        "gesture_name": norm_name,
+        "quality": q,
+        "ease_factor": new_ef,
+        "interval_days": new_interval,
+        "repetitions": new_reps,
+        "next_review_at": next_review_iso,
+        "last_reviewed_at": now_iso,
+        "streak": new_streak,
+        "user_streak": u_streak,
+    }
+
+
+def get_daily_warmup(
+    *args: Any,
+    db_path: Path | None = None,
+    username: str | None = None,
+    limit: int = 5,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Возвращает жесты для ежедневной разминки (SM-2 SRS), требующие повторения.
+    Поддерживает вызовы get_daily_warmup(username, limit=5) и get_daily_warmup(db_path, username, limit=5).
+    """
+    resolved_path = db_path
+    resolved_user = username
+    resolved_limit = limit
+
+    if len(args) == 3:
+        resolved_path = Path(args[0])
+        resolved_user = args[1]
+        resolved_limit = int(args[2])
+    elif len(args) == 2:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+            resolved_user = args[1]
+        elif isinstance(args[1], int):
+            resolved_user = args[0]
+            resolved_limit = int(args[1])
+        else:
+            resolved_path = Path(args[0])
+            resolved_user = args[1]
+    elif len(args) == 1:
+        if isinstance(args[0], Path):
+            resolved_path = args[0]
+        else:
+            resolved_user = args[0]
+
+    if db_path is not None:
+        resolved_path = db_path
+    if username is not None:
+        resolved_user = username
+    if "limit" in kwargs:
+        resolved_limit = int(kwargs["limit"])
+    if resolved_path is None:
+        resolved_path = DB_PATH
+
+    if not resolved_user:
+        return []
+
+    now_dt = datetime.now(timezone.utc)
+
+    with closing(get_connection(resolved_path)) as conn:
+        cursor = conn.cursor()
+        user_row = None
+        if isinstance(resolved_user, int) or (isinstance(resolved_user, str) and str(resolved_user).isdigit()):
+            user_row = cursor.execute("SELECT id, username FROM users WHERE id = ?", (int(resolved_user),)).fetchone()
+        if not user_row:
+            user_row = cursor.execute(
+                "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)",
+                (str(resolved_user).strip(),),
+            ).fetchone()
+
+        if not user_row:
+            return []
+        user_id = user_row["id"]
+
+        rows = cursor.execute(
+            """
+            SELECT lg.gesture_name, lg.ease_factor, lg.interval_days, lg.repetitions,
+                   lg.next_review_at, lg.last_reviewed_at, lg.streak,
+                   g.title, g.category, g.description, g.tip, g.hands_count, g.is_dynamic
+            FROM learned_gestures lg
+            LEFT JOIN gestures g ON LOWER(g.name) = LOWER(lg.gesture_name)
+            WHERE lg.user_id = ?
+            """,
+            (user_id,),
+        ).fetchall()
+
+    def _check_due(item: sqlite3.Row) -> tuple[bool, datetime | None]:
+        nxt = item["next_review_at"]
+        if not nxt:
+            return True, None
+        try:
+            dt = datetime.fromisoformat(nxt.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt <= now_dt, dt
+        except Exception:
+            return True, None
+
+    due_list = []
+    for r in rows:
+        is_due, dt = _check_due(r)
+        if is_due:
+            due_list.append((dt, r))
+
+    # Сортировка: жесты без предыдущего повторения первыми, затем самые просроченные
+    due_list.sort(
+        key=lambda pair: (
+            0 if pair[0] is None else 1,
+            pair[0] if pair[0] is not None else datetime.min.replace(tzinfo=timezone.utc),
+            pair[1]["repetitions"] or 0,
+        )
+    )
+
+    results = []
+    for _, r in due_list[:resolved_limit]:
+        gname = r["gesture_name"]
+        fallback = GESTURE_METADATA.get(gname, {})
+        title = r["title"] or fallback.get("title", gname.capitalize())
+        category = r["category"] or fallback.get("category", "Общие жесты")
+        description = r["description"] or fallback.get("description", "")
+        tip = r["tip"] or fallback.get("tip", "")
+        hands_count = r["hands_count"] if r["hands_count"] is not None else 1
+        is_dynamic = bool(r["is_dynamic"]) if r["is_dynamic"] is not None else False
+
+        results.append({
+            "name": gname,
+            "gesture_name": gname,
+            "title": title,
+            "category": category,
+            "description": description,
+            "tip": tip,
+            "hands_count": hands_count,
+            "is_dynamic": is_dynamic,
+            "ease_factor": r["ease_factor"] if r["ease_factor"] is not None else 2.5,
+            "interval_days": r["interval_days"] if r["interval_days"] is not None else 1,
+            "repetitions": r["repetitions"] if r["repetitions"] is not None else 0,
+            "next_review_at": r["next_review_at"],
+            "last_reviewed_at": r["last_reviewed_at"],
+            "streak": r["streak"] if r["streak"] is not None else 0,
+        })
+
+    return results

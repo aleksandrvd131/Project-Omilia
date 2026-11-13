@@ -2,10 +2,13 @@
 Модуль классификации жестов:
 - StaticGesture: классификация формы кисти на основе взвешенного k-NN
 - DynamicGestures: сопоставление траекторий жестов через векторизованный DTW
+- Curriculum Levels: формальная структура учебной программы (Уровни 1-4)
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
@@ -19,8 +22,430 @@ COUNT_OF_GESTURES = 8
 COUNT_OF_SAMPLES = 10
 
 
+# ============================================================================
+# Структура учебной программы (Curriculum Levels)
+# ============================================================================
+
+CURRICULUM_LEVELS: dict[int, dict[str, Any]] = {
+    1: {
+        "level": 1,
+        "level_title": "Дактильный алфавит",
+        "title": "Дактильный алфавит",
+        "description": "Буквы дактильного алфавита русского жестового языка (А, Б, В, ...)",
+        "badge": "🔤",
+        "unlock_threshold": 0.0,
+    },
+    2: {
+        "level": 2,
+        "level_title": "Числительные и счёт",
+        "title": "Числительные и счёт",
+        "description": "Базовые числа и счёт на пальцах (1, 2, 3, ...)",
+        "badge": "🔢",
+        "unlock_threshold": 0.7,
+    },
+    3: {
+        "level": 3,
+        "level_title": "Базовый этикет",
+        "title": "Базовый этикет",
+        "description": "Приветствия, формулы вежливости и базовый контакт (Привет, Спасибо, Да, Нет, ...)",
+        "badge": "🤝",
+        "unlock_threshold": 0.7,
+    },
+    4: {
+        "level": 4,
+        "level_title": "Семья и окружение",
+        "title": "Семья и окружение",
+        "description": "Семья, дом, близкие и окружающий мир (Дом, Мама, Папа, Я, Ты, ...)",
+        "badge": "🏡",
+        "unlock_threshold": 0.7,
+    },
+}
+
+
+@dataclass
+class GestureDefinition:
+    """Определение жеста в учебной программе с уровнем сложности."""
+
+    name: str
+    title: str
+    level: int
+    level_title: str
+    category: str = "Общие жесты"
+    description: str = ""
+    tip: str = ""
+    hands_count: int = 1
+    is_dynamic: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "title": self.title,
+            "level": self.level,
+            "level_title": self.level_title,
+            "category": self.category,
+            "description": self.description,
+            "tip": self.tip,
+            "hands_count": self.hands_count,
+            "is_dynamic": self.is_dynamic,
+        }
+
+
+GESTURE_DEFINITIONS: dict[str, GestureDefinition] = {
+    # Level 1: «Дактильный алфавит» (буквы А, Б, В, ...)
+    "а": GestureDefinition(
+        name="а",
+        title="Буква А",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Пальцы сжаты в кулак, большой палец прижат сбоку к указательному.",
+        tip="Кулак направлен ладонью к зрителю, большой палец прижат сбоку.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "б": GestureDefinition(
+        name="б",
+        title="Буква Б",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Четыре пальца прямые вверх, большой палец согнут и прижат к ладони.",
+        tip="Пальцы сомкнуты вместе и направлены строго вверх.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "в": GestureDefinition(
+        name="в",
+        title="Буква В",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Все пять пальцев широко раскрыты и направлены вверх.",
+        tip="Раскройте ладонь максимально широко перед камерой.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "г": GestureDefinition(
+        name="г",
+        title="Буква Г",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный и большой пальцы образуют прямой угол буквой Г.",
+        tip="Держите руку прямо, пальцы образуют угол 90 градусов.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "д": GestureDefinition(
+        name="д",
+        title="Буква Д",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Указательный палец поднят вверх, остальные согнуты в кольцо с большим.",
+        tip="Поднимите указательный палец, зафиксируйте кисть.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "е": GestureDefinition(
+        name="е",
+        title="Буква Е",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Пальцы полусогнуты к ладони в форме гребня буквы Е.",
+        tip="Слегка согните пальцы, ладонь направлена вперёд.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "о": GestureDefinition(
+        name="о",
+        title="Буква О",
+        level=1,
+        level_title="Дактильный алфавит",
+        category="Дактиль (Алфавит)",
+        description="Пальцы образуют кольцо с большим пальцем в форме буквы О.",
+        tip="Соедините кончики пальцев в круг перед камерой.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    # Level 2: «Числительные и счёт» (числа 1, 2, ...)
+    "1": GestureDefinition(
+        name="1",
+        title="Число 1",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Указательный палец поднят вверх, остальные пальцы сжаты в кулак.",
+        tip="Поднимите указательный палец перед камерой, остальные прижаты.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "2": GestureDefinition(
+        name="2",
+        title="Число 2",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Указательный и средний пальцы выпрямлены вверх буквой V.",
+        tip="Выпрямите два пальца (указательный и средний) вверх.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "3": GestureDefinition(
+        name="3",
+        title="Число 3",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Большой, указательный и средний пальцы выпрямлены.",
+        tip="Покажите три пальца, безымянный и мизинец прижаты к ладони.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "4": GestureDefinition(
+        name="4",
+        title="Число 4",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Четыре пальца выпрямлены вверх, большой палец прижат к ладони.",
+        tip="Выпрямите четыре пальца вверх, большой спрятан внутри.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "5": GestureDefinition(
+        name="5",
+        title="Число 5",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Все пять пальцев широко раскрыты ладонью к зрителю.",
+        tip="Раскройте все пять пальцев перед камерой.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "10": GestureDefinition(
+        name="10",
+        title="Число 10",
+        level=2,
+        level_title="Числительные и счёт",
+        category="Числительные",
+        description="Обе ладони раскрыты перед камерой, показывая 10 пальцев.",
+        tip="Покажите обе раскрытые ладони перед камерой.",
+        hands_count=2,
+        is_dynamic=False,
+    ),
+    # Level 3: «Базовый этикет» (Привет, Спасибо, и т.д.)
+    "привет": GestureDefinition(
+        name="привет",
+        title="Привет",
+        level=3,
+        level_title="Базовый этикет",
+        category="Приветствия",
+        description="Раскрытая ладонь направлена вперёд на уровне плеча, пальцы прямые.",
+        tip="Поднимите открытую ладонь на уровень лица или плеча, пальцы смотрят вверх.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "спасибо": GestureDefinition(
+        name="спасибо",
+        title="Спасибо",
+        level=3,
+        level_title="Базовый этикет",
+        category="Вежливость",
+        description="Ладонь направлена к собеседнику или пальцы согнуты у подбородка.",
+        tip="Держите руку на уровне груди, ладонь открыта к камере.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "помоги": GestureDefinition(
+        name="помоги",
+        title="Помоги",
+        level=3,
+        level_title="Базовый этикет",
+        category="Фразы помощи",
+        description="Кисть направлена к собеседнику или раскрытая ладонь обращена вверх на уровне груди.",
+        tip="Держите руку на уровне груди перед камерой, пальцы выпрямлены.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "пожалуйста": GestureDefinition(
+        name="пожалуйста",
+        title="Пожалуйста",
+        level=3,
+        level_title="Базовый этикет",
+        category="Вежливость",
+        description="Открытая ладонь приложена к центру груди с лёгким поклоном.",
+        tip="Приложите ладонь к груди перед камерой.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "да": GestureDefinition(
+        name="да",
+        title="Да",
+        level=3,
+        level_title="Базовый этикет",
+        category="Базовые",
+        description="Кисть сжата в кулак перед собой.",
+        tip="Сожмите пальцы в плотный кулак перед камерой.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "нет": GestureDefinition(
+        name="нет",
+        title="Нет",
+        level=3,
+        level_title="Базовый этикет",
+        category="Базовые",
+        description="Указательный палец поднят вертикально вверх, остальные прижаты (жест '1').",
+        tip="Выпрямите указательный палец вертикально вверх, остальные сожмите.",
+        hands_count=1,
+        is_dynamic=True,
+    ),
+    # Level 4: «Семья и окружение» (Дом, Мама, Папа, и т.д.)
+    "дом": GestureDefinition(
+        name="дом",
+        title="Дом",
+        level=4,
+        level_title="Семья и окружение",
+        category="Общие жесты",
+        description="Обе ладони соприкасаются кончиками пальцев под углом, образуя крышу.",
+        tip="Соедините кончики пальцев обеих рук перед грудью в форме крыши домика.",
+        hands_count=2,
+        is_dynamic=False,
+    ),
+    "мама": GestureDefinition(
+        name="мама",
+        title="Мама",
+        level=4,
+        level_title="Семья и окружение",
+        category="Семья",
+        description="Большой палец открытой ладони касается подбородка или щеки дважды.",
+        tip="Приложите большой палец открытой ладони к подбородку.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "папа": GestureDefinition(
+        name="папа",
+        title="Папа",
+        level=4,
+        level_title="Семья и окружение",
+        category="Семья",
+        description="Большой палец открытой ладони касается лба дважды.",
+        tip="Приложите большой палец к центру лба, ладонь раскрыта.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "семья": GestureDefinition(
+        name="семья",
+        title="Семья",
+        level=4,
+        level_title="Семья и окружение",
+        category="Семья",
+        description="Обе руки образуют круг от центра к себе, смыкаясь пальцами.",
+        tip="Опишите полукруг обеими руками перед грудью, соединяя кончики пальцев.",
+        hands_count=2,
+        is_dynamic=False,
+    ),
+    "я": GestureDefinition(
+        name="я",
+        title="Я",
+        level=4,
+        level_title="Семья и окружение",
+        category="Общие жесты",
+        description="Указательный палец указывает на свою грудь.",
+        tip="Направьте указательный палец на центр груди.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+    "ты": GestureDefinition(
+        name="ты",
+        title="Ты",
+        level=4,
+        level_title="Семья и окружение",
+        category="Общие жесты",
+        description="Указательный палец направлен на собеседника.",
+        tip="Направьте указательный палец вперёд к камере.",
+        hands_count=1,
+        is_dynamic=False,
+    ),
+}
+
+
+def get_curriculum_level(gesture_name: str, category: str = "") -> tuple[int, str]:
+    """Возвращает (level: int, level_title: str) для жеста согласно учебной программе.
+
+    - Level 1: «Дактильный алфавит» (буквы А, Б, В, ...);
+    - Level 2: «Числительные и счёт» (числа 1, 2, ...);
+    - Level 3: «Базовый этикет» (Привет, Спасибо, и т.д.);
+    - Level 4: «Семья и окружение» (Дом, Мама, Папа, и т.д.).
+    """
+    norm = gesture_name.strip().lower()
+    if norm in GESTURE_DEFINITIONS:
+        defn = GESTURE_DEFINITIONS[norm]
+        return defn.level, defn.level_title
+
+    cat_norm = category.strip().lower()
+    if "алфавит" in cat_norm or "дактиль" in cat_norm:
+        return 1, "Дактильный алфавит"
+    if "числительн" in cat_norm or "счёт" in cat_norm or "счет" in cat_norm or "цифр" in cat_norm:
+        return 2, "Числительные и счёт"
+    if "привет" in cat_norm or "вежливост" in cat_norm or "этикет" in cat_norm or "базов" in cat_norm:
+        return 3, "Базовый этикет"
+    if "семь" in cat_norm or "дом" in cat_norm or "окружен" in cat_norm:
+        return 4, "Семья и окружение"
+
+    # Эвристическое сопоставление по имени
+    if len(norm) == 1 and norm.isalpha():
+        if norm in ("я",):
+            return 4, "Семья и окружение"
+        return 1, "Дактильный алфавит"
+    if norm.startswith("буква_") or norm.startswith("буква "):
+        return 1, "Дактильный алфавит"
+    if norm.isdigit() or norm.startswith("число ") or norm in (
+        "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять"
+    ):
+        return 2, "Числительные и счёт"
+    if norm in (
+        "привет", "спасибо", "помоги", "да", "нет", "пожалуйста", "здравствуйте",
+        "до свидания", "прости", "извини", "благодарю"
+    ):
+        return 3, "Базовый этикет"
+    if norm in ("дом", "мама", "папа", "семья", "друг", "ты", "я", "мы", "вы", "они", "брат", "сестра"):
+        return 4, "Семья и окружение"
+
+    return 3, "Базовый этикет"
+
+
+def get_curriculum_info(gesture_name: str, category: str = "") -> dict[str, Any]:
+    """Возвращает метаданные уровня учебной программы: {'level': int, 'level_title': str}."""
+    level, level_title = get_curriculum_level(gesture_name, category)
+    return {
+        "level": level,
+        "level_title": level_title,
+    }
+
+
+def get_curriculum_levels() -> list[dict[str, Any]]:
+    """Возвращает упорядоченный список формальных уровней учебного плана."""
+    return list(CURRICULUM_LEVELS.values())
+
+
+def get_all_curriculum_gestures() -> dict[str, dict[str, Any]]:
+    """Возвращает словарь всех жестов учебной программы с level и level_title."""
+    return {k: v.to_dict() for k, v in GESTURE_DEFINITIONS.items()}
+
+
 class Gesture:
-    pass
+    """Базовый класс жеста с метаданными и помощниками учебной программы."""
+
+    level: int = 1
+    level_title: str = "Дактильный алфавит"
+
+    @staticmethod
+    def get_curriculum_info(gesture_name: str, category: str = "") -> dict[str, Any]:
+        return get_curriculum_info(gesture_name, category)
 
 
 class StaticGesture(Gesture):
