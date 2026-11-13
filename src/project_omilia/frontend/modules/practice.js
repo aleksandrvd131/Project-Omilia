@@ -27,13 +27,27 @@
     }
 
     if (dom.tutorialVideo) {
-      const videoSrc = `/static/videos/${encodeURIComponent(gesture.name.toLowerCase())}.mp4`;
-      dom.tutorialVideo.src = videoSrc;
-      dom.tutorialVideo.style.display = 'block';
-      if (dom.tutorialVideoFallback) dom.tutorialVideoFallback.style.display = 'none';
+      const hasVideo = Boolean(gesture.has_video || gesture.video_url);
+      if (hasVideo) {
+        const videoSrc = gesture.video_url || `/static/videos/${encodeURIComponent(gesture.name.toLowerCase())}.mp4`;
+        dom.tutorialVideo.src = videoSrc;
+        dom.tutorialVideo.style.display = 'block';
+        if (dom.tutorialVideoFallback) dom.tutorialVideoFallback.style.display = 'none';
 
-      dom.tutorialVideo.onerror = () => {
+        dom.tutorialVideo.onerror = () => {
+          dom.tutorialVideo.style.display = 'none';
+          if (dom.tutorialVideoFallback) {
+            dom.tutorialVideoFallback.style.display = 'flex';
+            const caption = document.getElementById('tutorial-demo-caption');
+            if (caption) {
+              caption.textContent = `Схема жеста: ${gesture.title || gesture.name}`;
+            }
+          }
+        };
+        dom.tutorialVideo.play().catch(() => {});
+      } else {
         dom.tutorialVideo.style.display = 'none';
+        dom.tutorialVideo.src = '';
         if (dom.tutorialVideoFallback) {
           dom.tutorialVideoFallback.style.display = 'flex';
           const caption = document.getElementById('tutorial-demo-caption');
@@ -41,9 +55,7 @@
             caption.textContent = `Схема жеста: ${gesture.title || gesture.name}`;
           }
         }
-      };
-
-      dom.tutorialVideo.play().catch(() => {});
+      }
     }
 
     if (dom.tutorialModal) dom.tutorialModal.style.display = 'flex';
