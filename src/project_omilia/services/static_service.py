@@ -17,6 +17,7 @@ from project_omilia.core.config import (
     LEGACY_DATASET_PATH,
 )
 from project_omilia.gestures import StaticGesture
+from project_omilia.ml.augmentation import augment_static_samples
 from project_omilia.services.pose_service import make_pose
 
 
@@ -120,9 +121,12 @@ class StaticGestureServer:
             recording.append((label, hands, vector))
 
             if finished:
-                engine.add_samples(label, [sample for _, _, sample in recording])
+                raw_samples = [sample for _, _, sample in recording]
+                # Физическая аугментация: поворот, масштабирование и микро-шум
+                augmented_samples = augment_static_samples(raw_samples, num_augmented_per_sample=2)
+                engine.add_samples(label, augmented_samples)
                 self._refresh_stats()
-                result = {"status": "saved", "label": label, "count": len(recording)}
+                result = {"status": "saved", "label": label, "count": len(augmented_samples)}
             message = f"Запись: {label}"
         except (ValueError, ArithmeticError, sqlite3.Error) as error:
             print(f"[Статическая запись] {error}")
@@ -237,6 +241,23 @@ class StaticGestureServer:
             res["dataset_info"] = self.get_combined_info()
         return res
 
+    def augment_existing_dataset(self, min_samples_target: int = 25) -> int:
+        """Пополняет существующие эталоны в SQLite аугментированными вариациями."""
+        added_total = 0
+        for engine in (self.engine_1h, self.engine_2h):
+            for name, vectors in list(engine.dataset.items()):
+                if len(vectors) < min_samples_target:
+                    needed = min_samples_target - len(vectors)
+                    num_per = max(1, (needed + len(vectors) - 1) // len(vectors))
+                    augmented = augment_static_samples(vectors, num_augmented_per_sample=num_per)
+                    new_only = augmented[len(vectors) : len(vectors) + needed]
+                    if new_only:
+                        engine.add_samples(name, new_only)
+                        added_total += len(new_only)
+        if added_total > 0:
+            self._refresh_stats()
+        return added_total
+
     def delete_gesture(self, gesture_name: str) -> None:
         db.delete_gesture(self.db_path, gesture_name.strip().lower())
         self.engine_1h.reload()
@@ -249,6 +270,13 @@ class StaticGestureServer:
                 self.engine_1h.reload()
                 self.engine_2h.reload()
                 self._refresh_stats()
+                return {
+                    "detected": False,
+                    "dataset_stats": self.get_combined_stats(),
+                    "dataset_info": self.get_combined_info(),
+                }
+            case "augment_dataset":
+                self.augment_existing_dataset()
                 return {
                     "detected": False,
                     "dataset_stats": self.get_combined_stats(),

@@ -27,8 +27,8 @@ def make_pose(hands_data: list[Any], pose_landmarks: list[Any] | None) -> Pose |
         # Базовый скелет, если тело не попало в кадр целиком
         body = [SimpleNamespace(x=0.5, y=0.5, z=0.0) for _ in range(33)]
         body[0] = SimpleNamespace(x=0.5, y=0.25, z=0.0)
-        body[11] = SimpleNamespace(x=0.4, y=0.45, z=0.0)
-        body[12] = SimpleNamespace(x=0.6, y=0.45, z=0.0)
+        body[11] = SimpleNamespace(x=0.325, y=0.45, z=0.0)
+        body[12] = SimpleNamespace(x=0.675, y=0.45, z=0.0)
         # В Pose: body[15] - правое запястье, body[16] - левое запястье
         body[15] = SimpleNamespace(x=hands[0][0].x, y=hands[0][0].y, z=hands[0][0].z)
         if len(hands) > 1:

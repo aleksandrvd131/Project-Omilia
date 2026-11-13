@@ -7,6 +7,8 @@ from project_omilia.math import p_dist, scalar_to_vec, vec_norm_angle, vec_norma
 
 POINTS_IN_HAND: int = 21
 POINTS_IN_BODY: int = 33
+HAND_REF_SCALE: float = 0.25
+TORSO_REF_SCALE: float = 0.35
 
 
 class Hand:
@@ -32,6 +34,7 @@ class Hand:
         self.data = data
         wrist = data[0]
         self.palm_scale = p_dist(wrist, data[9])
+        scale_norm = max(1e-4, self.palm_scale) / HAND_REF_SCALE
         v1 = data[5] - wrist
         v2 = data[17] - wrist
         if self.is_right:
@@ -40,11 +43,11 @@ class Hand:
             self.normal = np.cross(v2, v1)
         self.normal = vec_normalize(self.normal)
         self.fingers = [[] for _ in range(5)]
-        # Vectors between each phalanga in every finger
+        # Vectors between each phalanga in every finger (normalized to reference hand scale)
         for i in range(1, 20, 4):
-            self.fingers[(i - 1) // 4].append(data[i] - wrist)
+            self.fingers[(i - 1) // 4].append((data[i] - wrist) / scale_norm)
             for j in range(3):
-                self.fingers[(i - 1) // 4].append(data[i + j + 1] - data[i + j])
+                self.fingers[(i - 1) // 4].append((data[i + j + 1] - data[i + j]) / scale_norm)
 
     def get_shape_features(self) -> list:
         """
@@ -97,6 +100,9 @@ class Pose:
     left_wrist: np.ndarray
     left_to_nose: np.ndarray
     right_to_nose: np.ndarray
+    right_to_chest: np.ndarray
+    left_to_chest: np.ndarray
+    chest_center: np.ndarray
     left_hand: Hand | None
     right_hand: Hand
 
@@ -107,13 +113,19 @@ class Pose:
             self.nose = np.array((data[0].x, data[0].y, data[0].z))
             self.right_wrist = np.array((data[15].x, data[15].y, data[15].z))
             self.left_wrist = np.array((data[16].x, data[16].y, data[16].z))
-            # Vector from each hand to nose
-            self.right_to_nose = self.right_wrist - self.nose
-            self.left_to_nose = self.left_wrist - self.nose
-            # Vector from each hand to chest center
-            chest_center = np.array((data[11].x + data[12].x, data[11].y + data[12].y, data[11].z + data[12].z)) / 2
-            self.right_to_chest = self.right_wrist - chest_center
-            self.left_to_chest = self.left_wrist - chest_center
+            left_shoulder = np.array((data[11].x, data[11].y, data[11].z))
+            right_shoulder = np.array((data[12].x, data[12].y, data[12].z))
+            chest_center = (left_shoulder + right_shoulder) / 2
+            self.chest_center = chest_center
+            torso_scale = p_dist(left_shoulder, right_shoulder)
+            torso_norm = max(1e-4, torso_scale) / TORSO_REF_SCALE
+
+            # Vector from each hand to nose, normalized by torso scale
+            self.right_to_nose = (self.right_wrist - self.nose) / torso_norm
+            self.left_to_nose = (self.left_wrist - self.nose) / torso_norm
+            # Vector from each hand to chest center, normalized by torso scale
+            self.right_to_chest = (self.right_wrist - chest_center) / torso_norm
+            self.left_to_chest = (self.left_wrist - chest_center) / torso_norm
 
         # Distance from right hand wrist to hands' wrist
         def is_right_hand(hand_data) -> bool:

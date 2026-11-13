@@ -17,6 +17,8 @@
   'use strict';
 
   const EPS = 1e-8;
+  const HAND_REF_SCALE = 0.25;
+  const TORSO_REF_SCALE = 0.35;
 
   // --- Векторные математические операции ---
   const Vec = {
@@ -74,6 +76,7 @@
 
       // Масштаб ладони: расстояние между запястьем и основанием среднего пальца (точка 9)
       this.palmScale = Math.max(EPS, Vec.dist(wrist, this.data[9]));
+      const scaleNorm = Math.max(1e-4, this.palmScale) / HAND_REF_SCALE;
 
       // Нормаль к плоскости ладони
       const v1 = Vec.sub(this.data[5], wrist);
@@ -81,13 +84,13 @@
       const crossVec = isRight ? Vec.cross(v1, v2) : Vec.cross(v2, v1);
       this.normal = Vec.normalize(crossVec);
 
-      // Векторы фаланг для каждого из 5 пальцев
+      // Векторы фаланг для каждого из 5 пальцев (нормализованные к эталонному масштабу кисти)
       this.fingers = [[], [], [], [], []];
       for (let i = 1; i < 20; i += 4) {
         const fingerIdx = (i - 1) / 4;
-        this.fingers[fingerIdx].push(Vec.sub(this.data[i], wrist));
+        this.fingers[fingerIdx].push(Vec.scale(Vec.sub(this.data[i], wrist), 1.0 / scaleNorm));
         for (let j = 0; j < 3; j++) {
-          this.fingers[fingerIdx].push(Vec.sub(this.data[i + j + 1], this.data[i + j]));
+          this.fingers[fingerIdx].push(Vec.scale(Vec.sub(this.data[i + j + 1], this.data[i + j]), 1.0 / scaleNorm));
         }
       }
     }
@@ -155,6 +158,7 @@
       let rightWrist = [0, 0, 0];
       let leftWrist = [0, 0, 0];
       let chestCenter = [0, 0, 0];
+      let torsoNorm = 1.0;
 
       if (poseLandmarks && poseLandmarks.length >= 17) {
         nose = [poseLandmarks[0].x, poseLandmarks[0].y, poseLandmarks[0].z || 0];
@@ -167,6 +171,10 @@
             (poseLandmarks[11].y + poseLandmarks[12].y) / 2,
             ((poseLandmarks[11].z || 0) + (poseLandmarks[12].z || 0)) / 2,
           ];
+          const leftShoulder = [poseLandmarks[11].x, poseLandmarks[11].y, poseLandmarks[11].z || 0];
+          const rightShoulder = [poseLandmarks[12].x, poseLandmarks[12].y, poseLandmarks[12].z || 0];
+          const torsoScale = Vec.dist(leftShoulder, rightShoulder);
+          torsoNorm = Math.max(1e-4, torsoScale) / TORSO_REF_SCALE;
         }
       } else {
         // Оценка центров по кисти при отсутствии скелета тела (соответствует pose_service.py)
@@ -175,6 +183,7 @@
         rightWrist = [h0.x, h0.y, h0.z || 0];
         leftWrist = handsData.length > 1 ? [handsData[1][0].x, handsData[1][0].y, handsData[1][0].z || 0] : [-1.0, -1.0, 0];
         chestCenter = [0.5, 0.45, 0];
+        torsoNorm = 1.0;
       }
 
       const isRightHand = (handPts) => {
@@ -197,9 +206,9 @@
         const handObj = new HandFeatureProcessor(handPts, true);
         const vectors = handObj.get1DArray();
 
-        // Векторы смещения относительно носа и груди
-        const rightToNose = Vec.sub(rightWrist, nose);
-        const rightToChest = Vec.sub(rightWrist, chestCenter);
+        // Векторы смещения относительно носа и груди, нормализованные по масштабу торса
+        const rightToNose = Vec.scale(Vec.sub(rightWrist, nose), 1.0 / torsoNorm);
+        const rightToChest = Vec.scale(Vec.sub(rightWrist, chestCenter), 1.0 / torsoNorm);
         vectors.push(rightToNose);
         vectors.push(rightToChest);
 
@@ -233,10 +242,10 @@
         for (const v of rightHandObj.get1DArray()) vectors.push(v);
         for (const v of leftHandObj.get1DArray()) vectors.push(v);
 
-        vectors.push(Vec.sub(rightWrist, nose));
-        vectors.push(Vec.sub(rightWrist, chestCenter));
-        vectors.push(Vec.sub(leftWrist, nose));
-        vectors.push(Vec.sub(leftWrist, chestCenter));
+        vectors.push(Vec.scale(Vec.sub(rightWrist, nose), 1.0 / torsoNorm));
+        vectors.push(Vec.scale(Vec.sub(rightWrist, chestCenter), 1.0 / torsoNorm));
+        vectors.push(Vec.scale(Vec.sub(leftWrist, nose), 1.0 / torsoNorm));
+        vectors.push(Vec.scale(Vec.sub(leftWrist, chestCenter), 1.0 / torsoNorm));
 
         const flat = new Float32Array(vectors.length * 3);
         let ptr = 0;
