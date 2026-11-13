@@ -141,32 +141,9 @@ class StaticGesture(Gesture):
         except (ValueError, KeyError, IndexError, TypeError):
             return -255, 0.0, "", 0.0
 
-
 def dtw_distance(attempt: np.ndarray, reference: np.ndarray) -> float:
-    """Оптимизированное вычисление Dynamic Time Warping (DTW) через векторизованный BLAS-бродкастинг."""
-    n, m = len(attempt), len(reference)
-    if n == 0 or m == 0:
-        return float("inf")
-
-    # Векторизованный расчёт матрицы попарных стоимостей кадров через broadcasting (SIMD)
-    diff = attempt[:, None, :] - reference[None, :, :]
-    cost_matrix = np.sum(diff * diff, axis=-1)
-
-    accumulated = np.full((n + 1, m + 1), np.inf)
-    accumulated[0, 0] = 0.0
-
-    for i in range(1, n + 1):
-        cost_row = cost_matrix[i - 1]
-        prev_row = accumulated[i - 1]
-        curr_row = accumulated[i]
-        for j in range(1, m + 1):
-            curr_row[j] = cost_row[j - 1] + min(
-                prev_row[j],
-                curr_row[j - 1],
-                prev_row[j - 1],
-            )
-
-    return float(np.sqrt(accumulated[n, m]))
+    """Вычисляет расстояние DTW между последовательностями через tslearn."""
+    return float(dtw(attempt, reference))
 
 
 class DynamicGestures:
