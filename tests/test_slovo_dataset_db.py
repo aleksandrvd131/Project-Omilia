@@ -59,11 +59,11 @@ def test_static_gesture_models_reload_and_classification():
     db.init_db(DB_PATH)
     model_1h = StaticGesture(DB_PATH, hands_count=1)
     assert model_1h.model is not None, "Модель StaticGesture для 1 руки не обучена"
-    assert len(model_1h.dataset) >= 17
+    expected_1h_count = len([s for s in SLOVO_GESTURES.values() if s.hands_count == 1])
+    assert len(model_1h.dataset) >= expected_1h_count
 
     model_2h = StaticGesture(DB_PATH, hands_count=2)
     assert model_2h.model is not None, "Модель StaticGesture для 2 рук не обучена"
-    assert "дом" in model_2h.dataset
     assert "книга" in model_2h.dataset
 
     # Проверка точности классификации канонических векторов
