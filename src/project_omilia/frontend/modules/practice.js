@@ -137,10 +137,8 @@
     if (dom.practiceHoldFill) dom.practiceHoldFill.style.width = '0%';
     if (dom.practiceSuccessOverlay) dom.practiceSuccessOverlay.style.display = 'none';
 
-    // Для статических жестов загружаем анатомический силуэт-призрак (для динамических — никогда)
-    if (!isDynamic) {
-      fetchGhostSilhouette(gesture.name, state);
-    }
+    // Призрачный показ жестов отключен (мешает обзору и путает)
+    state.practice.ghostSilhouette = null;
 
     if (dom.practiceModal) dom.practiceModal.style.display = 'flex';
     if (onStartCamera) onStartCamera('practice');

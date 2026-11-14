@@ -300,12 +300,11 @@ test('Practice module: fetchGhostSilhouette and openPracticeModal exclude dynami
     Practice.openPracticeModal({ name: 'нет', is_dynamic: true, dynamic_hands_count: 1 }, stateDynamic, dom);
     assert.equal(stateDynamic.practice.ghostSilhouette, null);
 
-    // 4. openPracticeModal загружает силуэт для статического жеста
+    // 4. openPracticeModal оставляет ghostSilhouette = null (призрачный показ отключен, чтобы не путать пользователя)
     const stateStatic = { practice: {} };
     Practice.openPracticeModal({ name: 'мир', is_dynamic: false }, stateStatic, dom);
     await new Promise((r) => setTimeout(r, 20));
-    assert.ok(stateStatic.practice.ghostSilhouette);
-    assert.equal(stateStatic.practice.ghostSilhouette[0].length, 21);
+    assert.equal(stateStatic.practice.ghostSilhouette, null);
 
     // 5. closePracticeModal очищает ghostSilhouette
     Practice.closePracticeModal(stateStatic, dom, () => {});
