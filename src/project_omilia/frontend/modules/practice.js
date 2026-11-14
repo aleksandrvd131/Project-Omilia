@@ -137,6 +137,27 @@
     if (dom.practiceHoldFill) dom.practiceHoldFill.style.width = '0%';
     if (dom.practiceSuccessOverlay) dom.practiceSuccessOverlay.style.display = 'none';
 
+    // Шпаргалка по технике жеста прямо в модальном окне камеры (US-3)
+    if (dom.practiceCheatsheetDesc) {
+      dom.practiceCheatsheetDesc.textContent = gesture.description || 'Внимательно повторяйте форму кисти и положение пальцев.';
+    }
+    if (dom.practiceCheatsheetTip) {
+      if (gesture.tip) {
+        dom.practiceCheatsheetTip.style.display = 'block';
+        dom.practiceCheatsheetTip.textContent = `💡 Подсказка: ${gesture.tip}`;
+      } else {
+        dom.practiceCheatsheetTip.style.display = 'none';
+      }
+    }
+    if (dom.practiceCheatsheetContent) {
+      dom.practiceCheatsheetContent.style.display = 'none';
+    }
+    if (dom.btnPracticeCheatsheetToggle) {
+      dom.btnPracticeCheatsheetToggle.setAttribute('aria-expanded', 'false');
+      const arrow = dom.practiceCheatsheetArrow || dom.btnPracticeCheatsheetToggle.querySelector('.cheatsheet-arrow');
+      if (arrow) arrow.textContent = '▾';
+    }
+
     // Призрачный показ жестов отключен (мешает обзору и путает)
     state.practice.ghostSilhouette = null;
 
@@ -226,11 +247,26 @@
     }
   }
 
+  function toggleCheatsheet(dom, forceState) {
+    if (!dom.practiceCheatsheetContent) return false;
+    const isCurrentlyHidden = dom.practiceCheatsheetContent.style.display === 'none';
+    const nextOpen = forceState !== undefined ? Boolean(forceState) : isCurrentlyHidden;
+
+    dom.practiceCheatsheetContent.style.display = nextOpen ? 'block' : 'none';
+    if (dom.btnPracticeCheatsheetToggle) {
+      dom.btnPracticeCheatsheetToggle.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+      const arrow = dom.practiceCheatsheetArrow || dom.btnPracticeCheatsheetToggle.querySelector('.cheatsheet-arrow');
+      if (arrow) arrow.textContent = nextOpen ? '▴' : '▾';
+    }
+    return nextOpen;
+  }
+
   return {
     openTutorialModal,
     closeTutorialModal,
     openPracticeModal,
     closePracticeModal,
+    toggleCheatsheet,
     onGestureSuccessfullyLearned,
     handlePracticePrediction,
     fetchGhostSilhouette,

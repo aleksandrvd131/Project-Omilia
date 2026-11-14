@@ -67,8 +67,10 @@
         </ul>
       </nav>
 
-      <!-- Блок серии и пользователя в шапке -->
+      <!-- Блок серии, разминки, обучения и пользователя в шапке -->
       <div class="header-user-group">
+        <button class="btn-guide-header" id="btn-header-guide" title="Инструкция: как пользоваться тренажёром">💡 Обучение</button>
+        <button class="btn-warmup-header" id="btn-header-warmup" title="Ежедневная разминка по методике SM-2">🎯 Разминка</button>
         <div class="streak-badge" id="header-streak-badge" title="Дни практики подряд">🔥 <span id="streak-days-count">0</span> дн.</div>
         <div class="user-actions" id="header-user-area">
           <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
@@ -93,6 +95,8 @@
         </p>
         <div class="hero-buttons">
           <button class="btn-hero-primary" id="btn-hero-start">Начать обучение →</button>
+          <button class="btn-hero-warmup" id="btn-hero-warmup">🎯 Ежедневная разминка</button>
+          <button class="btn-hero-guide" id="btn-hero-guide">💡 Как тренироваться</button>
           <button class="btn-hero-secondary" id="btn-hero-lk">Личный кабинет</button>
         </div>
       </div>
@@ -173,6 +177,23 @@
         <div id="catalog-learned-counter" class="badge-learned" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
           Выучено: 0 из 0
         </div>
+      </div>
+
+      <!-- Баннер ежедневной разминки (SM-2 SRS) -->
+      <div class="warmup-banner-card" id="catalog-warmup-card">
+        <div class="warmup-banner-content">
+          <div class="warmup-banner-icon">🎯</div>
+          <div>
+            <div class="warmup-banner-tag">Интервальное повторение SM-2</div>
+            <h3 class="warmup-banner-title">Ежедневная разминка жестов</h3>
+            <p class="warmup-banner-desc" id="catalog-warmup-desc">
+              Повторите жесты перед камерой для закрепления долговременной мышечной памяти и поддержания серии.
+            </p>
+          </div>
+        </div>
+        <button type="button" class="btn-hero-primary btn-start-warmup" id="btn-catalog-warmup">
+          Начать разминку 🎯
+        </button>
       </div>
 
       <!-- Поиск и фильтры по категориям -->
@@ -378,6 +399,24 @@
             <div class="stat-number" id="stat-streak-count">0 🔥</div>
             <div class="stat-label">Серия дней</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-xp-count">0 ⚡</div>
+            <div class="stat-label">Очки опыта (XP)</div>
+          </div>
+        </div>
+
+        <!-- Шкала ранга и опыта (XP) (US-6) -->
+        <div class="card" id="profile-xp-card">
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <h3 class="card-title" style="margin-bottom: 0;">Шкала ранга и опыта (XP)</h3>
+            <span id="profile-xp-text" style="font-weight: 700; color: var(--accent);">0 / 100 XP (0%)</span>
+          </div>
+          <div class="progress-bar-container">
+            <div id="profile-xp-bar" class="progress-bar-fill xp-fill" style="width: 0%;"></div>
+          </div>
+          <p id="profile-xp-summary" style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 0;">
+            До ранга «Ученик РЖЯ 📚» осталось 100 XP
+          </p>
         </div>
 
         <!-- Прогресс изучения -->
@@ -564,8 +603,20 @@
           <h3 style="font-size: 1.6rem; font-weight: 800;">Отлично! Жест усвоен!</h3>
           <p id="practice-success-msg">Нейросеть подтвердила правильность. Прогресс сохранён в ЛК.</p>
           <button class="btn-hero-primary" id="btn-practice-done" style="background: #ffffff; color: var(--primary-hover); margin-top: 0.5rem; font-weight: 700;">
-            Продолжить обучение
+            Продолжить обучение [Пробел / Enter]
           </button>
+        </div>
+      </div>
+
+      <!-- Шпаргалка по технике жеста прямо в окне камеры (US-3) -->
+      <div class="practice-cheatsheet-wrapper" id="practice-cheatsheet-wrapper">
+        <button type="button" class="btn-cheatsheet-toggle" id="btn-practice-cheatsheet-toggle" aria-expanded="false" title="Шпаргалка по технике выполнения">
+          <span class="cheatsheet-title">📋 Шпаргалка по технике жеста</span>
+          <span class="cheatsheet-arrow" id="practice-cheatsheet-arrow">▾</span>
+        </button>
+        <div class="practice-cheatsheet-content" id="practice-cheatsheet-content" style="display: none;">
+          <p class="cheatsheet-desc" id="practice-cheatsheet-desc"></p>
+          <div class="cheatsheet-tip" id="practice-cheatsheet-tip" style="display: none;"></div>
         </div>
       </div>
 
@@ -574,10 +625,196 @@
           Покажите жест на камеру и удерживайте 1.5 секунды
         </p>
         <button type="button" class="btn-hero-primary" id="btn-dynamic-practice" hidden>
-          Начать попытку
+          Начать попытку [Пробел]
         </button>
         <button class="btn-hero-secondary" id="btn-practice-cancel">
-          Завершить
+          Завершить [Esc]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- Модальное окно 3: Ежедневная разминка (SM-2 SRS, US-1)-->
+  <!-- ==================================================== -->
+  <div id="warmup-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 720px;">
+      <div class="modal-header">
+        <div>
+          <span id="warmup-progress-step" style="font-size: 0.75rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
+            Жест 1 из 3
+          </span>
+          <h3 id="warmup-target-title" class="card-title" style="margin-bottom: 0;">Жест: «Привет»</h3>
+        </div>
+        <button class="btn-close" id="btn-close-warmup-modal" title="Закрыть">&times;</button>
+      </div>
+
+      <div id="warmup-active-card">
+        <!-- Камера разминки -->
+        <div class="camera-container mirrored">
+          <video id="warmup-video" class="camera-video" playsinline></video>
+          <canvas id="warmup-canvas" class="camera-canvas"></canvas>
+
+          <div class="camera-hud">
+            <div class="hud-top-bar">
+              <span class="hud-label">ИИ Распознал:</span>
+              <div class="hud-actions">
+                <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
+                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение [M]">🪞</button>
+                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
+              </div>
+            </div>
+            <span class="hud-gesture" id="warmup-hud-gesture">—</span>
+            <span class="hud-score" id="warmup-hud-score">Точность: —</span>
+            <div id="warmup-diagnostic-hint" class="diagnostic-hint" style="display: none;">
+              <span class="diagnostic-hint-icon">💡</span>
+              <span class="diagnostic-hint-text"></span>
+            </div>
+          </div>
+
+          <!-- Плавающая кнопка смены камеры для мобильных устройств -->
+          <button type="button" class="btn-floating-camera-switch btn-switch-camera" title="Переключить камеру">🔄</button>
+
+          <div class="hold-meter">
+            <div id="warmup-hold-fill" class="hold-meter-fill"></div>
+          </div>
+
+          <div id="warmup-question-success" class="success-overlay" style="display: none;">
+            <div style="font-size: 3.5rem;">🎉</div>
+            <h3 style="font-size: 1.6rem; font-weight: 800;">Отлично! Жест повторён!</h3>
+            <p>Интервал SM-2 обновлён. Переходим к следующему...</p>
+          </div>
+        </div>
+
+        <!-- Шпаргалка разминки -->
+        <div class="practice-cheatsheet-wrapper">
+          <button type="button" class="btn-cheatsheet-toggle" id="btn-warmup-cheatsheet-toggle" aria-expanded="false" title="Шпаргалка">
+            <span class="cheatsheet-title">📋 Шпаргалка по технике жеста</span>
+            <span class="cheatsheet-arrow" id="warmup-cheatsheet-arrow">▾</span>
+          </button>
+          <div class="practice-cheatsheet-content" id="warmup-cheatsheet-content" style="display: none;">
+            <p class="cheatsheet-desc" id="warmup-cheatsheet-desc"></p>
+            <div class="cheatsheet-tip" id="warmup-cheatsheet-tip" style="display: none;"></div>
+          </div>
+        </div>
+
+        <div style="padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <p id="warmup-target-tip" role="status" style="font-size: 0.9rem; color: var(--text-muted); margin: 0; flex: 1;">
+            Покажите жест на камеру и удерживайте 1.5 секунды
+          </p>
+          <button class="btn-hero-secondary" id="btn-abort-warmup">
+            Завершить [Esc]
+          </button>
+        </div>
+      </div>
+
+      <!-- Экран финиша разминки -->
+      <div id="warmup-finish-overlay" class="warmup-finish-box" style="display: none;">
+        <div style="font-size: 4rem; margin-bottom: 0.5rem;">🏆</div>
+        <h2 class="card-title" style="font-size: 1.8rem; margin-bottom: 0.5rem;">Разминка успешно завершена!</h2>
+        <div class="warmup-finish-streak-badge">
+          Серия практики: <span id="warmup-finish-streak-count" style="font-weight: 800;">1 🔥</span> дн.
+        </div>
+        <p id="warmup-finish-desc" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+          Все запланированные жесты повторены! Мышечная память укреплена, +50 XP добавлено в профиль.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+          <button class="btn-hero-primary" id="btn-warmup-done">
+            Отлично [Enter / Пробел]
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- Модальное окно 4: Онбординг «Как тренироваться» (US-2)-->
+  <!-- ==================================================== -->
+  <div id="onboarding-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 620px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.3rem;">💡</span>
+          <div>
+            <h3 class="card-title" style="margin-bottom: 0;">Как пользоваться тренажёром</h3>
+            <span id="onboarding-step-counter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Шаг 1 из 3</span>
+          </div>
+        </div>
+        <button class="btn-close" id="btn-close-onboarding" title="Закрыть">&times;</button>
+      </div>
+
+      <div class="onboarding-body" style="padding: 1.5rem;">
+        <!-- Шаг 1: Положение перед камерой -->
+        <div class="onboarding-step" id="onboarding-step-1">
+          <div class="onboarding-step-icon">📏 📷</div>
+          <h4 class="onboarding-step-title">1. Подготовка и положение перед камерой</h4>
+          <p class="onboarding-step-text">
+            Сядьте или встаньте прямо на комфортном расстоянии <strong>40–70 см</strong> от веб-камеры.
+          </p>
+          <ul class="onboarding-list">
+            <li><strong>Освещение:</strong> источник света должен быть перед вами, а не позади вас (не сидите спиной к окну).</li>
+            <li><strong>Обзор рук:</strong> держите кисти на уровне груди или лица, чтобы все 21 точка пальцев были в кадре.</li>
+            <li><strong>Зеркало:</strong> камера по умолчанию зеркальная (как в зеркале), переключить можно клавишей <strong>M</strong>.</li>
+          </ul>
+        </div>
+
+        <!-- Шаг 2: Цветовая биометрическая индикация -->
+        <div class="onboarding-step" id="onboarding-step-2" style="display: none;">
+          <div class="onboarding-step-icon">🌈 🖐️</div>
+          <h4 class="onboarding-step-title">2. Что означают цвета линий скелета</h4>
+          <p class="onboarding-step-text">
+            Интеллектуальная биометрическая система мгновенно подсвечивает положение ваших пальцев:
+          </p>
+          <div class="onboarding-palette">
+            <div class="palette-item">
+              <span class="palette-dot dot-blue"></span>
+              <div>
+                <strong>Голубой скелет:</strong> рука обнаружена и стабильно отслеживается нейросетью.
+              </div>
+            </div>
+            <div class="palette-item">
+              <span class="palette-dot dot-amber"></span>
+              <div>
+                <strong>Янтарный палец:</strong> подсказка ИИ — этот палец согнут или распрямлён неточно. Обратите внимание на совет 💡.
+              </div>
+            </div>
+            <div class="palette-item">
+              <span class="palette-dot dot-green"></span>
+              <div>
+                <strong>Изумрудная вспышка:</strong> точное совпадение позы жеста с эталоном РЖЯ!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 3: Таймер удержания 1.5 секунды -->
+        <div class="onboarding-step" id="onboarding-step-3" style="display: none;">
+          <div class="onboarding-step-icon">⏱️ 🧠</div>
+          <h4 class="onboarding-step-title">3. Таймер удержания 1.5 секунды</h4>
+          <p class="onboarding-step-text">
+            Чтобы жест считался усвоенным, зафиксируйте правильную форму кисти <strong>1.5 секунды</strong>:
+          </p>
+          <ul class="onboarding-list">
+            <li><strong>Шкала удержания:</strong> внизу экрана заполняется зелёный индикатор удержания.</li>
+            <li><strong>Мышечная память:</strong> короткая фиксация помогает моторным зонам мозга сформировать устойчивый навык.</li>
+            <li><strong>Нулевая задержка:</strong> искусственный интеллект работает локально прямо в браузере (0 мс задержки).</li>
+          </ul>
+        </div>
+
+        <!-- Stepper Dots -->
+        <div class="onboarding-dots" id="onboarding-dots">
+          <span class="onboarding-dot active" data-step="1"></span>
+          <span class="onboarding-dot" data-step="2"></span>
+          <span class="onboarding-dot" data-step="3"></span>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn-hero-secondary" id="btn-onboarding-prev" style="visibility: hidden;">
+          ← Назад
+        </button>
+        <button type="button" class="btn-hero-primary" id="btn-onboarding-next">
+          Далее → [Пробел]
         </button>
       </div>
     </div>
@@ -605,6 +842,7 @@
   <script src="/static/modules/camera.js"></script>
   <script src="/static/modules/practice.js"></script>
   <script src="/static/modules/blitz.js"></script>
+  <script src="/static/modules/warmup.js"></script>
   <script src="/static/app.js"></script>
 
   <!-- Регистрация Service Worker (PWA) -->

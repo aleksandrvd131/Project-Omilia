@@ -253,15 +253,85 @@
     });
   }
 
+  function calculateUserXP(state) {
+    const user = state?.currentUser;
+    const learned = user?.learned_gestures || [];
+    const streak = getStreakValue(state);
+    let extraXp = 0;
+    try {
+      extraXp = parseInt(safeLocalStorageGet('omilia_extra_xp') || '0', 10) || 0;
+    } catch {
+      extraXp = 0;
+    }
+
+    const currentXp = (learned.length * 25) + (streak * 50) + extraXp;
+
+    let rank = 'Новичок РЖЯ 🌱';
+    let nextRank = 'Ученик РЖЯ 📚';
+    let minXp = 0;
+    let maxXp = 100;
+    let isMaxRank = false;
+
+    if (currentXp >= 700) {
+      rank = 'Мастер РЖЯ 🌟';
+      nextRank = null;
+      minXp = 700;
+      maxXp = 700;
+      isMaxRank = true;
+    } else if (currentXp >= 300) {
+      rank = 'Знаток РЖЯ 🚀';
+      nextRank = 'Мастер РЖЯ 🌟';
+      minXp = 300;
+      maxXp = 700;
+    } else if (currentXp >= 100) {
+      rank = 'Ученик РЖЯ 📚';
+      nextRank = 'Знаток РЖЯ 🚀';
+      minXp = 100;
+      maxXp = 300;
+    }
+
+    const progressPct = isMaxRank
+      ? 100
+      : Math.min(100, Math.max(0, Math.round(((currentXp - minXp) / (maxXp - minXp)) * 100)));
+    const xpNeeded = isMaxRank ? 0 : Math.max(0, maxXp - currentXp);
+
+    return {
+      currentXp,
+      rank,
+      nextRank,
+      minXp,
+      maxXp,
+      progressPct,
+      xpNeeded,
+      isMaxRank,
+    };
+  }
+
+  function addExtraXP(amount) {
+    if (!amount || amount <= 0) return 0;
+    try {
+      const current = parseInt(safeLocalStorageGet('omilia_extra_xp') || '0', 10) || 0;
+      const updated = current + amount;
+      if (typeof window !== 'undefined' && typeof process === 'undefined' && window.localStorage) {
+        window.localStorage.setItem('omilia_extra_xp', String(updated));
+      }
+      return updated;
+    } catch {
+      return 0;
+    }
+  }
+
   function updateUserHeader(state, dom, onOpenProfile) {
     const doc = typeof document !== 'undefined' ? document : null;
     const headerUserArea = dom?.headerUserArea || (doc ? doc.getElementById('header-user-area') : null);
     if (headerUserArea) {
       if (state.currentUser) {
+        const xpInfo = calculateUserXP(state);
         headerUserArea.innerHTML = `
           <div class="user-badge" id="btn-header-profile" title="Перейти в личный кабинет">
             <span>👤</span>
             <span>${escapeHtml(state.currentUser.username)}</span>
+            <span class="header-xp-pill" title="Очки опыта (XP)">⚡ ${xpInfo.currentXp} XP</span>
           </div>
         `;
         if (doc) {
@@ -330,16 +400,32 @@
         statStreakEl.textContent = `${streak} 🔥`;
       }
 
+      const xpInfo = calculateUserXP(state);
+
       if (dom.profileRankBadge) {
-        let rankTitle = 'Новичок РЖЯ';
-        if (learned.length >= 8) {
-          rankTitle = 'Мастер жестового языка 🌟';
-        } else if (learned.length >= 4) {
-          rankTitle = 'Знаток РЖЯ 🚀';
-        } else if (learned.length >= 1) {
-          rankTitle = 'Ученик РЖЯ 📚';
-        }
-        dom.profileRankBadge.textContent = rankTitle;
+        dom.profileRankBadge.textContent = xpInfo.rank;
+      }
+
+      const statXpEl = dom.statXpCount || (doc ? doc.getElementById('stat-xp-count') : null);
+      if (statXpEl) {
+        statXpEl.textContent = `${xpInfo.currentXp} ⚡`;
+      }
+
+      const profileXpBar = dom.profileXpBar || (doc ? doc.getElementById('profile-xp-bar') : null);
+      if (profileXpBar) {
+        profileXpBar.style.width = `${xpInfo.progressPct}%`;
+      }
+
+      const profileXpText = dom.profileXpText || (doc ? doc.getElementById('profile-xp-text') : null);
+      if (profileXpText) {
+        profileXpText.textContent = `${xpInfo.currentXp} / ${xpInfo.isMaxRank ? '∞' : xpInfo.maxXp} XP (${xpInfo.progressPct}%)`;
+      }
+
+      const profileXpSummary = dom.profileXpSummary || (doc ? doc.getElementById('profile-xp-summary') : null);
+      if (profileXpSummary) {
+        profileXpSummary.textContent = xpInfo.isMaxRank
+          ? 'Вы достигли наивысшего ранга «Мастер РЖЯ 🌟»!'
+          : `До ранга «${xpInfo.nextRank}» осталось ${xpInfo.xpNeeded} XP`;
       }
 
       if (dom.profileProgressBar) dom.profileProgressBar.style.width = `${percent}%`;
@@ -394,5 +480,7 @@
     computeAchievements,
     renderAchievements,
     getStreakValue,
+    calculateUserXP,
+    addExtraXP,
   };
 });

@@ -38,11 +38,24 @@
       isActive: false,
     },
 
+    // Состояние ежедневной разминки (SM-2 SRS, US-1)
+    warmup: {
+      isActive: false,
+      gestures: [],
+      currentIndex: 0,
+      holdProgress: 0,
+      holdTarget: 1.5,
+      lastTimestamp: null,
+      advanceTimer: null,
+      isFinished: false,
+      streak: 0,
+    },
+
     dynamicAttempt: null,
 
     // Камера и распознавание
     camera: null,
-    cameraTarget: null, // 'practice' или 'blitz'
+    cameraTarget: null, // 'practice', 'blitz' или 'warmup'
     facingMode: 'user', // 'user' или 'environment'
     currentProblemFingers: [],
     isMatchingGesture: false,
@@ -62,9 +75,13 @@
     tabContents: document.querySelectorAll('.tab-content'),
     headerUserArea: document.getElementById('header-user-area'),
     btnHeaderLogin: document.getElementById('btn-header-login'),
+    btnHeaderWarmup: document.getElementById('btn-header-warmup'),
+    btnHeaderGuide: document.getElementById('btn-header-guide'),
 
     // Главная
     btnHeroStart: document.getElementById('btn-hero-start'),
+    btnHeroWarmup: document.getElementById('btn-hero-warmup'),
+    btnHeroGuide: document.getElementById('btn-hero-guide'),
     btnHeroLk: document.getElementById('btn-hero-lk'),
     contactForm: document.getElementById('contact-form'),
     contactSuccess: document.getElementById('contact-success'),
@@ -72,6 +89,8 @@
     // Каталог
     gesturesGrid: document.getElementById('gestures-grid'),
     catalogLearnedCounter: document.getElementById('catalog-learned-counter'),
+    catalogWarmupCard: document.getElementById('catalog-warmup-card'),
+    btnCatalogWarmup: document.getElementById('btn-catalog-warmup'),
     catalogSearch: document.getElementById('catalog-search'),
     btnClearSearch: document.getElementById('btn-clear-search'),
     categoryFilters: document.getElementById('category-filters'),
@@ -90,8 +109,12 @@
     statLearnedCount: document.getElementById('stat-learned-count'),
     statTotalCount: document.getElementById('stat-total-count'),
     statPercentCount: document.getElementById('stat-percent-count'),
+    statXpCount: document.getElementById('stat-xp-count'),
     profileProgressBar: document.getElementById('profile-progress-bar'),
     profileProgressText: document.getElementById('profile-progress-text'),
+    profileXpBar: document.getElementById('profile-xp-bar'),
+    profileXpText: document.getElementById('profile-xp-text'),
+    profileXpSummary: document.getElementById('profile-xp-summary'),
     profileStatsSummary: document.getElementById('profile-stats-summary'),
     profileLearnedBadges: document.getElementById('profile-learned-badges'),
     ttsToggle: document.getElementById('tts-toggle'),
@@ -147,6 +170,46 @@
     btnPracticeDone: document.getElementById('btn-practice-done'),
     btnClosePracticeModal: document.getElementById('btn-close-practice-modal'),
     btnPracticeCancel: document.getElementById('btn-practice-cancel'),
+
+    // Шпаргалка практики (US-3)
+    btnPracticeCheatsheetToggle: document.getElementById('btn-practice-cheatsheet-toggle'),
+    practiceCheatsheetContent: document.getElementById('practice-cheatsheet-content'),
+    practiceCheatsheetDesc: document.getElementById('practice-cheatsheet-desc'),
+    practiceCheatsheetTip: document.getElementById('practice-cheatsheet-tip'),
+    practiceCheatsheetArrow: document.getElementById('practice-cheatsheet-arrow'),
+
+    // Модальное окно 3: Разминка (US-1)
+    warmupModal: document.getElementById('warmup-modal'),
+    warmupActiveCard: document.getElementById('warmup-active-card'),
+    warmupProgressStep: document.getElementById('warmup-progress-step'),
+    warmupTargetTitle: document.getElementById('warmup-target-title'),
+    warmupTargetTip: document.getElementById('warmup-target-tip'),
+    warmupVideo: document.getElementById('warmup-video'),
+    warmupCanvas: document.getElementById('warmup-canvas'),
+    warmupHudGesture: document.getElementById('warmup-hud-gesture'),
+    warmupHudScore: document.getElementById('warmup-hud-score'),
+    warmupDiagnosticHint: document.getElementById('warmup-diagnostic-hint'),
+    warmupHoldFill: document.getElementById('warmup-hold-fill'),
+    warmupQuestionSuccess: document.getElementById('warmup-question-success'),
+    warmupFinishOverlay: document.getElementById('warmup-finish-overlay'),
+    warmupFinishStreakCount: document.getElementById('warmup-finish-streak-count'),
+    warmupFinishDesc: document.getElementById('warmup-finish-desc'),
+    btnWarmupDone: document.getElementById('btn-warmup-done'),
+    btnCloseWarmupModal: document.getElementById('btn-close-warmup-modal'),
+    btnAbortWarmup: document.getElementById('btn-abort-warmup'),
+    btnWarmupCheatsheetToggle: document.getElementById('btn-warmup-cheatsheet-toggle'),
+    warmupCheatsheetContent: document.getElementById('warmup-cheatsheet-content'),
+    warmupCheatsheetDesc: document.getElementById('warmup-cheatsheet-desc'),
+    warmupCheatsheetTip: document.getElementById('warmup-cheatsheet-tip'),
+    warmupCheatsheetArrow: document.getElementById('warmup-cheatsheet-arrow'),
+
+    // Модальное окно 4: Онбординг (US-2)
+    onboardingModal: document.getElementById('onboarding-modal'),
+    btnCloseOnboarding: document.getElementById('btn-close-onboarding'),
+    btnOnboardingPrev: document.getElementById('btn-onboarding-prev'),
+    btnOnboardingNext: document.getElementById('btn-onboarding-next'),
+    onboardingStepCounter: document.getElementById('onboarding-step-counter'),
+    onboardingDots: document.getElementById('onboarding-dots'),
   };
 
   const ui = window.Omilia?.UI;
@@ -155,6 +218,7 @@
   const camera = window.Omilia?.Camera;
   const practice = window.Omilia?.Practice;
   const blitz = window.Omilia?.Blitz;
+  const warmup = window.Omilia?.Warmup;
 
   // --- Вспомогательные функции гестур ---
   function getCameraGesture() {
@@ -162,7 +226,11 @@
     if (state.cameraTarget === 'blitz' && state.blitz.isActive) {
       return state.blitz.questions[state.blitz.currentIndex];
     }
+    if (state.cameraTarget === 'warmup' && state.warmup?.isActive) {
+      return state.warmup.gestures[state.warmup.currentIndex];
+    }
     return null;
+  }
   }
 
   function getExpectedHandsCount() {
@@ -236,8 +304,17 @@
   function onFrameRender() {
     if (!state.isCameraRunning || !state.cameraTarget) return;
 
-    const canvas = state.cameraTarget === 'practice' ? dom.practiceCanvas : dom.blitzCanvas;
-    const video = state.cameraTarget === 'practice' ? dom.practiceVideo : dom.blitzVideo;
+    let canvas, video;
+    if (state.cameraTarget === 'practice') {
+      canvas = dom.practiceCanvas;
+      video = dom.practiceVideo;
+    } else if (state.cameraTarget === 'warmup') {
+      canvas = dom.warmupCanvas;
+      video = dom.warmupVideo;
+    } else {
+      canvas = dom.blitzCanvas;
+      video = dom.blitzVideo;
+    }
     if (!canvas || !video) return;
 
     if (video.videoWidth && (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight)) {
@@ -259,7 +336,7 @@
     }
     ctx.restore();
 
-    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
+    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null || state.warmup?.advanceTimer !== null) return;
 
     const expectedHands = getExpectedHandsCount();
     if (handsData.length === 0 || (expectedHands === 2 && handsData.length < 2)) {
@@ -267,6 +344,9 @@
       if (state.cameraTarget === 'practice' && !state.practice.isLearned) {
         if (dom.practiceHudGesture) dom.practiceHudGesture.textContent = '—';
         if (dom.practiceHudScore) dom.practiceHudScore.textContent = waitMsg;
+      } else if (state.cameraTarget === 'warmup') {
+        if (dom.warmupHudGesture) dom.warmupHudGesture.textContent = '—';
+        if (dom.warmupHudScore) dom.warmupHudScore.textContent = waitMsg;
       } else if (state.cameraTarget === 'blitz' && state.blitz.isActive) {
         if (dom.blitzHudGesture) dom.blitzHudGesture.textContent = '—';
         if (dom.blitzHudScore) dom.blitzHudScore.textContent = waitMsg;
@@ -297,7 +377,7 @@
       handleDynamicResult(pred);
       return;
     }
-    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null) return;
+    if (getCameraGesture()?.dynamic_hands_count || state.blitz.advanceTimer !== null || state.warmup?.advanceTimer !== null) return;
 
     const now = performance.now();
     const gestureName = pred.gesture || pred.name || '';
@@ -307,7 +387,15 @@
     state.isMatchingGesture = isMatching;
 
     // Биометрическая диагностика и подсветка
-    const hintEl = state.cameraTarget === 'practice' ? dom.practiceDiagnosticHint : dom.blitzDiagnosticHint;
+    let hintEl;
+    if (state.cameraTarget === 'practice') {
+      hintEl = dom.practiceDiagnosticHint;
+    } else if (state.cameraTarget === 'warmup') {
+      hintEl = dom.warmupDiagnosticHint;
+    } else {
+      hintEl = dom.blitzDiagnosticHint;
+    }
+
     if (hintEl) {
       if (isMatching) {
         hintEl.style.display = 'flex';
@@ -337,6 +425,16 @@
       practice.handlePracticePrediction(pred, now, delta, state, dom, {
         playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
         updateProfileView: () => ui.updateProfileView(state, dom, () => switchTab('catalog')),
+      });
+    } else if (state.cameraTarget === 'warmup') {
+      const delta = state.warmup.lastTimestamp ? (now - state.warmup.lastTimestamp) / 1000 : 0.05;
+      state.warmup.lastTimestamp = now;
+      warmup.handleWarmupPrediction(pred, now, delta, state, dom, {
+        playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
+        onWarmupFinished: (streak) => {
+          ui.updateUserHeader(state, dom, () => switchTab('profile'));
+          ui.updateProfileView(state, dom, () => switchTab('catalog'));
+        },
       });
     } else if (state.cameraTarget === 'blitz') {
       const delta = state.blitz.lastTimestamp ? (now - state.blitz.lastTimestamp) / 1000 : 0.05;
@@ -488,6 +586,160 @@
     });
   }
 
+  // --- Ежедневная разминка (SM-2 SRS, US-1) ---
+  function startWarmupSession() {
+    warmup.startWarmup(state, dom, startCamera, {
+      onRequireAuth: () => {
+        alert('Для сохранения серии ежедневной разминки и прогресса SM-2 войдите в личный кабинет.');
+        switchTab('profile');
+      },
+      onWarmupEmpty: (streak) => {
+        alert(`Все жесты на сегодня уже повторены! Ваша текущая серия: ${streak} 🔥 дн.\nВы можете повторить любой жест из словаря или запустить блиц!`);
+      },
+      playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
+      onWarmupFinished: () => {
+        ui.updateUserHeader(state, dom, () => switchTab('profile'));
+        ui.updateProfileView(state, dom, () => switchTab('catalog'));
+      },
+    });
+  }
+
+  function abortWarmupSession() {
+    warmup.abortWarmup(state, dom, stopCamera);
+  }
+
+  // --- Онбординг «Как тренироваться» (US-2) ---
+  let currentOnboardingStep = 1;
+
+  function setOnboardingStep(step) {
+    currentOnboardingStep = Math.max(1, Math.min(3, step));
+    for (let i = 1; i <= 3; i++) {
+      const stepEl = document.getElementById(`onboarding-step-${i}`);
+      if (stepEl) {
+        stepEl.style.display = i === currentOnboardingStep ? 'block' : 'none';
+      }
+    }
+    if (dom.onboardingStepCounter) {
+      dom.onboardingStepCounter.textContent = `Шаг ${currentOnboardingStep} из 3`;
+    }
+    if (dom.btnOnboardingPrev) {
+      dom.btnOnboardingPrev.style.visibility = currentOnboardingStep > 1 ? 'visible' : 'hidden';
+    }
+    if (dom.btnOnboardingNext) {
+      dom.btnOnboardingNext.textContent = currentOnboardingStep === 3
+        ? 'Всё понятно, начать! [Enter]'
+        : 'Далее → [Пробел]';
+    }
+    document.querySelectorAll('.onboarding-dot').forEach((dot) => {
+      const s = parseInt(dot.dataset.step, 10);
+      dot.classList.toggle('active', s === currentOnboardingStep);
+    });
+  }
+
+  function openOnboarding(step = 1) {
+    setOnboardingStep(step);
+    if (dom.onboardingModal) dom.onboardingModal.style.display = 'flex';
+  }
+
+  function closeOnboarding() {
+    if (dom.onboardingModal) dom.onboardingModal.style.display = 'none';
+  }
+
+  // --- Горячие клавиши для бесконтактного управления (US-4) ---
+  function handleGlobalKeyDown(e) {
+    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+      return;
+    }
+
+    // 1. Escape: закрыть любую открытую модалку
+    if (e.key === 'Escape') {
+      if (dom.onboardingModal && dom.onboardingModal.style.display !== 'none') {
+        closeOnboarding();
+        return;
+      }
+      if (dom.warmupModal && dom.warmupModal.style.display !== 'none') {
+        abortWarmupSession();
+        return;
+      }
+      if (dom.practiceModal && dom.practiceModal.style.display !== 'none') {
+        closePracticeModal();
+        return;
+      }
+      if (dom.tutorialModal && dom.tutorialModal.style.display !== 'none') {
+        closeTutorialModal();
+        return;
+      }
+      if (state.blitz?.isActive) {
+        blitz.abortBlitz(state, dom, stopCamera);
+        return;
+      }
+    }
+
+    // 2. Space / Enter: продолжить после успеха / подтвердить действие
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+      // Онбординг
+      if (dom.onboardingModal && dom.onboardingModal.style.display !== 'none') {
+        e.preventDefault();
+        if (currentOnboardingStep < 3) {
+          setOnboardingStep(currentOnboardingStep + 1);
+        } else {
+          closeOnboarding();
+        }
+        return;
+      }
+
+      // Практика: экран успеха
+      if (dom.practiceSuccessOverlay && dom.practiceSuccessOverlay.style.display !== 'none') {
+        e.preventDefault();
+        closePracticeModal();
+        return;
+      }
+
+      // Практика: динамический жест
+      if (
+        dom.practiceModal &&
+        dom.practiceModal.style.display !== 'none' &&
+        dom.btnDynamicPractice &&
+        !dom.btnDynamicPractice.hidden &&
+        !dom.btnDynamicPractice.disabled
+      ) {
+        e.preventDefault();
+        startDynamicAttempt();
+        return;
+      }
+
+      // Разминка: экран финиша
+      if (dom.warmupFinishOverlay && dom.warmupFinishOverlay.style.display !== 'none') {
+        e.preventDefault();
+        abortWarmupSession();
+        ui.updateUserHeader(state, dom, () => switchTab('profile'));
+        ui.updateProfileView(state, dom, () => switchTab('catalog'));
+        return;
+      }
+
+      // Ошибка камеры: кнопка повтора
+      const retryBtn = document.querySelector('.btn-retry-camera');
+      if (retryBtn) {
+        e.preventDefault();
+        retryBtn.click();
+        return;
+      }
+    }
+
+    // 3. M: зеркальное отображение камеры
+    if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') {
+      const activeContainer =
+        (state.cameraTarget === 'practice' && dom.practiceCanvas?.parentElement) ||
+        (state.cameraTarget === 'warmup' && dom.warmupCanvas?.parentElement) ||
+        (state.cameraTarget === 'blitz' && dom.blitzCanvas?.parentElement) ||
+        document.querySelector('.camera-container');
+      if (activeContainer) {
+        activeContainer.classList.toggle('mirrored');
+      }
+    }
+  }
+
   // --- Привязка событий DOM ---
   function bindEvents() {
     dom.brandLink?.addEventListener('click', (e) => {
@@ -501,6 +753,47 @@
 
     dom.btnHeroStart?.addEventListener('click', () => switchTab('catalog'));
     dom.btnHeroLk?.addEventListener('click', () => switchTab('profile'));
+    dom.btnHeroWarmup?.addEventListener('click', startWarmupSession);
+    dom.btnHeroGuide?.addEventListener('click', () => openOnboarding(1));
+    dom.btnHeaderWarmup?.addEventListener('click', startWarmupSession);
+    dom.btnHeaderGuide?.addEventListener('click', () => openOnboarding(1));
+    dom.btnCatalogWarmup?.addEventListener('click', startWarmupSession);
+
+    // Онбординг
+    dom.btnCloseOnboarding?.addEventListener('click', closeOnboarding);
+    dom.btnOnboardingPrev?.addEventListener('click', () => setOnboardingStep(currentOnboardingStep - 1));
+    dom.btnOnboardingNext?.addEventListener('click', () => {
+      if (currentOnboardingStep < 3) {
+        setOnboardingStep(currentOnboardingStep + 1);
+      } else {
+        closeOnboarding();
+      }
+    });
+    document.querySelectorAll('.onboarding-dot').forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const s = parseInt(dot.dataset.step, 10);
+        if (s) setOnboardingStep(s);
+      });
+    });
+
+    // Шпаргалки (US-3)
+    dom.btnPracticeCheatsheetToggle?.addEventListener('click', () => {
+      practice.toggleCheatsheet(dom);
+    });
+    dom.btnWarmupCheatsheetToggle?.addEventListener('click', () => {
+      warmup.toggleWarmupCheatsheet(dom);
+    });
+
+    // Разминка
+    dom.btnCloseWarmupModal?.addEventListener('click', abortWarmupSession);
+    dom.btnAbortWarmup?.addEventListener('click', abortWarmupSession);
+    dom.btnWarmupDone?.addEventListener('click', () => {
+      abortWarmupSession();
+      switchTab('catalog');
+    });
+
+    // Горячие клавиши
+    window.addEventListener('keydown', handleGlobalKeyDown);
 
     dom.contactForm?.addEventListener('submit', (e) => {
       e.preventDefault();

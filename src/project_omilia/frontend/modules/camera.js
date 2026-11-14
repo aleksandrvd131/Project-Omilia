@@ -304,6 +304,9 @@
 
     if (typeof Camera !== 'undefined') {
       const activeFacingMode = getFacingMode(state);
+      const container = videoEl.closest ? videoEl.closest('.camera-container') : null;
+      clearCameraError(container);
+
       state.camera = new Camera(videoEl, {
         onFrame: async () => {
           if (state.isCameraRunning && state.cameraTarget) {
@@ -344,8 +347,117 @@
         },
       });
 
+      const handleFailure = (err) => {
+        console.warn('Camera start failure:', err);
+        state.isCameraRunning = false;
+        const errInfo = formatCameraError(err);
+        renderCameraError(container, errInfo, () => {
+          startCamera(target, state, dom, callbacks);
+        });
+        if (callbacks.onCameraError) {
+          callbacks.onCameraError(err, errInfo);
+        }
+      };
+
       state.isCameraRunning = true;
-      state.camera.start();
+      try {
+        const startPromise = state.camera.start();
+        if (startPromise && typeof startPromise.catch === 'function') {
+          startPromise.catch(handleFailure);
+        }
+      } catch (err) {
+        handleFailure(err);
+      }
+    }
+  }
+
+  function formatCameraError(err) {
+    const errorName = err?.name || '';
+    const errorMsg = String(err?.message || err || '');
+
+    if (
+      errorName === 'NotAllowedError' ||
+      errorName === 'PermissionDeniedError' ||
+      errorMsg.includes('Permission denied') ||
+      errorMsg.includes('not allowed')
+    ) {
+      return {
+        type: 'permission_denied',
+        title: 'Доступ к веб-камере заблокирован',
+        message: 'Разрешите доступ к веб-камере в настройках браузера (значок 🔒 в адресной строке) для интерактивной практики РЖЯ.',
+        actionText: 'Повторить попытку',
+      };
+    }
+
+    if (
+      errorName === 'NotFoundError' ||
+      errorName === 'DevicesNotFoundError' ||
+      errorMsg.includes('not found') ||
+      errorMsg.includes('device not found')
+    ) {
+      return {
+        type: 'not_found',
+        title: 'Веб-камера не найдена',
+        message: 'Камера не обнаружена на вашем компьютере или устройстве. Подключите камеру и повторите попытку.',
+        actionText: 'Повторить попытку',
+      };
+    }
+
+    if (
+      errorName === 'NotReadableError' ||
+      errorName === 'TrackStartError' ||
+      errorMsg.includes('in use') ||
+      errorMsg.includes('busy')
+    ) {
+      return {
+        type: 'in_use',
+        title: 'Камера занята другим приложением',
+        message: 'Веб-камера сейчас используется другой программой или вкладкой. Закройте другие приложения и повторите попытку.',
+        actionText: 'Повторить попытку',
+      };
+    }
+
+    return {
+      type: 'unknown',
+      title: 'Не удалось запустить камеру',
+      message: 'Произошла ошибка при запуске видеопотока. Проверьте настройки камеры и повторите попытку.',
+      actionText: 'Повторить попытку',
+    };
+  }
+
+  function clearCameraError(container) {
+    if (!container || typeof container.querySelector !== 'function') return;
+    const existing = container.querySelector('.camera-error-overlay');
+    if (existing && typeof existing.remove === 'function') {
+      existing.remove();
+    }
+  }
+
+  function renderCameraError(container, errorInfo, onRetry) {
+    if (!container || typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+    clearCameraError(container);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'camera-error-overlay';
+    overlay.innerHTML = `
+      <div class="camera-error-content">
+        <div class="camera-error-icon">📷⚠️</div>
+        <h3 class="camera-error-title">${errorInfo.title}</h3>
+        <p class="camera-error-message">${errorInfo.message}</p>
+        <button type="button" class="btn-retry-camera" id="btn-retry-camera">
+          🔄 ${errorInfo.actionText || 'Повторить'} [Enter]
+        </button>
+      </div>
+    `;
+    container.appendChild(overlay);
+
+    const retryBtn = overlay.querySelector('.btn-retry-camera');
+    if (retryBtn && onRetry) {
+      retryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearCameraError(container);
+        onRetry();
+      });
     }
   }
 
@@ -440,5 +552,8 @@
     getFacingMode,
     setFacingMode,
     switchCamera,
+    formatCameraError,
+    renderCameraError,
+    clearCameraError,
   };
 });

@@ -9,6 +9,7 @@ const Socket = require('../src/project_omilia/frontend/modules/socket.js');
 const Practice = require('../src/project_omilia/frontend/modules/practice.js');
 const Blitz = require('../src/project_omilia/frontend/modules/blitz.js');
 const Catalog = require('../src/project_omilia/frontend/modules/catalog.js');
+const Warmup = require('../src/project_omilia/frontend/modules/warmup.js');
 
 test('UI module: escapeHtml escapes dangerous characters', () => {
   assert.equal(UI.escapeHtml('hello <script>alert("1")</script> & \'world\''), 'hello &lt;script&gt;alert(&quot;1&quot;)&lt;/script&gt; &amp; &#039;world&#039;');
@@ -432,4 +433,207 @@ test('PWA Manifest: loads valid manifest with required fields and icons', () => 
     const iconFilePath = path.resolve(__dirname, '../src/project_omilia/frontend', relativePath);
     assert.ok(fs.existsSync(iconFilePath), `Icon file ${iconFilePath} must exist on disk`);
   }
+});
+
+// ============================================================================
+// Тесты новых пользовательских историй (US-1 .. US-6)
+// ============================================================================
+
+test('UI module: calculateUserXP correctly computes rank tiers and progress', () => {
+  // Новичок: 0 XP
+  const s0 = { currentUser: { learned_gestures: [] }, streak: 0 };
+  const r0 = UI.calculateUserXP(s0);
+  assert.equal(r0.currentXp, 0);
+  assert.equal(r0.rank, 'Новичок РЖЯ 🌱');
+  assert.equal(r0.nextRank, 'Ученик РЖЯ 📚');
+  assert.equal(r0.progressPct, 0);
+  assert.equal(r0.xpNeeded, 100);
+  assert.equal(r0.isMaxRank, false);
+
+  // Ученик: 4 жеста = 100 XP
+  const s1 = { currentUser: { learned_gestures: ['а', 'б', 'в', 'г'] }, streak: 0 };
+  const r1 = UI.calculateUserXP(s1);
+  assert.equal(r1.currentXp, 100);
+  assert.equal(r1.rank, 'Ученик РЖЯ 📚');
+  assert.equal(r1.nextRank, 'Знаток РЖЯ 🚀');
+  assert.equal(r1.progressPct, 0);
+  assert.equal(r1.xpNeeded, 200);
+
+  // Знаток: 10 жестов (250) + 3 дня стрик (150) = 400 XP
+  const s2 = { currentUser: { learned_gestures: new Array(10).fill('g'), streak: 3 } };
+  const r2 = UI.calculateUserXP(s2);
+  assert.equal(r2.currentXp, 400);
+  assert.equal(r2.rank, 'Знаток РЖЯ 🚀');
+  assert.equal(r2.nextRank, 'Мастер РЖЯ 🌟');
+  assert.equal(r2.progressPct, 25); // (400 - 300) / 400 = 25%
+  assert.equal(r2.xpNeeded, 300);
+
+  // Мастер: 20 жестов (500) + 5 дней стрик (250) = 750 XP
+  const s3 = { currentUser: { learned_gestures: new Array(20).fill('g'), streak: 5 } };
+  const r3 = UI.calculateUserXP(s3);
+  assert.equal(r3.currentXp, 750);
+  assert.equal(r3.rank, 'Мастер РЖЯ 🌟');
+  assert.equal(r3.nextRank, null);
+  assert.equal(r3.progressPct, 100);
+  assert.equal(r3.xpNeeded, 0);
+  assert.equal(r3.isMaxRank, true);
+});
+
+test('Camera module: formatCameraError correctly categorizes error types', () => {
+  // Доступ запрещен
+  const notAllowed = Camera.formatCameraError({ name: 'NotAllowedError' });
+  assert.equal(notAllowed.type, 'permission_denied');
+  assert.match(notAllowed.title, /заблокирован|запрещён/);
+  assert.match(notAllowed.message, /настройках браузера/);
+  assert.ok(notAllowed.actionText);
+
+  // Камера не найдена
+  const notFound = Camera.formatCameraError({ name: 'NotFoundError' });
+  assert.equal(notFound.type, 'not_found');
+  assert.match(notFound.title, /не найдена/);
+
+  // Камера занята
+  const inUse = Camera.formatCameraError({ name: 'NotReadableError' });
+  assert.equal(inUse.type, 'in_use');
+  assert.match(inUse.title, /занята/);
+
+  // Неизвестная ошибка
+  const unknown = Camera.formatCameraError(new Error('Unknown device fault'));
+  assert.equal(unknown.type, 'unknown');
+  assert.match(unknown.title, /Не удалось запустить/);
+});
+
+test('Practice module: toggleCheatsheet toggles visibility and updates attributes', () => {
+  const dom = {
+    practiceCheatsheetContent: { style: { display: 'none' } },
+    btnPracticeCheatsheetToggle: {
+      setAttribute(k, v) { this[k] = v; },
+      querySelector() { return dom.practiceCheatsheetArrow; },
+    },
+    practiceCheatsheetArrow: { textContent: '▾' },
+  };
+
+  // 1. Раскрыть шпаргалку
+  const openResult = Practice.toggleCheatsheet(dom);
+  assert.equal(openResult, true);
+  assert.equal(dom.practiceCheatsheetContent.style.display, 'block');
+  assert.equal(dom.btnPracticeCheatsheetToggle['aria-expanded'], 'true');
+  assert.equal(dom.practiceCheatsheetArrow.textContent, '▴');
+
+  // 2. Свернуть шпаргалку
+  const closeResult = Practice.toggleCheatsheet(dom);
+  assert.equal(closeResult, false);
+  assert.equal(dom.practiceCheatsheetContent.style.display, 'none');
+  assert.equal(dom.btnPracticeCheatsheetToggle['aria-expanded'], 'false');
+  assert.equal(dom.practiceCheatsheetArrow.textContent, '▾');
+});
+
+test('Warmup module: createWarmupState and toggleWarmupCheatsheet', () => {
+  const ws = Warmup.createWarmupState();
+  assert.equal(ws.isActive, false);
+  assert.equal(ws.currentIndex, 0);
+  assert.equal(ws.holdProgress, 0);
+  assert.equal(ws.isFinished, false);
+
+  const dom = {
+    warmupCheatsheetContent: { style: { display: 'none' } },
+    btnWarmupCheatsheetToggle: {
+      setAttribute(k, v) { this[k] = v; },
+      querySelector() { return dom.warmupCheatsheetArrow; },
+    },
+    warmupCheatsheetArrow: { textContent: '▾' },
+  };
+
+  const openRes = Warmup.toggleWarmupCheatsheet(dom);
+  assert.equal(openRes, true);
+  assert.equal(dom.warmupCheatsheetContent.style.display, 'block');
+  assert.equal(dom.warmupCheatsheetArrow.textContent, '▴');
+
+  const closeRes = Warmup.toggleWarmupCheatsheet(dom);
+  assert.equal(closeRes, false);
+  assert.equal(dom.warmupCheatsheetContent.style.display, 'none');
+  assert.equal(dom.warmupCheatsheetArrow.textContent, '▾');
+});
+
+test('Warmup module: handleWarmupPrediction advances holdProgress and triggers step completion', () => {
+  const state = {
+    warmup: {
+      isActive: true,
+      gestures: [
+        { name: 'привет', title: 'Привет', tip: 'Ладонь вперёд' },
+        { name: 'спасибо', title: 'Спасибо', tip: 'Поклон ладонью' },
+      ],
+      currentIndex: 0,
+      holdProgress: 0,
+      holdTarget: 1.0,
+      advanceTimer: null,
+      streak: 2,
+    },
+    cameraTarget: 'warmup',
+  };
+
+  const dom = {
+    warmupHudGesture: {},
+    warmupHudScore: {},
+    warmupHoldFill: { style: {} },
+    warmupCanvas: { parentElement: { classList: { add() {}, remove() {} } } },
+    warmupQuestionSuccess: { style: {} },
+  };
+
+  let speechCalled = false;
+  Warmup.handleWarmupPrediction(
+    { gesture: 'привет', confidence: 94 },
+    1000,
+    1.0, // delta >= holdTarget
+    state,
+    dom,
+    {
+      playSpeech: () => { speechCalled = true; },
+    }
+  );
+
+  assert.equal(state.warmup.holdProgress, 1.0);
+  assert.equal(dom.warmupHudGesture.textContent, 'привет');
+  assert.match(dom.warmupHudScore.textContent, /94%/);
+  assert.ok(state.warmup.advanceTimer !== null, 'advanceTimer must be set after step completion');
+
+  // Очищаем таймер, чтобы не висел в фоне
+  clearTimeout(state.warmup.advanceTimer);
+});
+
+test('HTML & PWA Integration: index.html contains all new UI components', () => {
+  const indexPath = path.resolve(__dirname, '../src/project_omilia/frontend/index.html');
+  assert.ok(fs.existsSync(indexPath), 'index.html must exist');
+  const html = fs.readFileSync(indexPath, 'utf8');
+
+  // US-1: Daily warmup
+  assert.ok(html.includes('id="warmup-modal"'), 'warmup-modal must exist');
+  assert.ok(html.includes('id="btn-header-warmup"'), 'btn-header-warmup must exist in header');
+  assert.ok(html.includes('id="catalog-warmup-card"'), 'catalog-warmup-card must exist in catalog');
+  assert.ok(html.includes('id="btn-catalog-warmup"'), 'btn-catalog-warmup must exist');
+  assert.ok(html.includes('/static/modules/warmup.js'), 'warmup.js script tag must be included');
+
+  // US-2: Onboarding
+  assert.ok(html.includes('id="onboarding-modal"'), 'onboarding-modal must exist');
+  assert.ok(html.includes('id="btn-header-guide"'), 'btn-header-guide must exist in header');
+  assert.ok(html.includes('id="btn-hero-guide"'), 'btn-hero-guide must exist in hero');
+  assert.ok(html.includes('onboarding-step-1'), 'onboarding step 1 must exist');
+  assert.ok(html.includes('onboarding-step-2'), 'onboarding step 2 must exist');
+  assert.ok(html.includes('onboarding-step-3'), 'onboarding step 3 must exist');
+
+  // US-3: Gesture cheatsheet
+  assert.ok(html.includes('id="practice-cheatsheet-wrapper"'), 'practice-cheatsheet-wrapper must exist');
+  assert.ok(html.includes('id="btn-practice-cheatsheet-toggle"'), 'btn-practice-cheatsheet-toggle must exist');
+  assert.ok(html.includes('id="practice-cheatsheet-content"'), 'practice-cheatsheet-content must exist');
+
+  // US-6: XP & Rank
+  assert.ok(html.includes('id="stat-xp-count"'), 'stat-xp-count must exist');
+  assert.ok(html.includes('id="profile-xp-card"'), 'profile-xp-card must exist');
+  assert.ok(html.includes('id="profile-xp-bar"'), 'profile-xp-bar must exist');
+});
+
+test('Service Worker: sw.js caches warmup.js', () => {
+  const swPath = path.resolve(__dirname, '../src/project_omilia/frontend/sw.js');
+  const swContent = fs.readFileSync(swPath, 'utf8');
+  assert.ok(swContent.includes('/static/modules/warmup.js'), 'sw.js must pre-cache warmup.js');
 });

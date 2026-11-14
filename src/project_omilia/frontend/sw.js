@@ -16,6 +16,7 @@ const STATIC_ASSETS = [
   '/static/modules/catalog.js',
   '/static/modules/practice.js',
   '/static/modules/blitz.js',
+  '/static/modules/warmup.js',
   '/static/modules/socket.js',
   '/static/modules/ui.js',
   '/static/icons/icon-192.png',
