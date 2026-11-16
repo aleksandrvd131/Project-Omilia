@@ -231,7 +231,6 @@
     }
     return null;
   }
-  }
 
   function getExpectedHandsCount() {
     const g = getCameraGesture();

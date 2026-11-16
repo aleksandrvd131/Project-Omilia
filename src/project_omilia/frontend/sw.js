@@ -3,7 +3,7 @@
  * PWA Cache-First / Network-Fallback caching strategy for static assets.
  */
 
-const CACHE_NAME = 'omilia-pwa-v1';
+const CACHE_NAME = 'omilia-pwa-v2';
 
 const STATIC_ASSETS = [
   '/',
