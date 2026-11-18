@@ -907,8 +907,7 @@
         e.stopPropagation();
         if (camera?.switchCamera) {
           await camera.switchCamera(state, dom, {
-            getExpectedHandsCount: () =>
-              state.cameraTarget === 'practice' ? state.practice.gesture?.hands_count || 1 : 1,
+            getExpectedHandsCount,
             onFrameRender,
             ensureWebSocket: socket?.ensureWebSocket,
           });

@@ -286,7 +286,14 @@
     if (ensureWebSocket) ensureWebSocket();
     initMediaPipe(state, getExpectedHandsCount);
 
-    const videoEl = target === 'practice' ? dom?.practiceVideo : dom?.blitzVideo;
+    let videoEl;
+    if (target === 'practice') {
+      videoEl = dom?.practiceVideo;
+    } else if (target === 'warmup') {
+      videoEl = dom?.warmupVideo;
+    } else {
+      videoEl = dom?.blitzVideo;
+    }
     if (!videoEl || !state.mediaPipeHands) return;
 
     if (state.camera) {
@@ -306,6 +313,10 @@
       const activeFacingMode = getFacingMode(state);
       const container = videoEl.closest ? videoEl.closest('.camera-container') : null;
       clearCameraError(container);
+
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      videoEl.autoplay = true;
 
       state.camera = new Camera(videoEl, {
         onFrame: async () => {
@@ -502,7 +513,11 @@
 
     if (dom) {
       const targetCanvas =
-        state?.cameraTarget === 'blitz' ? dom.blitzCanvas : dom.practiceCanvas || dom.blitzCanvas;
+        state?.cameraTarget === 'warmup'
+          ? dom.warmupCanvas
+          : state?.cameraTarget === 'blitz'
+            ? dom.blitzCanvas
+            : dom.practiceCanvas || dom.blitzCanvas;
       const container =
         targetCanvas?.parentElement ||
         dom.cameraContainer ||

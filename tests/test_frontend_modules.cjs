@@ -405,6 +405,49 @@ test('Camera module: switchCamera respects device availability and restarts acti
   }
 });
 
+test('Camera module: startCamera binds correct video element for practice, warmup, and blitz modes', () => {
+  const origCamera = globalThis.Camera;
+  try {
+    let capturedVideoEl = null;
+    globalThis.Camera = class MockCamera {
+      constructor(videoElement) {
+        capturedVideoEl = videoElement;
+      }
+      start() {
+        return Promise.resolve();
+      }
+      stop() {}
+    };
+
+    const mockHands = { setOptions: () => {} };
+    const mockDom = {
+      practiceVideo: { id: 'practice-video', closest: () => null },
+      warmupVideo: { id: 'warmup-video', closest: () => null },
+      blitzVideo: { id: 'blitz-video', closest: () => null },
+    };
+
+    // 1. Режим практики
+    const statePractice = { mediaPipeHands: mockHands };
+    Camera.startCamera('practice', statePractice, mockDom, {});
+    assert.equal(capturedVideoEl, mockDom.practiceVideo);
+    assert.equal(statePractice.cameraTarget, 'practice');
+
+    // 2. Режим разминки (SM-2 SRS)
+    const stateWarmup = { mediaPipeHands: mockHands };
+    Camera.startCamera('warmup', stateWarmup, mockDom, {});
+    assert.equal(capturedVideoEl, mockDom.warmupVideo);
+    assert.equal(stateWarmup.cameraTarget, 'warmup');
+
+    // 3. Режим блиц-опроса
+    const stateBlitz = { mediaPipeHands: mockHands };
+    Camera.startCamera('blitz', stateBlitz, mockDom, {});
+    assert.equal(capturedVideoEl, mockDom.blitzVideo);
+    assert.equal(stateBlitz.cameraTarget, 'blitz');
+  } finally {
+    globalThis.Camera = origCamera;
+  }
+});
+
 test('PWA Manifest: loads valid manifest with required fields and icons', () => {
   const manifestPath = path.resolve(__dirname, '../src/project_omilia/frontend/manifest.json');
   assert.ok(fs.existsSync(manifestPath), 'manifest.json must exist');
@@ -632,8 +675,24 @@ test('HTML & PWA Integration: index.html contains all new UI components', () => 
   assert.ok(html.includes('id="profile-xp-bar"'), 'profile-xp-bar must exist');
 });
 
-test('Service Worker: sw.js caches warmup.js', () => {
+test('Service Worker: sw.js caches warmup.js and has omilia-pwa-v3 with Network-First strategy', () => {
   const swPath = path.resolve(__dirname, '../src/project_omilia/frontend/sw.js');
   const swContent = fs.readFileSync(swPath, 'utf8');
   assert.ok(swContent.includes('/static/modules/warmup.js'), 'sw.js must pre-cache warmup.js');
+  assert.ok(swContent.includes("CACHE_NAME = 'omilia-pwa-v3'"), 'sw.js must use omilia-pwa-v3 cache name');
+  assert.ok(swContent.includes('skipWaiting()'), 'sw.js must skip waiting on install');
+  assert.ok(swContent.includes('clients.claim()'), 'sw.js must claim clients on activate');
+});
+
+test('HTML Video attributes: warmup, practice, and blitz video elements include autoplay, muted, and playsinline', () => {
+  const indexPath = path.resolve(__dirname, '../src/project_omilia/frontend/index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  for (const id of ['warmup-video', 'practice-video', 'blitz-video']) {
+    const match = html.match(new RegExp(`<video\\s+id="${id}"([^>]*)>`, 'i'));
+    assert.ok(match, `Element #${id} must exist`);
+    const attrs = match[1];
+    assert.ok(attrs.includes('autoplay'), `#${id} must have autoplay`);
+    assert.ok(attrs.includes('muted'), `#${id} must have muted`);
+    assert.ok(attrs.includes('playsinline'), `#${id} must have playsinline`);
+  }
 });

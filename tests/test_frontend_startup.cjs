@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const frontend = path.join(__dirname, '../src/project_omilia/frontend');
 const html = fs.readFileSync(path.join(frontend, 'index.html'), 'utf8');
-const scripts = [...html.matchAll(/<script src="\/static\/([^"]+)"/g)].map(match => match[1]);
+const scripts = [...html.matchAll(/<script src="\/static\/([^"]+)"/g)].map(match => match[1].split('?')[0]);
 
 test('homepage scripts initialize and all hero buttons respond', async () => {
   const nodes = new Map();

@@ -21,7 +21,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Стили приложения -->
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=3">
   
   <!-- MediaPipe CDN для браузерного трекинга рук и скелета -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -264,7 +264,7 @@
 
         <!-- Камера блиц-опроса -->
         <div class="camera-container mirrored" style="border-radius: 12px; margin-bottom: 1rem;">
-          <video id="blitz-video" class="camera-video" playsinline></video>
+          <video id="blitz-video" class="camera-video" playsinline autoplay muted></video>
           <canvas id="blitz-canvas" class="camera-canvas"></canvas>
 
           <div class="camera-hud">
@@ -571,7 +571,7 @@
 
       <!-- Камера практики -->
       <div class="camera-container mirrored">
-        <video id="practice-video" class="camera-video" playsinline></video>
+        <video id="practice-video" class="camera-video" playsinline autoplay muted></video>
         <canvas id="practice-canvas" class="camera-canvas"></canvas>
 
         <div class="camera-hud">
@@ -652,7 +652,7 @@
       <div id="warmup-active-card">
         <!-- Камера разминки -->
         <div class="camera-container mirrored">
-          <video id="warmup-video" class="camera-video" playsinline></video>
+          <video id="warmup-video" class="camera-video" playsinline autoplay muted></video>
           <canvas id="warmup-canvas" class="camera-canvas"></canvas>
 
           <div class="camera-hud">
@@ -835,15 +835,15 @@
   </footer>
 
   <!-- Модульная архитектура приложения и WebSocket-клиент -->
-  <script src="/static/dynamic-clip.js"></script>
-  <script src="/static/modules/ui.js"></script>
-  <script src="/static/modules/catalog.js"></script>
-  <script src="/static/modules/socket.js"></script>
-  <script src="/static/modules/camera.js"></script>
-  <script src="/static/modules/practice.js"></script>
-  <script src="/static/modules/blitz.js"></script>
-  <script src="/static/modules/warmup.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/dynamic-clip.js?v=3"></script>
+  <script src="/static/modules/ui.js?v=3"></script>
+  <script src="/static/modules/catalog.js?v=3"></script>
+  <script src="/static/modules/socket.js?v=3"></script>
+  <script src="/static/modules/camera.js?v=3"></script>
+  <script src="/static/modules/practice.js?v=3"></script>
+  <script src="/static/modules/blitz.js?v=3"></script>
+  <script src="/static/modules/warmup.js?v=3"></script>
+  <script src="/static/app.js?v=3"></script>
 
   <!-- Регистрация Service Worker (PWA) -->
   <script>

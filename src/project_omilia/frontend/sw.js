@@ -1,9 +1,10 @@
 /**
  * Project Omiλia — Service Worker
- * PWA Cache-First / Network-Fallback caching strategy for static assets.
+ * PWA Network-First / Cache-Fallback caching strategy for static assets and scripts,
+ * ensuring seamless offline capability while immediately delivering updates in active development.
  */
 
-const CACHE_NAME = 'omilia-pwa-v2';
+const CACHE_NAME = 'omilia-pwa-v3';
 
 const STATIC_ASSETS = [
   '/',
@@ -24,20 +25,20 @@ const STATIC_ASSETS = [
   '/static/icons/icon.svg',
 ];
 
-// Pre-cache core shell during installation
+// Pre-cache core shell during installation and activate immediately
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
       .catch((err) => {
         console.warn('SW pre-cache warning:', err);
       })
   );
 });
 
-// Purge obsolete caches on activation
+// Purge obsolete caches on activation and claim all open clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -55,7 +56,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache-First with Network-Fallback strategy for GET requests
+// Network-First with Cache-Fallback strategy for GET requests
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -79,33 +80,30 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      // 1. Cache First
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      // 2. Network Fallback
-      return fetch(request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            (networkResponse.type === 'basic' || networkResponse.type === 'cors')
-          ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-            });
+    fetch(request)
+      .then((networkResponse) => {
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          (networkResponse.type === 'basic' || networkResponse.type === 'cors')
+        ) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(request, { ignoreSearch: true }).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
           }
-          return networkResponse;
-        })
-        .catch(() => {
           // Offline fallback for navigation requests
           if (request.mode === 'navigate') {
             return caches.match('/');
           }
         });
-    })
+      })
   );
 });
