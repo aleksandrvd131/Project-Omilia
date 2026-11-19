@@ -351,6 +351,20 @@
       }
     }
 
+    // Обновление бейджа опыта (XP) в шапке
+    const headerXpCountEl = dom?.headerXpCount || (doc ? doc.getElementById('header-xp-count') : null);
+    const headerXpBadge = dom?.headerXpBadge || (doc ? doc.getElementById('header-xp-badge') : null);
+    const xpInfo = calculateUserXP(state);
+    if (headerXpCountEl) {
+      headerXpCountEl.textContent = String(xpInfo.currentXp);
+    }
+    if (headerXpBadge) {
+      headerXpBadge.title = `Очки опыта: ${xpInfo.currentXp} XP (${xpInfo.rank})`;
+      headerXpBadge.onclick = () => {
+        if (onOpenProfile) onOpenProfile();
+      };
+    }
+
     // Обновление бейджа ударного режима (streak) в шапке
     const streakBadge = dom?.headerStreakBadge || (doc ? doc.getElementById('header-streak-badge') : null);
     const streakCountEl = dom?.streakDaysCount || (doc ? doc.getElementById('streak-days-count') : null);

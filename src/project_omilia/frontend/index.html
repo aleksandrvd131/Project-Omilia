@@ -6,7 +6,7 @@
   <title>Project Omiλia — Изучение русского жестового языка с ИИ</title>
 
   <!-- PWA и мобильные метатеги -->
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0b0f19">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Omiλia">
@@ -72,6 +72,7 @@
         <button class="btn-guide-header" id="btn-header-guide" title="Инструкция: как пользоваться тренажёром">💡 Обучение</button>
         <button class="btn-warmup-header" id="btn-header-warmup" title="Ежедневная разминка по методике SM-2">🎯 Разминка</button>
         <div class="streak-badge" id="header-streak-badge" title="Дни практики подряд">🔥 <span id="streak-days-count">0</span> дн.</div>
+        <div class="xp-badge" id="header-xp-badge" title="Очки опыта (XP)">⚡ <span id="header-xp-count">0</span> XP</div>
         <div class="user-actions" id="header-user-area">
           <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
         </div>
@@ -83,21 +84,97 @@
   <main>
     
     <!-- ============================================== -->
-    <!-- Вкладка 1: О проекте                           -->
+    <!-- Вкладка 1: О проекте / Обучение                -->
     <!-- ============================================== -->
     <section id="tab-about" class="tab-content active">
       <!-- Баннер -->
       <div class="hero-banner">
-        <span class="hero-badge">Инновационный тренажёр</span>
-        <h1 class="hero-title">Изучайте русский жестовый язык <span>с помощью искусственного интеллекта</span></h1>
+        <span class="hero-badge">Инновационный AI-тренажёр РЖЯ</span>
+        <h1 class="hero-title">Изучайте русский жестовый язык <span>с искусственным интеллектом</span></h1>
         <p class="hero-desc">
-          Omiλia анализирует движения и форму ваших рук в реальном времени через веб-камеру, помогая легко осваивать жесты РЖЯ без репетитора и специального оборудования.
+          Omiλia анализирует движения и биомеханику кистей в реальном времени прямо в браузере с нулевой задержкой, помогая легко осваивать жесты РЖЯ без репетитора и специального оборудования.
         </p>
         <div class="hero-buttons">
           <button class="btn-hero-primary" id="btn-hero-start">Начать обучение →</button>
           <button class="btn-hero-warmup" id="btn-hero-warmup">🎯 Ежедневная разминка</button>
           <button class="btn-hero-guide" id="btn-hero-guide">💡 Как тренироваться</button>
           <button class="btn-hero-secondary" id="btn-hero-lk">Личный кабинет</button>
+        </div>
+      </div>
+
+      <!-- Секция быстрого старта (Quick-Practice Cards) -->
+      <div class="quick-practice-section">
+        <div class="section-heading">
+          <h2 class="card-title" style="margin-bottom: 0.25rem;">Быстрый старт и ежедневная практика</h2>
+          <p class="card-subtitle" style="margin-bottom: 1rem;">Выберите удобный формат тренировки для закрепления мышечной памяти</p>
+        </div>
+        <div class="quick-practice-grid">
+          <div class="quick-practice-card" id="home-card-warmup" role="button" tabindex="0">
+            <div class="quick-card-top">
+              <span class="quick-card-icon">🎯</span>
+              <span class="quick-card-badge">Интервалы SM-2</span>
+            </div>
+            <h3 class="quick-card-title">Ежедневная разминка</h3>
+            <p class="quick-card-desc">Повторите 3 жеста по методике интервального повторения для укрепления серии и долговременной памяти (+50 XP).</p>
+            <div class="quick-card-action">Начать разминку →</div>
+          </div>
+
+          <div class="quick-practice-card" id="home-card-blitz" role="button" tabindex="0">
+            <div class="quick-card-top">
+              <span class="quick-card-icon">⚡</span>
+              <span class="quick-card-badge">Экспресс-контроль</span>
+            </div>
+            <h3 class="quick-card-title">Блиц-опрос с ИИ</h3>
+            <p class="quick-card-desc">Проверьте освоенные жесты в динамичном опросе на камеру с быстрым подтверждением нейросетью за 400 мс.</p>
+            <div class="quick-card-action">Запустить блиц →</div>
+          </div>
+
+          <div class="quick-practice-card" id="home-card-roadmap" role="button" tabindex="0">
+            <div class="quick-card-top">
+              <span class="quick-card-icon">🗺️</span>
+              <span class="quick-card-badge">Учебная программа</span>
+            </div>
+            <h3 class="quick-card-title">Дерево курсов РЖЯ</h3>
+            <p class="quick-card-desc">4 ступени обучения: от дактильного алфавита и счёта до диалогов, этикета и окружающего мира.</p>
+            <div class="quick-card-action">Открыть словарь →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Блок 100% Доступности для глухих и слабослышащих (Sound-Independent Feedback) -->
+      <div class="accessibility-banner card">
+        <div class="accessibility-content">
+          <span class="hero-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);">100% Доступная среда</span>
+          <h2 class="card-title" style="margin-top: 0.5rem;">Визуальная и тактильная обратная связь без опоры на звук</h2>
+          <p class="card-subtitle" style="margin-bottom: 1.25rem;">
+            Omiλia спроектирована с учётом потребностей глухих и слабослышащих пользователей: все реакции системы передаются визуально и кинестетически.
+          </p>
+          <div class="accessibility-features-grid">
+            <div class="access-feature-item">
+              <span class="access-icon">✨</span>
+              <div>
+                <strong>Изумрудная вспышка экрана:</strong> световой контур подтверждает точное совпадение позы жеста.
+              </div>
+            </div>
+            <div class="access-feature-item">
+              <span class="access-icon">🌈</span>
+              <div>
+                <strong>Цветовая биометрия пальцев:</strong> янтарная подсветка точно указывает, какой палец нужно разогнуть или согнуть.
+              </div>
+            </div>
+            <div class="access-feature-item">
+              <span class="access-icon">📳</span>
+              <div>
+                <strong>Тактильный виброотклик:</strong> мягкая вибрация смартфона (Haptic API) при успешном удержании формы кисти.
+              </div>
+            </div>
+            <div class="access-feature-item">
+              <span class="access-icon">⚡</span>
+              <div>
+                <strong>Локальный инференс 0 мс:</strong> все нейросетевые вычисления выполняются в браузере без задержек сети.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -113,9 +190,9 @@
 
         <div class="feature-card">
           <div class="feature-icon">🎥</div>
-          <h3 class="feature-title">Двухэтапное обучение</h3>
+          <h3 class="feature-title">Двухэкранное обучение</h3>
           <p class="feature-desc">
-            Сначала посмотрите наглядное видео и прочитайте технику выполнения жеста, а затем закрепите его на практике перед камерой.
+            Синхронный видеоурок и живая веб-камера с наложением скелета позволяют сверять позу в реальном времени.
           </p>
         </div>
 
@@ -196,6 +273,9 @@
         </button>
       </div>
 
+      <!-- Дерево курсов и уровни сложности (Roadmap) -->
+      <div id="catalog-roadmap" class="catalog-roadmap-view"></div>
+
       <!-- Поиск и фильтры по категориям -->
       <div class="catalog-controls">
         <div class="search-box">
@@ -203,6 +283,7 @@
           <input type="text" id="catalog-search" class="search-input" placeholder="Поиск жеста по названию или букве..." autocomplete="off">
           <button id="btn-clear-search" class="btn-clear-search" title="Очистить поиск" style="display: none;">✕</button>
         </div>
+        <div class="level-filter-bar" id="level-filters"></div>
         <div class="category-filters" id="category-filters">
           <button class="filter-chip active" data-category="all">Все жесты</button>
           <button class="filter-chip" data-category="Дактиль (Алфавит)">Алфавит</button>
@@ -214,7 +295,7 @@
 
       <!-- Сетка жестов -->
       <div class="gestures-grid" id="gestures-grid">
-        <!-- Генерируется динамически через app.js -->
+        <!-- Генерируется динамически через app.js / catalog.js -->
         <div style="text-align: center; grid-column: 1 / -1; padding: 3rem; color: var(--text-muted);">
           Загрузка словаря жестов...
         </div>
@@ -246,7 +327,7 @@
       <div id="blitz-active" class="card" style="display: none; max-width: 720px; margin: 0 auto; padding: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
           <div>
-            <span id="blitz-progress-step" style="font-size: 0.85rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
+            <span id="blitz-progress-step" style="font-size: 0.85rem; font-weight: 700; color: var(--brand-primary-border, var(--primary-hover)); text-transform: uppercase;">
               Вопрос 1 из 3
             </span>
             <h3 id="blitz-target-title" style="font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-top: 0.2rem;">
@@ -264,6 +345,7 @@
 
         <!-- Камера блиц-опроса -->
         <div class="camera-container mirrored" style="border-radius: 12px; margin-bottom: 1rem;">
+          <div class="camera-silhouette-guide"></div>
           <video id="blitz-video" class="camera-video" playsinline autoplay muted></video>
           <canvas id="blitz-canvas" class="camera-canvas"></canvas>
 
@@ -272,8 +354,8 @@
               <span class="hud-label">ИИ Распознал:</span>
               <div class="hud-actions">
                 <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
-                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🪞</button>
-                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
+                <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение [M]">🪞</button>
+                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру [C]">🔄</button>
               </div>
             </div>
             <span class="hud-gesture" id="blitz-hud-gesture">—</span>
@@ -366,9 +448,9 @@
       <!-- Кабинет авторизованного пользователя -->
       <div id="profile-box" style="display: none;">
         <!-- Карточка пользователя -->
-        <div class="card" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div class="card profile-user-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
           <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--primary-light); color: var(--primary-hover); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; border: 2px solid var(--primary-border);">
+            <div class="user-avatar-badge" style="width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--brand-primary-light, var(--primary-light)); color: var(--brand-primary-border, var(--primary-hover)); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; border: 2px solid var(--border-card);">
               👤
             </div>
             <div>
@@ -376,7 +458,7 @@
               <span class="gesture-badge badge-learned" id="profile-rank-badge">Ученик РЖЯ</span>
             </div>
           </div>
-          <button class="btn-hero-secondary" id="btn-logout" style="color: var(--danger); border-color: #fecaca;">
+          <button class="btn-hero-secondary" id="btn-logout" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.4);">
             Выйти из системы
           </button>
         </div>
@@ -409,7 +491,7 @@
         <div class="card" id="profile-xp-card">
           <div style="display: flex; justify-content: space-between; align-items: baseline;">
             <h3 class="card-title" style="margin-bottom: 0;">Шкала ранга и опыта (XP)</h3>
-            <span id="profile-xp-text" style="font-weight: 700; color: var(--accent);">0 / 100 XP (0%)</span>
+            <span id="profile-xp-text" style="font-weight: 700; color: var(--xp-gold, var(--accent));">0 / 100 XP (0%)</span>
           </div>
           <div class="progress-bar-container">
             <div id="profile-xp-bar" class="progress-bar-fill xp-fill" style="width: 0%;"></div>
@@ -423,7 +505,7 @@
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: baseline;">
             <h3 class="card-title" style="margin-bottom: 0;">Ваш прогресс изучения РЖЯ</h3>
-            <span id="profile-progress-text" style="font-weight: 700; color: var(--primary-hover);">0%</span>
+            <span id="profile-progress-text" style="font-weight: 700; color: var(--brand-primary-border, var(--primary-hover));">0%</span>
           </div>
           <div class="progress-bar-container">
             <div id="profile-progress-bar" class="progress-bar-fill"></div>
@@ -445,9 +527,8 @@
               <h3 class="card-title" style="margin-bottom: 0.2rem;">Достижения и награды</h3>
               <p class="card-subtitle" style="margin-bottom: 0;">Открывайте уникальные бейджи за успехи в обучении и регулярные тренировки</p>
             </div>
-            <span id="profile-achievements-counter" style="font-weight: 700; color: var(--primary-hover); font-size: 0.95rem;">0 / 5</span>
+            <span id="profile-achievements-counter" style="font-weight: 700; color: var(--brand-primary-border, var(--primary-hover)); font-size: 0.95rem;">0 / 5</span>
           </div>
-
           <div class="achievements-grid" id="profile-achievements-grid">
             <div class="achievement-card locked" data-achievement-id="first_word" id="badge-first_word">
               <div class="achievement-icon">👋</div>
@@ -524,7 +605,7 @@
         <video id="tutorial-video" class="video-demo" playsinline loop muted controls></video>
         <div id="tutorial-video-fallback" class="video-placeholder">
           <!-- Анимированная наглядная схема ладони при отсутствии внешнего видеофайла -->
-          <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);">
+          <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary, #10b981);">
             <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path>
             <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path>
             <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path>
@@ -555,68 +636,93 @@
   </div>
 
   <!-- ==================================================== -->
-  <!-- Модальное окно 2: Практика перед камерой с ИИ        -->
+  <!-- Модальное окно 2: Двухэкранная практика перед камерой -->
   <!-- ==================================================== -->
   <div id="practice-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card" style="max-width: 720px;">
+    <div class="modal-card modal-dual-viewport" style="max-width: 980px;">
       <div class="modal-header">
         <div>
-          <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
-            Практика перед камерой
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--brand-primary-border, var(--primary-hover)); text-transform: uppercase;">
+            Интерактивная практика перед камерой
           </span>
           <h3 id="practice-title" class="card-title" style="margin-bottom: 0;">Жест: «Привет»</h3>
         </div>
-        <button class="btn-close" id="btn-close-practice-modal" title="Закрыть">&times;</button>
+        <button class="btn-close" id="btn-close-practice-modal" title="Закрыть [Esc]">&times;</button>
       </div>
 
-      <!-- Камера практики -->
-      <div class="camera-container mirrored">
-        <video id="practice-video" class="camera-video" playsinline autoplay muted></video>
-        <canvas id="practice-canvas" class="camera-canvas"></canvas>
-
-        <div class="camera-hud">
-          <div class="hud-top-bar">
-            <span class="hud-label">ИИ Распознал:</span>
-            <div class="hud-actions">
-              <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
-              <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение">🪞</button>
-              <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
+      <!-- Двухэкранная область практики (Dual-Viewport Workspace) -->
+      <div class="dual-viewport-grid">
+        <!-- Левая панель: Эталонный видеоурок и шпаргалка -->
+        <div class="practice-reference-pane">
+          <div class="reference-video-wrapper">
+            <video id="practice-reference-video" class="video-demo reference-video" playsinline loop muted controls style="display: none;"></video>
+            <div id="practice-reference-fallback" class="video-placeholder reference-fallback">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary, #10b981);">
+                <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path>
+                <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path>
+                <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path>
+                <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path>
+              </svg>
+              <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.4rem;">Эталон позы жеста</div>
+              <div style="font-size: 0.8rem; color: #94a3b8; max-width: 240px; text-align: center;">
+                Сверяйте форму кисти с эталоном РЖЯ
+              </div>
             </div>
           </div>
-          <span class="hud-gesture" id="practice-hud-gesture">—</span>
-          <span class="hud-score" id="practice-hud-score">Точность: —</span>
-          <div id="practice-diagnostic-hint" class="diagnostic-hint" style="display: none;">
-            <span class="diagnostic-hint-icon">💡</span>
-            <span class="diagnostic-hint-text"></span>
+
+          <!-- Шпаргалка по технике жеста прямо в окне камеры (US-3) -->
+          <div class="practice-cheatsheet-wrapper" id="practice-cheatsheet-wrapper">
+            <button type="button" class="btn-cheatsheet-toggle" id="btn-practice-cheatsheet-toggle" aria-expanded="false" title="Шпаргалка по технике выполнения">
+              <span class="cheatsheet-title">📋 Техника выполнения</span>
+              <span class="cheatsheet-arrow" id="practice-cheatsheet-arrow">▾</span>
+            </button>
+            <div class="practice-cheatsheet-content" id="practice-cheatsheet-content" style="display: none;">
+              <p class="cheatsheet-desc" id="practice-cheatsheet-desc"></p>
+              <div class="cheatsheet-tip" id="practice-cheatsheet-tip" style="display: none;"></div>
+            </div>
           </div>
         </div>
 
-        <!-- Плавающая кнопка смены камеры для мобильных устройств -->
-        <button type="button" class="btn-floating-camera-switch btn-switch-camera" title="Переключить камеру">🔄</button>
+        <!-- Правая панель: Живая веб-камера с наложением ИИ -->
+        <div class="practice-camera-pane">
+          <div class="camera-container mirrored">
+            <div class="camera-silhouette-guide"></div>
+            <video id="practice-video" class="camera-video" playsinline autoplay muted></video>
+            <canvas id="practice-canvas" class="camera-canvas"></canvas>
 
-        <div class="hold-meter">
-          <div id="practice-hold-fill" class="hold-meter-fill"></div>
-        </div>
+            <div class="camera-hud">
+              <div class="hud-top-bar">
+                <span class="hud-label">ИИ Распознал:</span>
+                <div class="hud-actions">
+                  <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
+                  <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение [M]">🪞</button>
+                  <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру [C]">🔄</button>
+                </div>
+              </div>
+              <span class="hud-gesture" id="practice-hud-gesture">—</span>
+              <span class="hud-score" id="practice-hud-score">Точность: —</span>
+              <div id="practice-diagnostic-hint" class="diagnostic-hint" style="display: none;">
+                <span class="diagnostic-hint-icon">💡</span>
+                <span class="diagnostic-hint-text"></span>
+              </div>
+            </div>
 
-        <div id="practice-success-overlay" class="success-overlay" style="display: none;">
-          <div style="font-size: 3.5rem;">🎉</div>
-          <h3 style="font-size: 1.6rem; font-weight: 800;">Отлично! Жест усвоен!</h3>
-          <p id="practice-success-msg">Нейросеть подтвердила правильность. Прогресс сохранён в ЛК.</p>
-          <button class="btn-hero-primary" id="btn-practice-done" style="background: #ffffff; color: var(--primary-hover); margin-top: 0.5rem; font-weight: 700;">
-            Продолжить обучение [Пробел / Enter]
-          </button>
-        </div>
-      </div>
+            <!-- Плавающая кнопка смены камеры для мобильных устройств -->
+            <button type="button" class="btn-floating-camera-switch btn-switch-camera" title="Переключить камеру">🔄</button>
 
-      <!-- Шпаргалка по технике жеста прямо в окне камеры (US-3) -->
-      <div class="practice-cheatsheet-wrapper" id="practice-cheatsheet-wrapper">
-        <button type="button" class="btn-cheatsheet-toggle" id="btn-practice-cheatsheet-toggle" aria-expanded="false" title="Шпаргалка по технике выполнения">
-          <span class="cheatsheet-title">📋 Шпаргалка по технике жеста</span>
-          <span class="cheatsheet-arrow" id="practice-cheatsheet-arrow">▾</span>
-        </button>
-        <div class="practice-cheatsheet-content" id="practice-cheatsheet-content" style="display: none;">
-          <p class="cheatsheet-desc" id="practice-cheatsheet-desc"></p>
-          <div class="cheatsheet-tip" id="practice-cheatsheet-tip" style="display: none;"></div>
+            <div class="hold-meter">
+              <div id="practice-hold-fill" class="hold-meter-fill"></div>
+            </div>
+
+            <div id="practice-success-overlay" class="success-overlay" style="display: none;">
+              <div style="font-size: 3.5rem;">🎉</div>
+              <h3 style="font-size: 1.6rem; font-weight: 800;">Отлично! Жест усвоен!</h3>
+              <p id="practice-success-msg">Нейросеть подтвердила правильность. Прогресс сохранён в ЛК (+15 XP).</p>
+              <button class="btn-hero-primary" id="btn-practice-done" style="background: #ffffff; color: var(--primary-hover, #059669); margin-top: 0.5rem; font-weight: 700;">
+                Продолжить обучение [Пробел / Enter]
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -641,17 +747,18 @@
     <div class="modal-card" style="max-width: 720px;">
       <div class="modal-header">
         <div>
-          <span id="warmup-progress-step" style="font-size: 0.75rem; font-weight: 700; color: var(--primary-hover); text-transform: uppercase;">
+          <span id="warmup-progress-step" style="font-size: 0.75rem; font-weight: 700; color: var(--brand-primary-border, var(--primary-hover)); text-transform: uppercase;">
             Жест 1 из 3
           </span>
           <h3 id="warmup-target-title" class="card-title" style="margin-bottom: 0;">Жест: «Привет»</h3>
         </div>
-        <button class="btn-close" id="btn-close-warmup-modal" title="Закрыть">&times;</button>
+        <button class="btn-close" id="btn-close-warmup-modal" title="Закрыть [Esc]">&times;</button>
       </div>
 
       <div id="warmup-active-card">
         <!-- Камера разминки -->
         <div class="camera-container mirrored">
+          <div class="camera-silhouette-guide"></div>
           <video id="warmup-video" class="camera-video" playsinline autoplay muted></video>
           <canvas id="warmup-canvas" class="camera-canvas"></canvas>
 
@@ -661,7 +768,7 @@
               <div class="hud-actions">
                 <span class="hud-pill-ml" title="Клиентский инференс в браузере">⚡ 0ms</span>
                 <button type="button" class="btn-hud-icon btn-toggle-mirror" title="Переключить зеркальное отображение [M]">🪞</button>
-                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру">🔄</button>
+                <button type="button" class="btn-hud-icon btn-switch-camera" title="Переключить камеру [C]">🔄</button>
               </div>
             </div>
             <span class="hud-gesture" id="warmup-hud-gesture">—</span>
@@ -740,7 +847,7 @@
             <span id="onboarding-step-counter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Шаг 1 из 3</span>
           </div>
         </div>
-        <button class="btn-close" id="btn-close-onboarding" title="Закрыть">&times;</button>
+        <button class="btn-close" id="btn-close-onboarding" title="Закрыть [Esc]">&times;</button>
       </div>
 
       <div class="onboarding-body" style="padding: 1.5rem;">
@@ -809,7 +916,7 @@
         </div>
       </div>
 
-      <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+      <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-card, var(--card-border)); display: flex; justify-content: space-between; align-items: center;">
         <button type="button" class="btn-hero-secondary" id="btn-onboarding-prev" style="visibility: hidden;">
           ← Назад
         </button>
@@ -819,6 +926,29 @@
       </div>
     </div>
   </div>
+
+  <!-- Холст для визуального празднования и конфетти (для слабослышащих пользователей) -->
+  <canvas id="celebration-canvas" class="celebration-canvas" style="position: fixed; inset: 0; pointer-events: none; z-index: 9999; display: none;"></canvas>
+
+  <!-- Мобильная нижняя навигационная панель (Bottom App Bar) -->
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-btn active" data-tab="about">
+      <span class="mobile-nav-icon">🏠</span>
+      <span class="mobile-nav-label">О проекте</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="catalog">
+      <span class="mobile-nav-icon">📖</span>
+      <span class="mobile-nav-label">Словарь</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="blitz">
+      <span class="mobile-nav-icon">⚡</span>
+      <span class="mobile-nav-label">Блиц</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="profile">
+      <span class="mobile-nav-icon">👤</span>
+      <span class="mobile-nav-label">Профиль</span>
+    </button>
+  </nav>
 
   <!-- Подвал сайта -->
   <footer>

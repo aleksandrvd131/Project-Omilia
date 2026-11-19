@@ -168,6 +168,10 @@
     const currentGesture = warmup.gestures[warmup.currentIndex];
     if (dom.warmupQuestionSuccess) dom.warmupQuestionSuccess.style.display = 'flex';
 
+    if (callbacks.onCelebration) {
+      callbacks.onCelebration(dom.warmupCanvas?.parentElement, 15);
+    }
+
     if (callbacks.playSpeech) {
       callbacks.playSpeech(currentGesture.title || currentGesture.name);
     }
@@ -239,6 +243,10 @@
 
     if (dom.warmupActiveCard) dom.warmupActiveCard.style.display = 'none';
     if (dom.warmupFinishOverlay) dom.warmupFinishOverlay.style.display = 'flex';
+
+    if (callbacks.onCelebration) {
+      callbacks.onCelebration(dom.warmupFinishOverlay, 50);
+    }
 
     if (dom.warmupFinishStreakCount) {
       dom.warmupFinishStreakCount.textContent = `${warmup.streak} 🔥`;

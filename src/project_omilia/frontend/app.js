@@ -77,14 +77,22 @@
     btnHeaderLogin: document.getElementById('btn-header-login'),
     btnHeaderWarmup: document.getElementById('btn-header-warmup'),
     btnHeaderGuide: document.getElementById('btn-header-guide'),
+    headerStreakBadge: document.getElementById('header-streak-badge'),
+    streakDaysCount: document.getElementById('streak-days-count'),
+    headerXpBadge: document.getElementById('header-xp-badge'),
+    headerXpCount: document.getElementById('header-xp-count'),
 
     // Главная
     btnHeroStart: document.getElementById('btn-hero-start'),
     btnHeroWarmup: document.getElementById('btn-hero-warmup'),
     btnHeroGuide: document.getElementById('btn-hero-guide'),
     btnHeroLk: document.getElementById('btn-hero-lk'),
+    homeCardWarmup: document.getElementById('home-card-warmup'),
+    homeCardBlitz: document.getElementById('home-card-blitz'),
+    homeCardRoadmap: document.getElementById('home-card-roadmap'),
     contactForm: document.getElementById('contact-form'),
     contactSuccess: document.getElementById('contact-success'),
+    celebrationCanvas: document.getElementById('celebration-canvas'),
 
     // Каталог
     gesturesGrid: document.getElementById('gestures-grid'),
@@ -170,6 +178,8 @@
     btnPracticeDone: document.getElementById('btn-practice-done'),
     btnClosePracticeModal: document.getElementById('btn-close-practice-modal'),
     btnPracticeCancel: document.getElementById('btn-practice-cancel'),
+    practiceReferenceVideo: document.getElementById('practice-reference-video'),
+    practiceReferenceFallback: document.getElementById('practice-reference-fallback'),
 
     // Шпаргалка практики (US-3)
     btnPracticeCheatsheetToggle: document.getElementById('btn-practice-cheatsheet-toggle'),
@@ -244,6 +254,101 @@
     return name.trim().toLowerCase();
   }
 
+  // --- Визуальное празднование и тактильный отклик (для слабослышащих пользователей) ---
+  function triggerConfetti() {
+    const canvas = dom.celebrationCanvas || (typeof document !== 'undefined' ? document.getElementById('celebration-canvas') : null);
+    if (!canvas || !canvas.getContext || typeof window === 'undefined') return;
+    canvas.width = window.innerWidth || 800;
+    canvas.height = window.innerHeight || 600;
+    canvas.style.display = 'block';
+
+    const ctx = canvas.getContext('2d');
+    const particles = [];
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#34d399', '#60a5fa'];
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: canvas.width / 2 + (Math.random() - 0.5) * 160,
+        y: canvas.height * 0.4 + (Math.random() - 0.5) * 80,
+        vx: (Math.random() - 0.5) * 10,
+        vy: Math.random() * -8 - 4,
+        size: Math.random() * 8 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * Math.PI * 2,
+        vRot: (Math.random() - 0.5) * 0.2,
+        alpha: 1,
+      });
+    }
+
+    let animationFrame;
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.35;
+        p.rotation += p.vRot;
+        p.alpha -= 0.018;
+        if (p.alpha > 0 && p.y < canvas.height + 20) {
+          alive = true;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      }
+      if (alive && typeof requestAnimationFrame !== 'undefined') {
+        animationFrame = requestAnimationFrame(update);
+      } else {
+        if (typeof cancelAnimationFrame !== 'undefined' && animationFrame) {
+          cancelAnimationFrame(animationFrame);
+        }
+        canvas.style.display = 'none';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    if (typeof requestAnimationFrame !== 'undefined') {
+      animationFrame = requestAnimationFrame(update);
+    } else {
+      canvas.style.display = 'none';
+    }
+  }
+
+  function showXpToast(amount) {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+    const toast = document.createElement('div');
+    toast.className = 'xp-toast';
+    toast.innerHTML = `<span>⚡</span> <strong>+${amount} XP</strong>`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 400);
+    }, 1600);
+  }
+
+  function triggerCelebration(containerEl, xpAmount = 15) {
+    if (containerEl?.classList) {
+      containerEl.classList.add('celebrate-pulse');
+      setTimeout(() => containerEl.classList.remove('celebrate-pulse'), 1200);
+    }
+    triggerConfetti();
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([100, 50, 100]);
+      } catch {}
+    }
+    if (xpAmount > 0 && ui?.addExtraXP) {
+      ui.addExtraXP(xpAmount);
+      showXpToast(xpAmount);
+      ui.updateUserHeader(state, dom, () => switchTab('profile'));
+    }
+  }
+
   // --- Навигация и профиль ---
   function switchTab(tabId) {
     ui.switchTab(tabId, state, dom, {
@@ -252,6 +357,11 @@
       onSetupBlitz: () => blitz.setupBlitzIntro(state, dom, switchTab),
       onUpdateProfile: () => ui.updateProfileView(state, dom, () => switchTab('catalog')),
     });
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('.mobile-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+      });
+    }
   }
 
   async function checkAuth() {
@@ -424,12 +534,14 @@
       practice.handlePracticePrediction(pred, now, delta, state, dom, {
         playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
         updateProfileView: () => ui.updateProfileView(state, dom, () => switchTab('catalog')),
+        onCelebration: (container, xp) => triggerCelebration(container, xp),
       });
     } else if (state.cameraTarget === 'warmup') {
       const delta = state.warmup.lastTimestamp ? (now - state.warmup.lastTimestamp) / 1000 : 0.05;
       state.warmup.lastTimestamp = now;
       warmup.handleWarmupPrediction(pred, now, delta, state, dom, {
         playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
+        onCelebration: (container, xp) => triggerCelebration(container, xp),
         onWarmupFinished: (streak) => {
           ui.updateUserHeader(state, dom, () => switchTab('profile'));
           ui.updateProfileView(state, dom, () => switchTab('catalog'));
@@ -440,6 +552,7 @@
       state.blitz.lastTimestamp = now;
       blitz.handleBlitzPrediction(pred, now, delta, state, dom, {
         playSpeech: (text) => ui.playSpeech(text, state.settings.ttsEnabled),
+        onCelebration: (container, xp) => triggerCelebration(container, xp),
       });
     }
   }
@@ -737,6 +850,17 @@
         activeContainer.classList.toggle('mirrored');
       }
     }
+
+    // 4. C: переключение камеры
+    if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') {
+      if (camera?.switchCamera) {
+        camera.switchCamera(state, dom, {
+          getExpectedHandsCount,
+          onFrameRender,
+          ensureWebSocket: socket?.ensureWebSocket,
+        });
+      }
+    }
   }
 
   // --- Привязка событий DOM ---
@@ -750,6 +874,13 @@
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
 
+    // Мобильная нижняя навигация
+    document.querySelectorAll('.mobile-nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.tab) switchTab(btn.dataset.tab);
+      });
+    });
+
     dom.btnHeroStart?.addEventListener('click', () => switchTab('catalog'));
     dom.btnHeroLk?.addEventListener('click', () => switchTab('profile'));
     dom.btnHeroWarmup?.addEventListener('click', startWarmupSession);
@@ -757,6 +888,14 @@
     dom.btnHeaderWarmup?.addEventListener('click', startWarmupSession);
     dom.btnHeaderGuide?.addEventListener('click', () => openOnboarding(1));
     dom.btnCatalogWarmup?.addEventListener('click', startWarmupSession);
+
+    // Быстрый старт на главной
+    dom.homeCardWarmup?.addEventListener('click', startWarmupSession);
+    dom.homeCardBlitz?.addEventListener('click', () => {
+      switchTab('blitz');
+      dom.btnStartBlitz?.click();
+    });
+    dom.homeCardRoadmap?.addEventListener('click', () => switchTab('catalog'));
 
     // Онбординг
     dom.btnCloseOnboarding?.addEventListener('click', closeOnboarding);

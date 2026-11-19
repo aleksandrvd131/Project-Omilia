@@ -140,6 +140,9 @@
     if (state.blitz.advanceTimer !== null) return;
 
     if (dom.blitzQuestionSuccess) dom.blitzQuestionSuccess.style.display = 'flex';
+    if (callbacks.onCelebration) {
+      callbacks.onCelebration(dom.blitzCanvas?.parentElement, 15);
+    }
     if (callbacks.playSpeech) {
       callbacks.playSpeech(question.title || question.gesture_name);
     }
@@ -156,6 +159,9 @@
 
     if (dom.blitzActive) dom.blitzActive.style.display = 'none';
     if (dom.blitzFinish) dom.blitzFinish.style.display = 'block';
+    if (callbacks.onCelebration) {
+      callbacks.onCelebration(dom.blitzFinish, 30);
+    }
     if (dom.blitzFinishDesc) {
       dom.blitzFinishDesc.textContent = `Поздравляем! Вы успешно подтвердили знание всех ${state.blitz.questions.length} жестов в блиц-опросе!`;
     }

@@ -158,6 +158,26 @@
       if (arrow) arrow.textContent = '▾';
     }
 
+    // Двухэкранный плеер эталонного видео (Dual-Viewport)
+    if (dom.practiceReferenceVideo) {
+      const hasVideo = Boolean(gesture.has_video || gesture.video_url);
+      if (hasVideo) {
+        const videoSrc = gesture.video_url || `/static/videos/${encodeURIComponent(gesture.name.toLowerCase())}.mp4`;
+        dom.practiceReferenceVideo.src = videoSrc;
+        dom.practiceReferenceVideo.style.display = 'block';
+        if (dom.practiceReferenceFallback) dom.practiceReferenceFallback.style.display = 'none';
+        dom.practiceReferenceVideo.onerror = () => {
+          dom.practiceReferenceVideo.style.display = 'none';
+          if (dom.practiceReferenceFallback) dom.practiceReferenceFallback.style.display = 'flex';
+        };
+        dom.practiceReferenceVideo.play?.().catch(() => {});
+      } else {
+        dom.practiceReferenceVideo.style.display = 'none';
+        dom.practiceReferenceVideo.src = '';
+        if (dom.practiceReferenceFallback) dom.practiceReferenceFallback.style.display = 'flex';
+      }
+    }
+
     // Призрачный показ жестов отключен (мешает обзору и путает)
     state.practice.ghostSilhouette = null;
 
@@ -168,6 +188,10 @@
   function closePracticeModal(state, dom, onStopCamera, callbacks = {}) {
     if (dom.practiceModal) dom.practiceModal.style.display = 'none';
     if (dom.practiceDiagnosticHint) dom.practiceDiagnosticHint.style.display = 'none';
+    if (dom.practiceReferenceVideo) {
+      dom.practiceReferenceVideo.pause?.();
+      dom.practiceReferenceVideo.src = '';
+    }
     state.currentProblemFingers = [];
     state.isMatchingGesture = false;
     state.practice.ghostSilhouette = null;
@@ -181,6 +205,10 @@
 
   async function onGestureSuccessfullyLearned(gesture, state, dom, callbacks = {}) {
     if (dom.practiceSuccessOverlay) dom.practiceSuccessOverlay.style.display = 'flex';
+
+    if (callbacks.onCelebration) {
+      callbacks.onCelebration(dom.practiceCanvas?.parentElement, 15);
+    }
 
     if (callbacks.playSpeech) {
       callbacks.playSpeech(gesture.title || gesture.name);
