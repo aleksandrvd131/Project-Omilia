@@ -861,6 +861,13 @@
         });
       }
     }
+
+    // 5. / : быстрый фокус на поиск в словаре
+    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      switchTab('catalog');
+      dom.catalogSearch?.focus();
+    }
   }
 
   // --- Привязка событий DOM ---
@@ -869,6 +876,10 @@
       e.preventDefault();
       switchTab('about');
     });
+
+    // Единая статусная капсула
+    const unifiedPill = document.getElementById('unified-status-pill');
+    unifiedPill?.addEventListener('click', () => switchTab('profile'));
 
     dom.navBtns.forEach((btn) => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));

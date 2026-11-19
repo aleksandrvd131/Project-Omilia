@@ -326,12 +326,9 @@
     const headerUserArea = dom?.headerUserArea || (doc ? doc.getElementById('header-user-area') : null);
     if (headerUserArea) {
       if (state.currentUser) {
-        const xpInfo = calculateUserXP(state);
         headerUserArea.innerHTML = `
           <div class="user-badge" id="btn-header-profile" title="Перейти в личный кабинет">
-            <span>👤</span>
-            <span>${escapeHtml(state.currentUser.username)}</span>
-            <span class="header-xp-pill" title="Очки опыта (XP)">⚡ ${xpInfo.currentXp} XP</span>
+            <span class="user-handle" id="header-user-handle">@${escapeHtml(state.currentUser.username)}</span>
           </div>
         `;
         if (doc) {
@@ -341,7 +338,7 @@
         }
       } else {
         headerUserArea.innerHTML = `
-          <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+          <button class="btn-login" id="btn-header-login">Войти</button>
         `;
         if (doc) {
           doc.getElementById('btn-header-login')?.addEventListener('click', () => {

@@ -258,11 +258,11 @@
     style.textContent = `
       .catalog-roadmap-view {
         margin-bottom: 1.5rem;
-        background: #ffffff;
-        border: 1px solid var(--card-border, #e2e8f0);
-        border-radius: var(--radius, 16px);
-        padding: 1.25rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        background: var(--bg-surface, #15181d) !important;
+        border: 1px solid var(--border-hairline, rgba(255,255,255,0.08)) !important;
+        border-radius: var(--radius-md, 12px) !important;
+        padding: 1.25rem !important;
+        color: var(--text-main, #e6edf3) !important;
       }
       .roadmap-header {
         display: flex;
@@ -273,16 +273,16 @@
         gap: 0.5rem;
       }
       .roadmap-title {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text-main, #0f172a);
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text-main, #e6edf3) !important;
         display: flex;
         align-items: center;
         gap: 0.5rem;
       }
       .roadmap-subtitle {
         font-size: 0.82rem;
-        color: var(--text-muted, #64748b);
+        color: var(--text-muted, #8b949e) !important;
       }
       .roadmap-grid {
         display: grid;
@@ -290,10 +290,10 @@
         gap: 0.85rem;
       }
       .level-card {
-        background: #f8fafc;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 0.95rem;
+        background: var(--bg-surface-elevated, #1c2027) !important;
+        border: 1px solid var(--border-hairline, rgba(255,255,255,0.08)) !important;
+        border-radius: var(--radius-sm, 8px) !important;
+        padding: 0.95rem !important;
         cursor: pointer;
         transition: all 0.2s ease;
         display: flex;
@@ -301,21 +301,20 @@
         justify-content: space-between;
         position: relative;
         text-align: left;
+        color: var(--text-main, #e6edf3) !important;
       }
       .level-card:hover {
         transform: translateY(-2px);
-        border-color: var(--primary-border, #86efac);
-        box-shadow: 0 6px 16px -2px rgba(16, 185, 129, 0.12);
+        border-color: rgba(245, 158, 11, 0.4) !important;
       }
       .level-card.active {
-        border-color: var(--primary, #10b981);
-        background: #f0fdf4;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        border-color: var(--kinetic-emerald, #10b981) !important;
+        background: rgba(16, 185, 129, 0.08) !important;
       }
       .level-card.locked {
-        opacity: 0.68;
-        background: #f1f5f9;
-        border-style: dashed;
+        opacity: 0.5 !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        border-style: dashed !important;
         cursor: pointer;
       }
       .level-card-top {
@@ -334,94 +333,81 @@
         border-radius: 9999px;
       }
       .status-unlocked {
-        background: #e0f2fe;
-        color: #0369a1;
+        background: rgba(56, 189, 248, 0.12) !important;
+        color: #38bdf8 !important;
       }
       .status-in-progress {
-        background: #fef3c7;
-        color: #b45309;
+        background: rgba(245, 158, 11, 0.12) !important;
+        color: #f59e0b !important;
       }
       .status-completed {
-        background: #dcfce7;
-        color: #15803d;
-        border: 1px solid #86efac;
+        background: rgba(16, 185, 129, 0.12) !important;
+        color: #10b981 !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
       }
       .status-locked {
-        background: #e2e8f0;
-        color: #64748b;
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #8b949e !important;
       }
       .level-card-title {
         font-size: 0.92rem;
         font-weight: 700;
-        color: var(--text-main, #0f172a);
+        color: var(--text-main, #e6edf3) !important;
         margin-bottom: 0.2rem;
       }
       .level-card-desc {
         font-size: 0.74rem;
-        color: var(--text-muted, #64748b);
+        color: var(--text-muted, #8b949e) !important;
         margin-bottom: 0.65rem;
         line-height: 1.3;
       }
       .level-progress-bar {
         width: 100%;
-        height: 5px;
-        background: #e2e8f0;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.08) !important;
         border-radius: 9999px;
         overflow: hidden;
         margin-bottom: 0.3rem;
       }
       .level-progress-fill {
         height: 100%;
-        background: var(--primary, #10b981);
+        background: var(--kinetic-emerald, #10b981) !important;
         transition: width 0.3s ease;
       }
       .level-progress-fill.locked {
-        background: #94a3b8;
+        background: rgba(255, 255, 255, 0.2) !important;
       }
       .level-card-stats {
         display: flex;
         justify-content: space-between;
         font-size: 0.72rem;
-        color: var(--text-muted, #64748b);
+        color: var(--text-muted, #8b949e) !important;
         font-weight: 600;
       }
       .level-lock-hint {
         font-size: 0.7rem;
-        color: #b45309;
+        color: #f59e0b !important;
         margin-top: 0.35rem;
         font-weight: 600;
-      }
-      .level-filter-bar {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-        margin-bottom: 0.65rem;
-      }
-      .level-filter-label {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: var(--text-muted, #64748b);
-        margin-right: 0.2rem;
       }
       .gesture-level-tag {
         font-size: 0.73rem;
         font-weight: 700;
         padding: 2px 7px;
-        border-radius: 6px;
-        background: #eef2ff;
-        color: #4338ca;
-        border: 1px solid #c7d2fe;
+        border-radius: 4px;
+        background: rgba(245, 158, 11, 0.12) !important;
+        color: #f59e0b !important;
+        border: 1px solid rgba(245, 158, 11, 0.25) !important;
+        font-family: var(--font-mono, monospace);
       }
       .gesture-card.level-locked {
-        opacity: 0.82;
-        background: #fafafa;
+        opacity: 0.55 !important;
       }
       .gesture-lock-banner {
-        background: #fffbeb;
-        border: 1px solid #fde68a;
-        color: #b45309;
-        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.08) !important;
+        border: 1px solid rgba(245, 158, 11, 0.25) !important;
+        color: #f59e0b !important;
+        border-radius: 6px;
         padding: 0.35rem 0.6rem;
         font-size: 0.76rem;
         font-weight: 600;
@@ -572,102 +558,89 @@
   function renderLevelFilterChips(state, dom, onOpenTutorial, levelStats) {
     const { levelFilters } = ensureCurriculumDOM(dom);
     if (!levelFilters) return;
+    levelFilters.innerHTML = '';
+    levelFilters.style.display = 'none';
+  }
 
+  /**
+   * Отрисовка унифицированного 5-сегментного переключателя (Kinetic Segmented Track).
+   */
+  function updateCategoryFilterChips(state, dom, onOpenTutorial) {
+    const catContainer = dom.categoryFilters || document.getElementById('category-filters') || document.getElementById('category-segmented-control');
+    if (!catContainer) return;
+
+    const levelStats = calculateLevelStats(state.gestures);
     const totalAll = (state.gestures || []).length;
     const l1 = levelStats?.[1]?.total ?? 0;
     const l2 = levelStats?.[2]?.total ?? 0;
     const l3 = levelStats?.[3]?.total ?? 0;
     const l4 = levelStats?.[4]?.total ?? 0;
-
-    levelFilters.innerHTML = `
-      <span class="level-filter-label">Уровень:</span>
-      <button class="filter-chip ${filters.level === 'all' ? 'active' : ''}" data-level="all">Все уровни ${totalAll > 0 ? `(${totalAll})` : ''}</button>
-      <button class="filter-chip ${filters.level == 1 ? 'active' : ''}" data-level="1">Ур. 1: Дактиль ${l1 > 0 ? `(${l1})` : ''}</button>
-      <button class="filter-chip ${filters.level == 2 ? 'active' : ''}" data-level="2">Ур. 2: Счёт ${l2 > 0 ? `(${l2})` : ''}</button>
-      <button class="filter-chip ${filters.level == 3 ? 'active' : ''}" data-level="3">Ур. 3: Этикет ${l3 > 0 ? `(${l3})` : ''}</button>
-      <button class="filter-chip ${filters.level == 4 ? 'active' : ''}" data-level="4">Ур. 4: Семья ${l4 > 0 ? `(${l4})` : ''}</button>
-    `;
-
-    levelFilters.querySelectorAll('.filter-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        levelFilters.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
-
-        filters.level = chip.dataset.level === 'all' ? 'all' : Number(chip.dataset.level);
-        renderCatalog(state, dom, onOpenTutorial);
-      });
-    });
-  }
-
-  /**
-   * Отрисовка и синхронизация чипов категорий со счётчиками жестов.
-   */
-  function updateCategoryFilterChips(state, dom, onOpenTutorial) {
-    const catContainer = dom.categoryFilters || document.getElementById('category-filters');
-    if (!catContainer) return;
-
-    const categoryCounts = {};
-    (state.gestures || []).forEach((g) => {
-      const c = (g.category || 'Общие жесты').trim();
-      categoryCounts[c] = (categoryCounts[c] || 0) + 1;
-    });
-
-    if (Object.keys(categoryCounts).length === 0) {
-      categoryCounts['Дактиль (Алфавит)'] = 0;
-      categoryCounts['Числительные'] = 0;
-      categoryCounts['Базовый этикет'] = 0;
-      categoryCounts['Семья и окружение'] = 0;
-    }
+    const learnedCount = (state.gestures || []).filter((g) => g.is_learned).length;
 
     const currentCat = filters.category;
-    let chipsHtml = `
-      <button class="filter-chip ${currentCat === 'all' ? 'active' : ''}" data-category="all">Все жесты</button>
-    `;
+    const currentLvl = filters.level;
 
-    const primaryOrder = [
-      'Дактиль (Алфавит)',
-      'Числительные',
-      'Базовый этикет',
-      'Приветствия',
-      'Вежливость',
-      'Базовые',
-      'Семья и окружение',
-      'Семья',
-      'Общие жесты',
-    ];
+    let activeSegment = 'all';
+    if (currentCat === 'learned') {
+      activeSegment = 'learned';
+    } else if (currentLvl === 1) {
+      activeSegment = 'alphabet';
+    } else if (currentLvl === 2) {
+      activeSegment = 'numbers';
+    } else if (currentLvl === 3) {
+      activeSegment = 'phrases';
+    } else if (currentLvl === 4) {
+      activeSegment = 'family';
+    }
 
-    const sortedCats = Object.keys(categoryCounts).sort((a, b) => {
-      const idxA = primaryOrder.indexOf(a);
-      const idxB = primaryOrder.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-    });
-
-    sortedCats.forEach((c) => {
-      const cnt = categoryCounts[c] || 0;
-      chipsHtml += `
-        <button class="filter-chip ${currentCat === c ? 'active' : ''}" data-category="${c}">
-          ${c} ${cnt > 0 ? `(${cnt})` : ''}
-        </button>
-      `;
-    });
-
-    const learnedCount = (state.gestures || []).filter((g) => g.is_learned).length;
-    chipsHtml += `
-      <button class="filter-chip ${currentCat === 'learned' ? 'active' : ''}" data-category="learned">
-        ✓ Только выученные ${learnedCount > 0 ? `(${learnedCount})` : ''}
+    catContainer.className = 'segmented-track category-filters';
+    catContainer.setAttribute('role', 'tablist');
+    catContainer.innerHTML = `
+      <button class="segment-btn filter-chip ${activeSegment === 'all' ? 'active' : ''}" data-segment="all" data-category="all" role="tab">
+        <span class="seg-label">Все</span> <span class="seg-count" id="count-all">${totalAll}</span>
+      </button>
+      <button class="segment-btn filter-chip ${activeSegment === 'alphabet' ? 'active' : ''}" data-segment="alphabet" data-level="1" data-category="Дактиль (Алфавит)" role="tab">
+        <span class="seg-label">Алфавит</span> <span class="seg-count" id="count-alphabet">${l1}</span>
+      </button>
+      <button class="segment-btn filter-chip ${activeSegment === 'numbers' ? 'active' : ''}" data-segment="numbers" data-level="2" data-category="Числительные" role="tab">
+        <span class="seg-label">Числа</span> <span class="seg-count" id="count-numbers">${l2}</span>
+      </button>
+      <button class="segment-btn filter-chip ${activeSegment === 'phrases' ? 'active' : ''}" data-segment="phrases" data-level="3" data-category="Базовый этикет" role="tab">
+        <span class="seg-label">Фразы</span> <span class="seg-count" id="count-phrases">${l3}</span>
+      </button>
+      <button class="segment-btn filter-chip ${activeSegment === 'family' ? 'active' : ''}" data-segment="family" data-level="4" data-category="Семья и окружение" role="tab">
+        <span class="seg-label">Семья</span> <span class="seg-count" id="count-family">${l4}</span>
+      </button>
+      <button class="segment-btn filter-chip segment-filter-learned ${activeSegment === 'learned' ? 'active' : ''}" data-segment="learned" data-category="learned" role="tab">
+        <span class="seg-label">✓ Освоенные</span> <span class="seg-count" id="count-learned">${learnedCount}</span>
       </button>
     `;
 
-    catContainer.innerHTML = chipsHtml;
+    catContainer.querySelectorAll('.segment-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        catContainer.querySelectorAll('.segment-btn').forEach((c) => c.classList.remove('active'));
+        btn.classList.add('active');
 
-    catContainer.querySelectorAll('.filter-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        catContainer.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
-        filters.category = chip.dataset.category;
+        const seg = btn.dataset.segment;
+        if (seg === 'all') {
+          filters.level = 'all';
+          filters.category = 'all';
+        } else if (seg === 'alphabet') {
+          filters.level = 1;
+          filters.category = 'all';
+        } else if (seg === 'numbers') {
+          filters.level = 2;
+          filters.category = 'all';
+        } else if (seg === 'phrases') {
+          filters.level = 3;
+          filters.category = 'all';
+        } else if (seg === 'family') {
+          filters.level = 4;
+          filters.category = 'all';
+        } else if (seg === 'learned') {
+          filters.level = 'all';
+          filters.category = 'learned';
+        }
         renderCatalog(state, dom, onOpenTutorial);
       });
     });
@@ -782,31 +755,30 @@
         ? (gesture.is_learned ? 'Повторить жест ↺' : `Изучить (Ур. ${gesture.level}) 🔒`)
         : (gesture.is_learned ? 'Повторить жест ↺' : 'Изучить жест →');
 
+      const levelCode = String(gesture.level || 1).padStart(2, '0');
+      const categoryCode = `${levelCode} // ${(gesture.level_title || gesture.category || 'РЖЯ').toUpperCase()}`;
+      const statusTelemetry = gesture.is_learned
+        ? '<span class="status-pill-learned">● ОСВОЕНО</span>'
+        : (!isLevelUnlocked ? `<span class="status-pill-locked">🔒 УРОВЕНЬ ${gesture.level}</span>` : '<span class="status-pill-unlearned">○ ТРЕНИРОВАТЬ</span>');
+
       card.innerHTML = `
-        <div>
+        <div class="gesture-card-inner">
           <div class="gesture-top">
-            <span class="gesture-badge ${gesture.is_learned ? 'badge-learned' : 'badge-unlearned'}">
-              ${gesture.is_learned ? '✓ Выучен' : 'Не изучен'}
-            </span>
-            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-              <span class="gesture-level-tag">Ур. ${gesture.level}</span>
-              <span style="font-size: 0.75rem; background: #f1f5f9; padding: 2px 7px; border-radius: 6px; font-weight: 600; color: var(--text-muted);">
-                ${handsBadge}
-              </span>
-              <span style="font-size: 0.78rem; color: var(--text-muted);">${ui?.escapeHtml(gesture.category)}</span>
-            </div>
+            <span class="gesture-telemetry-code">${categoryCode}</span>
+            <span class="gesture-hands-glyph">${handsBadge}</span>
           </div>
-          <h3 class="gesture-title">${ui?.escapeHtml(gesture.title || gesture.name)}</h3>
-          <p class="gesture-desc">${ui?.escapeHtml(gesture.description)}</p>
-          <div class="gesture-tip">
-            💡 ${ui?.escapeHtml(gesture.tip)}
+          <div class="gesture-body">
+            <h3 class="gesture-title">${ui?.escapeHtml(gesture.title || gesture.name)}</h3>
+            <p class="gesture-desc">${ui?.escapeHtml(gesture.description)}</p>
+            ${gesture.tip ? `<div class="gesture-tip">💡 ${ui?.escapeHtml(gesture.tip)}</div>` : ''}
           </div>
           ${lockBanner}
-        </div>
-        <div style="margin-top: 1rem;">
-          <button class="btn-practice" data-name="${ui?.escapeHtml(gesture.name)}">
-            ${btnText}
-          </button>
+          <div class="gesture-footer">
+            ${statusTelemetry}
+            <button class="btn-practice ${!isLevelUnlocked ? 'locked' : ''}" data-name="${ui?.escapeHtml(gesture.name)}">
+              ${btnText}
+            </button>
+          </div>
         </div>
       `;
 

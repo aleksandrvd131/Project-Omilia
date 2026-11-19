@@ -152,6 +152,63 @@ async function runBrowserE2E() {
     });
     console.log('✓ Tab elements check:', tabsCheck.result.value);
 
+    // Check Issue 1: Contrast Verification on #catalog-roadmap
+    const contrastCheck = await sendCmd('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const roadmap = document.getElementById('catalog-roadmap');
+          if (!roadmap) return { exists: false };
+          const style = window.getComputedStyle(roadmap);
+          const bg = style.backgroundColor;
+          const isWhite = bg === 'rgb(255, 255, 255)' || bg === '#ffffff' || bg === 'white';
+          return { exists: true, bg, isWhite, color: style.color };
+        })()
+      `,
+      returnByValue: true,
+    });
+    console.log('✓ Contrast check on #catalog-roadmap:', contrastCheck.result.value);
+    if (contrastCheck.result.value.isWhite) {
+      throw new Error(`Contrast Failure: #catalog-roadmap has stark white background: ${contrastCheck.result.value.bg}`);
+    }
+
+    // Check Issue 2: Header Bloat & Duplicate XP Badges Verification
+    const headerCheck = await sendCmd('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const header = document.querySelector('header');
+          const xpBadges = header ? header.querySelectorAll('#header-xp-badge, .header-xp-pill') : [];
+          const unifiedPill = document.getElementById('unified-status-pill');
+          return {
+            hasUnifiedPill: !!unifiedPill,
+            xpBadgeCount: xpBadges.length,
+            isDuplicated: xpBadges.length > 1
+          };
+        })()
+      `,
+      returnByValue: true,
+    });
+    console.log('✓ Header unified status check:', headerCheck.result.value);
+    if (headerCheck.result.value.isDuplicated) {
+      throw new Error('Header Bloat Failure: Duplicate XP badges detected in header');
+    }
+
+    // Check Issue 3: 5-Segment Switcher & Search
+    const segmentedCheck = await sendCmd('Runtime.evaluate', {
+      expression: `
+        (() => {
+          const track = document.querySelector('.segmented-track');
+          const segButtons = track ? Array.from(track.querySelectorAll('.segment-btn')).map(b => b.textContent.trim()) : [];
+          return {
+            hasTrack: !!track,
+            segmentCount: segButtons.length,
+            segments: segButtons
+          };
+        })()
+      `,
+      returnByValue: true,
+    });
+    console.log('✓ 5-Segment Switcher check:', segmentedCheck.result.value);
+
     // Check critical buttons clickability without errors
     const clickCheck = await sendCmd('Runtime.evaluate', {
       expression: `

@@ -33,16 +33,16 @@
 </head>
 <body>
 
-  <!-- Шапка сайта -->
+  <!-- Шапка сайта (Kinetic Studio Header) -->
   <header>
     <div class="header-inner">
       <a href="#" class="brand" id="brand-link">
         <div class="logo-badge">Ω</div>
-        <div class="brand-title">Project <span>Omiλia</span></div>
+        <div class="brand-title">Omiλia <span class="brand-tag">РЖЯ // СТУДИЯ</span></div>
       </a>
 
       <!-- Вкладки навигации -->
-      <nav>
+      <nav class="studio-nav">
         <ul class="nav-tabs">
           <li>
             <button class="nav-btn active" data-tab="about" id="tab-btn-about">
@@ -51,30 +51,40 @@
           </li>
           <li>
             <button class="nav-btn" data-tab="catalog" id="tab-btn-catalog">
-              <span>📖</span> Словарь жестов
+              <span>📖</span> Словарь
             </button>
           </li>
           <li>
             <button class="nav-btn" data-tab="blitz" id="tab-btn-blitz">
-              <span>⚡</span> Проверить себя
+              <span>⚡</span> Блиц
             </button>
           </li>
           <li>
             <button class="nav-btn" data-tab="profile" id="tab-btn-profile">
-              <span>👤</span> Личный кабинет
+              <span>👤</span> Профиль
             </button>
           </li>
         </ul>
       </nav>
 
-      <!-- Блок серии, разминки, обучения и пользователя в шапке -->
-      <div class="header-user-group">
-        <button class="btn-guide-header" id="btn-header-guide" title="Инструкция: как пользоваться тренажёром">💡 Обучение</button>
-        <button class="btn-warmup-header" id="btn-header-warmup" title="Ежедневная разминка по методике SM-2">🎯 Разминка</button>
-        <div class="streak-badge" id="header-streak-badge" title="Дни практики подряд">🔥 <span id="streak-days-count">0</span> дн.</div>
-        <div class="xp-badge" id="header-xp-badge" title="Очки опыта (XP)">⚡ <span id="header-xp-count">0</span> XP</div>
-        <div class="user-actions" id="header-user-area">
-          <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+      <!-- Единая статусная группа студии (Zero duplicate badges) -->
+      <div class="header-user-group" id="header-user-group">
+        <button class="btn-studio-tool" id="btn-header-guide" title="Инструкция по тренировке">💡</button>
+        <button class="btn-studio-tool" id="btn-header-warmup" title="Ежедневная разминка SM-2">🎯</button>
+
+        <!-- Единая капсула статуса -->
+        <div class="unified-status-pill" id="unified-status-pill" role="button" tabindex="0" title="Личный кабинет">
+          <span class="status-seg streak" id="header-streak-badge" title="Серия дней практики">
+            🔥 <span id="streak-days-count">0</span>
+          </span>
+          <span class="status-divider">·</span>
+          <span class="status-seg xp" id="header-xp-badge" title="Очки опыта (XP)">
+            ⚡ <span id="header-xp-count">0</span> XP
+          </span>
+          <span class="status-divider">·</span>
+          <span class="status-seg user" id="header-user-area">
+            <button class="btn-login-inline" id="btn-header-login">Войти</button>
+          </span>
         </div>
       </div>
     </div>
@@ -276,20 +286,37 @@
       <!-- Дерево курсов и уровни сложности (Roadmap) -->
       <div id="catalog-roadmap" class="catalog-roadmap-view"></div>
 
-      <!-- Поиск и фильтры по категориям -->
-      <div class="catalog-controls">
-        <div class="search-box">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="catalog-search" class="search-input" placeholder="Поиск жеста по названию или букве..." autocomplete="off">
+      <!-- Пульт управления словарём: Поиск с горячей клавишей [/] и 5-сегментный трек -->
+      <div class="catalog-controls-studio">
+        <div class="search-box-studio">
+          <span class="search-icon-mono">/</span>
+          <input type="text" id="catalog-search" class="search-input-studio" placeholder="Поиск жеста по названию или букве... (Нажмите /)" autocomplete="off">
           <button id="btn-clear-search" class="btn-clear-search" title="Очистить поиск" style="display: none;">✕</button>
         </div>
-        <div class="level-filter-bar" id="level-filters"></div>
-        <div class="category-filters" id="category-filters">
-          <button class="filter-chip active" data-category="all">Все жесты</button>
-          <button class="filter-chip" data-category="Дактиль (Алфавит)">Алфавит</button>
-          <button class="filter-chip" data-category="Приветствия">Приветствия</button>
-          <button class="filter-chip" data-category="Базовые">Базовые</button>
-          <button class="filter-chip" data-category="learned">✓ Только выученные</button>
+        
+        <!-- Скрытый контейнер для совместимости DOM -->
+        <div id="level-filters" style="display: none;"></div>
+
+        <!-- 5-сегментный тактильный трек (Kinetic Segmented Track) -->
+        <div class="segmented-track category-filters" id="category-filters" role="tablist">
+          <button class="segment-btn filter-chip active" data-segment="all" data-category="all" role="tab" aria-selected="true">
+            <span class="seg-label">Все</span> <span class="seg-count" id="count-all">0</span>
+          </button>
+          <button class="segment-btn filter-chip" data-segment="alphabet" data-level="1" data-category="Дактиль (Алфавит)" role="tab">
+            <span class="seg-label">Алфавит</span> <span class="seg-count" id="count-alphabet">0</span>
+          </button>
+          <button class="segment-btn filter-chip" data-segment="numbers" data-level="2" data-category="Числительные" role="tab">
+            <span class="seg-label">Числа</span> <span class="seg-count" id="count-numbers">0</span>
+          </button>
+          <button class="segment-btn filter-chip" data-segment="phrases" data-level="3" data-category="Базовый этикет" role="tab">
+            <span class="seg-label">Фразы</span> <span class="seg-count" id="count-phrases">0</span>
+          </button>
+          <button class="segment-btn filter-chip" data-segment="family" data-level="4" data-category="Семья и окружение" role="tab">
+            <span class="seg-label">Семья</span> <span class="seg-count" id="count-family">0</span>
+          </button>
+          <button class="segment-btn filter-chip segment-filter-learned" data-segment="learned" data-category="learned" role="tab">
+            <span class="seg-label">✓ Освоенные</span> <span class="seg-count" id="count-learned">0</span>
+          </button>
         </div>
       </div>
 
