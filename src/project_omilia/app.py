@@ -24,14 +24,13 @@ from project_omilia.core.config import (
     INDEX_PATH,
 )
 from project_omilia.services.dynamic_service import DynamicGestureServer
-from project_omilia.services.static_service import StaticGestureServer, import_static_datasets
+from project_omilia.services.static_service import StaticGestureServer
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Инициализация базы данных, импорт эталонов и подготовка моделей классификации."""
+    """Инициализация схемы SQLite и загрузка сохранённых эталонов."""
     db.init_db(DB_PATH)
-    import_static_datasets(DB_PATH)
     app.state.static_server = StaticGestureServer(DB_PATH)
     app.state.dynamic_server = DynamicGestureServer(DB_PATH)
     total_gestures = len(app.state.static_server.engine_1h.dataset) + len(app.state.static_server.engine_2h.dataset)

@@ -14,8 +14,8 @@ from project_omilia.api.deps import (
     require_current_user,
 )
 from project_omilia.core.config import DB_PATH, GESTURE_METADATA
-from project_omilia.gestures import COUNT_OF_SAMPLES
-from project_omilia.schemas.gestures import DatasetImportPayload, LearnRequest
+from project_omilia.gestures import CURRICULUM_LEVELS, get_curriculum_info
+from project_omilia.schemas.gestures import DatasetImportPayload, GestureImportItem, LearnRequest
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.silhouette_service import get_gesture_silhouette
 from project_omilia.services.static_service import StaticGestureServer
@@ -37,6 +37,10 @@ async def api_get_gestures(
     combined_stats = static_server.get_combined_stats()
     combined_info = static_server.get_combined_info()
     dynamic_hands = dynamic_server.get_ready_gestures()
+    dynamic_counts = {
+        (item["name"], item["hands"]): item["count"]
+        for item in db.list_dynamic_samples(DB_PATH)
+    }
     db_gestures = {g["name"]: g for g in db.get_all_gestures(DB_PATH)}
 
     all_names = sorted(db_gestures.keys() | combined_stats.keys() | dynamic_hands.keys())
@@ -68,22 +72,22 @@ async def api_get_gestures(
 
         static_info = combined_info.get(norm_name)
         static_hands = static_info["hands"] if static_info else (db_meta.get("hands_count") if db_meta else 1)
-        hands_count = dyn_hands if is_dynamic else (static_hands or 1)
+        hands_count = (dyn_hands or (db_meta or {}).get("hands_count") or 1) if is_dynamic else (static_hands or 1)
+        count = dynamic_counts.get((norm_name, hands_count), 0) if is_dynamic else combined_stats.get(norm_name, 0)
+        level = (db_meta or {}).get("level") or get_curriculum_info(norm_name, category)["level"]
+        is_ready = bool(dyn_hands) if is_dynamic else count >= 3
 
         gestures_list.append(
             {
                 "name": norm_name,
                 "title": title,
                 "category": category,
-                "description": (
-                    "Динамический жест. Покажите движение целиком после отсчёта." if is_dynamic else description
-                ),
-                "tip": (
-                    f"Покажите жест {'одной рукой' if hands_count == 1 else 'двумя руками'} за одну секунду."
-                    if is_dynamic
-                    else tip
-                ),
-                "samples_count": COUNT_OF_SAMPLES if is_dynamic else combined_stats.get(norm_name, 0),
+                "description": description,
+                "tip": tip,
+                "level": level,
+                "level_title": CURRICULUM_LEVELS[level]["level_title"],
+                "samples_count": count,
+                "is_ready": is_ready,
                 "hands_count": hands_count,
                 "dynamic_hands_count": dyn_hands,
                 "is_dynamic": is_dynamic,
@@ -106,17 +110,15 @@ async def api_get_gestures(
 
 
 @router.post("")
-async def api_save_gesture(
-    gesture_data: dict,
-):
-    """Добавление или обновление жеста в SQLite каталоге."""
-    name = gesture_data.get("name", "").strip().lower()
+async def api_save_gesture(gesture_data: GestureImportItem):
+    """Сохраняет поля карточки, поддерживая частичные запросы старых клиентов."""
+    name = gesture_data.name.strip().lower()
     if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Название жеста не указано",
-        )
-    db.upsert_gesture(DB_PATH, gesture_data)
+        raise HTTPException(status_code=400, detail="Название жеста не указано")
+    try:
+        db.upsert_gesture(DB_PATH, {**gesture_data.model_dump(exclude_unset=True), "name": name})
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return {"status": "ok", "gesture": db.get_gesture(DB_PATH, name)}
 
 
@@ -301,6 +303,14 @@ async def api_get_gesture_silhouette(
             detail=f"Жест '{gesture_name}' не найден",
         )
     return {"status": "ok", **silhouette_data}
+
+
+@router.get("/{gesture_name}")
+async def api_get_gesture_card(gesture_name: str):
+    gesture = db.get_gesture(DB_PATH, gesture_name)
+    if gesture is None:
+        raise HTTPException(status_code=404, detail="Карточка жеста пока не создана")
+    return {"status": "ok", "gesture": gesture}
 
 
 @router.delete("/{gesture_name}")

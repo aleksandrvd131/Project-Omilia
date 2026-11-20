@@ -14,6 +14,7 @@ import numpy as np
 from project_omilia import db, gestures
 from project_omilia.core.config import DYNAMIC_DTW_THRESHOLDS
 from project_omilia.gestures import DynamicGestures
+from project_omilia.schemas.gestures import recording_card
 from project_omilia.services.pose_service import make_pose
 
 
@@ -183,7 +184,8 @@ class DynamicGestureServer:
 
             sequence = self.prepare_dynamic_clip(frames, hands_count)
             if mode == "record":
-                count = self.engine.add_sample(label, sequence)
+                metadata = recording_card(payload, label, hands_count, True)
+                count = self.engine.add_sample(label, sequence, metadata=metadata)
                 return {
                     **response,
                     "status": "recorded",

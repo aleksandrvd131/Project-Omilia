@@ -235,55 +235,15 @@ def init_db(db_path: Path) -> None:
             """
         )
 
-        # Автоматическая миграция метаданных жестов в SQLite при первом запуске или обновлении
-        now_iso = datetime.now(timezone.utc).isoformat()
-        try:
-            from project_omilia.gestures import GESTURE_DEFINITIONS
+        gesture_columns = {row["name"] for row in conn.execute("PRAGMA table_info(gestures)")}
+        if "level" not in gesture_columns:
+            conn.execute("ALTER TABLE gestures ADD COLUMN level INTEGER")
 
-            for gname, gdef in GESTURE_DEFINITIONS.items():
-                conn.execute(
-                    """
-                    INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(name) DO UPDATE SET
-                        title = excluded.title,
-                        category = excluded.category,
-                        description = excluded.description,
-                        tip = excluded.tip,
-                        hands_count = excluded.hands_count,
-                        is_dynamic = excluded.is_dynamic
-                    """,
-                    (
-                        gname.strip().lower(),
-                        gdef.title,
-                        gdef.category,
-                        gdef.description,
-                        gdef.tip,
-                        gdef.hands_count,
-                        1 if gdef.is_dynamic else 0,
-                        now_iso,
-                    ),
-                )
-        except Exception:
-            from project_omilia.core.config import GESTURE_METADATA
+        from project_omilia.gestures import get_curriculum_info
 
-            for gname, meta in GESTURE_METADATA.items():
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        gname.strip().lower(),
-                        meta.get("title", gname.capitalize()),
-                        meta.get("category", "Общие жесты"),
-                        meta.get("description", ""),
-                        meta.get("tip", ""),
-                        1,
-                        0,
-                        now_iso,
-                    ),
-                )
+        for row in conn.execute("SELECT name, category FROM gestures WHERE level IS NULL").fetchall():
+            curriculum = get_curriculum_info(row["name"], row["category"])
+            conn.execute("UPDATE gestures SET level = ? WHERE name = ?", (curriculum["level"], row["name"]))
 
         conn.execute(
             """
@@ -293,67 +253,6 @@ def init_db(db_path: Path) -> None:
             """
         )
 
-        # Автоматическое наполнение сэмплов жестов Slovo в static_gesture_samples (все 33 буквы дактиля и жесты Slovo)
-        dactyl_migration = "slovo_dactyl_33_v1"
-        has_dactyl_migration = (
-            conn.execute(
-                "SELECT 1 FROM gesture_data_migrations WHERE name = ?",
-                (dactyl_migration,),
-            ).fetchone()
-            is not None
-        )
-        try:
-            from project_omilia.ml.slovo_generator import (
-                SLOVO_GESTURES,
-                build_db_records,
-                generate_augmented_samples,
-            )
-
-            if not has_dactyl_migration:
-                # Очищаем устаревшие/неканонические сэмплы для жестов из SLOVO_GESTURES
-                placeholders = ",".join("?" for _ in SLOVO_GESTURES)
-                conn.execute(
-                    f"DELETE FROM static_gesture_samples WHERE gesture_name IN ({placeholders})",
-                    tuple(SLOVO_GESTURES.keys()),
-                )
-                all_records = build_db_records(num_augmented_per_gesture=20, seed=42)
-                conn.executemany(
-                    """
-                    INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    all_records,
-                )
-                conn.execute(
-                    "INSERT OR IGNORE INTO gesture_data_migrations (name) VALUES (?)",
-                    (dactyl_migration,),
-                )
-            else:
-                existing_sample_gestures = {
-                    row[0]
-                    for row in conn.execute("SELECT DISTINCT gesture_name FROM static_gesture_samples").fetchall()
-                }
-                missing_gestures = [name for name in SLOVO_GESTURES if name not in existing_sample_gestures]
-                if missing_gestures:
-                    missing_records: list[tuple[str, int, str, bytes]] = []
-                    for idx, name in enumerate(missing_gestures):
-                        g = SLOVO_GESTURES[name]
-                        samples = generate_augmented_samples(name, num_samples=20, seed=42 + idx)
-                        for vec in samples:
-                            vec_f32 = vec.astype(np.float32)
-                            features_json = json.dumps(vec_f32.tolist(), allow_nan=False)
-                            features_blob = vec_f32.tobytes()
-                            missing_records.append((name, g.hands_count, features_json, features_blob))
-
-                    conn.executemany(
-                        """
-                        INSERT INTO static_gesture_samples (gesture_name, hands_count, features_json, features_blob)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        missing_records,
-                    )
-        except Exception:
-            pass
 
 
 def static_samples_imported(db_path: Path) -> bool:
@@ -406,8 +305,10 @@ def _insert_static_samples(conn: sqlite3.Connection, samples: list[tuple]) -> No
     )
 
 
-def insert_static_samples(db_path: Path, samples: list[tuple]) -> None:
+def insert_static_samples(db_path: Path, samples: list[tuple], metadata: dict | None = None) -> None:
     with closing(get_connection(db_path)) as conn, conn:
+        if metadata is not None:
+            _upsert_gesture(conn, metadata)
         _insert_static_samples(conn, samples)
 
 
@@ -433,38 +334,55 @@ def get_all_gestures(db_path: Path) -> list[dict[str, Any]]:
 def get_gesture(db_path: Path, name: str) -> dict[str, Any] | None:
     """Возвращает метаданные жеста по его имени."""
     with closing(get_connection(db_path)) as conn:
-        row = conn.execute("SELECT * FROM gestures WHERE LOWER(name) = LOWER(?)", (name.strip(),)).fetchone()
+        row = conn.execute("SELECT * FROM gestures WHERE name = ?", (name.strip().lower(),)).fetchone()
         return dict(row) if row else None
 
 
-def upsert_gesture(db_path: Path, data: dict[str, Any]) -> None:
-    """Создаёт или обновляет жест в базе данных."""
-    now_iso = datetime.now(timezone.utc).isoformat()
+def _upsert_gesture(conn: sqlite3.Connection, data: dict[str, Any]) -> None:
+    from project_omilia.gestures import get_curriculum_info
+
     name = data["name"].strip().lower()
-    with closing(get_connection(db_path)) as conn, conn:
-        conn.execute(
+    existing = conn.execute("SELECT * FROM gestures WHERE name = ?", (name,)).fetchone()
+    values = dict(existing) if existing else {}
+    values.update({key: value for key, value in data.items() if value is not None})
+    values["name"] = name
+    defaults = {
+        "title": name.capitalize(), "category": "Общие жесты", "description": "",
+        "tip": "", "hands_count": 1, "is_dynamic": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    for key, default in defaults.items():
+        values.setdefault(key, default)
+    values["is_dynamic"] = int(bool(values["is_dynamic"]))
+    if existing and (values["hands_count"], values["is_dynamic"]) != (existing["hands_count"], existing["is_dynamic"]):
+        has_samples = conn.execute(
             """
-            INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
-            VALUES (:name, :title, :category, :description, :tip, :hands_count, :is_dynamic, :created_at)
-            ON CONFLICT(name) DO UPDATE SET
-                title = excluded.title,
-                category = excluded.category,
-                description = excluded.description,
-                tip = excluded.tip,
-                hands_count = excluded.hands_count,
-                is_dynamic = excluded.is_dynamic
+            SELECT 1 FROM static_gesture_samples WHERE gesture_name = ?
+            UNION ALL SELECT 1 FROM dynamic_gesture_samples WHERE gesture_name = ?
+            LIMIT 1
             """,
-            {
-                "name": name,
-                "title": data.get("title", name.capitalize()),
-                "category": data.get("category", "Общие жесты"),
-                "description": data.get("description", ""),
-                "tip": data.get("tip", ""),
-                "hands_count": int(data.get("hands_count", 1)),
-                "is_dynamic": int(bool(data.get("is_dynamic", False))),
-                "created_at": data.get("created_at", now_iso),
-            },
-        )
+            (name, name),
+        ).fetchone()
+        if has_samples:
+            raise ValueError("У жеста уже есть эталоны. Для другого типа или числа рук используй новое имя.")
+    values["level"] = values.get("level") or get_curriculum_info(name, values["category"])["level"]
+    conn.execute(
+        """
+        INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, level, created_at)
+        VALUES (:name, :title, :category, :description, :tip, :hands_count, :is_dynamic, :level, :created_at)
+        ON CONFLICT(name) DO UPDATE SET
+            title = excluded.title, category = excluded.category,
+            description = excluded.description, tip = excluded.tip,
+            hands_count = excluded.hands_count, is_dynamic = excluded.is_dynamic, level = excluded.level
+        """,
+        values,
+    )
+
+
+def upsert_gesture(db_path: Path, data: dict[str, Any]) -> None:
+    """Создаёт или обновляет карточку, сохраняя не переданные клиентом поля."""
+    with closing(get_connection(db_path)) as conn, conn:
+        _upsert_gesture(conn, data)
 
 
 def delete_gesture(db_path: Path, gesture_name: str) -> None:
@@ -497,7 +415,7 @@ def export_dataset(db_path: Path) -> dict[str, Any]:
     with closing(get_connection(db_path)) as conn:
         gestures_rows = conn.execute(
             """
-            SELECT name, title, category, description, tip, hands_count, is_dynamic, created_at
+            SELECT name, title, category, description, tip, hands_count, is_dynamic, level, created_at
             FROM gestures
             ORDER BY is_dynamic ASC, name ASC
             """
@@ -564,37 +482,7 @@ def import_dataset(
             if not name:
                 continue
 
-            title = str(g_dict.get("title") or name.capitalize())
-            category = str(g_dict.get("category") or "Общие жесты")
-            description = str(g_dict.get("description") or "")
-            tip = str(g_dict.get("tip") or "")
-            hands_count = int(g_dict.get("hands_count") or 1)
-            is_dynamic = int(bool(g_dict.get("is_dynamic", False)))
-            created_at = str(g_dict.get("created_at") or now_iso)
-
-            conn.execute(
-                """
-                INSERT INTO gestures (name, title, category, description, tip, hands_count, is_dynamic, created_at)
-                VALUES (:name, :title, :category, :description, :tip, :hands_count, :is_dynamic, :created_at)
-                ON CONFLICT(name) DO UPDATE SET
-                    title = excluded.title,
-                    category = excluded.category,
-                    description = excluded.description,
-                    tip = excluded.tip,
-                    hands_count = excluded.hands_count,
-                    is_dynamic = excluded.is_dynamic
-                """,
-                {
-                    "name": name,
-                    "title": title,
-                    "category": category,
-                    "description": description,
-                    "tip": tip,
-                    "hands_count": hands_count,
-                    "is_dynamic": is_dynamic,
-                    "created_at": created_at,
-                },
-            )
+            _upsert_gesture(conn, {**g_dict, "name": name})
             imported_gestures += 1
 
         if clear_existing_samples and raw_samples:
@@ -709,6 +597,7 @@ def insert_dynamic_sample(
     sequence_json: str,
     *,
     limit: int,
+    metadata: dict | None = None,
 ) -> int:
     with closing(get_connection(db_path)) as conn, conn:
         # Проверка лимита и вставка должны пройти в одной транзакции.
@@ -723,6 +612,8 @@ def insert_dynamic_sample(
         if count >= limit:
             raise ValueError(f"Для жеста «{gesture_name}» уже записано {limit} эталонов.")
 
+        if metadata is not None:
+            _upsert_gesture(conn, metadata)
         conn.execute(
             """
             INSERT INTO dynamic_gesture_samples (gesture_name, hands_count, sequence_json)

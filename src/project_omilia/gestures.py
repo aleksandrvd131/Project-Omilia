@@ -844,7 +844,7 @@ class StaticGesture(Gesture):
         self.vectors = np.asarray(vectors, dtype=np.float32) if vectors else None
         self.model = model
 
-    def add_samples(self, name: str, vectors: list[np.ndarray]) -> None:
+    def add_samples(self, name: str, vectors: list[np.ndarray], metadata: dict | None = None) -> None:
         samples = [
             (
                 name,
@@ -854,7 +854,7 @@ class StaticGesture(Gesture):
             )
             for vector in vectors
         ]
-        db.insert_static_samples(self.db_path, samples)
+        db.insert_static_samples(self.db_path, samples, metadata=metadata)
         self.reload()
 
     def get_dataset_stats(self) -> dict[str, int]:
@@ -946,7 +946,7 @@ class DynamicGestures:
             return default_threshold
         return round(float(np.mean(pairwise) * 1.35), 2)
 
-    def add_sample(self, label: str, sequence: np.ndarray) -> int:
+    def add_sample(self, label: str, sequence: np.ndarray, metadata: dict | None = None) -> int:
         label = label.strip().lower()
         if not label:
             raise ValueError("Укажи название жеста.")
@@ -964,6 +964,7 @@ class DynamicGestures:
             hands_count,
             json.dumps(features.tolist(), allow_nan=False),
             limit=COUNT_OF_SAMPLES,
+            metadata=metadata,
         )
 
     def get_samples(self, label: str, hands_count: int) -> list[np.ndarray]:

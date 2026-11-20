@@ -675,11 +675,11 @@ test('HTML & PWA Integration: index.html contains all new UI components', () => 
   assert.ok(html.includes('id="profile-xp-bar"'), 'profile-xp-bar must exist');
 });
 
-test('Service Worker: sw.js caches warmup.js and has omilia-pwa-v3 with Network-First strategy', () => {
+test('Service Worker: sw.js caches warmup.js and has omilia-pwa-v4 with Network-First strategy', () => {
   const swPath = path.resolve(__dirname, '../src/project_omilia/frontend/sw.js');
   const swContent = fs.readFileSync(swPath, 'utf8');
   assert.ok(swContent.includes('/static/modules/warmup.js'), 'sw.js must pre-cache warmup.js');
-  assert.ok(swContent.includes("CACHE_NAME = 'omilia-pwa-v3'"), 'sw.js must use omilia-pwa-v3 cache name');
+  assert.ok(swContent.includes("CACHE_NAME = 'omilia-pwa-v4'"), 'sw.js must use omilia-pwa-v4 cache name');
   assert.ok(swContent.includes('skipWaiting()'), 'sw.js must skip waiting on install');
   assert.ok(swContent.includes('clients.claim()'), 'sw.js must claim clients on activate');
 });

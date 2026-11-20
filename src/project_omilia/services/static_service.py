@@ -19,6 +19,7 @@ from project_omilia.core.config import (
 from project_omilia.gestures import StaticGesture
 from project_omilia.ml.augmentation import augment_static_samples
 from project_omilia.ml.diagnostics import diagnose_static_gesture
+from project_omilia.schemas.gestures import recording_card
 from project_omilia.services.pose_service import make_pose
 
 
@@ -113,6 +114,7 @@ class StaticGestureServer:
         try:
             if not label or pose is None:
                 raise ValueError("Кисть не обнаружена.")
+            metadata = recording_card(payload, label, hands, False)
             vector = engine.extract_vector(pose)
             if vector.shape != (141 * hands,) or not np.isfinite(vector).all():
                 raise ValueError("Кадр не подходит для выбранного режима рук.")
@@ -125,9 +127,12 @@ class StaticGestureServer:
                 raw_samples = [sample for _, _, sample in recording]
                 # Физическая аугментация: поворот, масштабирование и микро-шум
                 augmented_samples = augment_static_samples(raw_samples, num_augmented_per_sample=2)
-                engine.add_samples(label, augmented_samples)
+                engine.add_samples(label, augmented_samples, metadata=metadata)
                 self._refresh_stats()
-                result = {"status": "saved", "label": label, "count": len(augmented_samples)}
+                result = {
+                    "status": "saved", "label": label, "count": len(augmented_samples),
+                    "gesture": db.get_gesture(self.db_path, label),
+                }
             message = f"Запись: {label}"
         except (ValueError, ArithmeticError, sqlite3.Error) as error:
             print(f"[Статическая запись] {error}")

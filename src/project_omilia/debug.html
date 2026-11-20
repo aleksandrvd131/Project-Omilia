@@ -615,7 +615,7 @@
       margin-bottom: 0.75rem;
     }
 
-    input, select {
+    input, select, textarea {
       background: rgba(10, 12, 18, 0.7);
       border: 1px solid var(--card-border);
       border-radius: 10px;
@@ -625,7 +625,7 @@
       width: 100%;
     }
 
-    input:focus, select:focus {
+    input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--primary);
       box-shadow: 0 0 0 2px var(--primary-glow);
@@ -776,6 +776,13 @@
           <span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">15 кадров</span>
         </div>
 
+        <label for="record-label">Имя жеста — выбери существующее или введи новое</label>
+        <div class="input-row">
+          <input type="text" id="record-label" list="gesture-card-names" maxlength="100"
+            placeholder="Например: а, привет" onchange="loadGestureCard()">
+          <datalist id="gesture-card-names"></datalist>
+        </div>
+
         <!-- Выбор: Одноручный или Двуручный жест (Кнопки + Тумблер) -->
         <div class="mode-selector-container">
           <div class="mode-selector-header">
@@ -810,8 +817,41 @@
           </div>
         </div>
 
+        <fieldset id="gesture-card-fields" style="display: grid; gap: 0.6rem; border: 1px solid var(--card-border); border-radius: 8px; margin: 0.75rem 0; padding: 0.75rem;">
+          <legend>Карточка жеста</legend>
+          <label>Заголовок
+            <input id="gesture-title" type="text" maxlength="150" required placeholder="Например: Спасибо">
+          </label>
+          <label>Учебный уровень
+            <select id="gesture-level">
+              <option value="1">1 — Дактильный алфавит</option>
+              <option value="2">2 — Числительные и счёт</option>
+              <option value="3" selected>3 — Базовый этикет</option>
+              <option value="4">4 — Семья и окружение</option>
+            </select>
+          </label>
+          <label>Категория
+            <input id="gesture-category" type="text" maxlength="100" required placeholder="Например: Вежливость">
+          </label>
+          <label>Описание выполнения
+            <textarea id="gesture-description" maxlength="3000" required rows="3" style="width: 100%; box-sizing: border-box;"></textarea>
+          </label>
+          <label>Подсказка перед камерой
+            <textarea id="gesture-tip" maxlength="1000" required rows="2" style="width: 100%; box-sizing: border-box;"></textarea>
+          </label>
+          <label>Тип жеста
+            <select id="gesture-type">
+              <option value="static">Статический</option>
+              <option value="dynamic">Динамический</option>
+            </select>
+          </label>
+          <p style="margin: 0;">Число рук задаётся переключателем выше. Запись добавляет эталоны к выбранному имени.</p>
+          <button type="button" class="btn-primary" onclick="saveGestureCard()">Сохранить описание</button>
+        </fieldset>
+        <p id="gesture-card-status" role="status" style="font-size: 0.8rem; color: var(--text-muted);">
+          Выбери имя выше, затем заполни карточку и запиши эталоны.
+        </p>
         <div class="input-row">
-          <input type="text" id="record-label" placeholder="Имя жеста (например: а, привет)" onkeydown="if(event.key==='Enter') toggleRecording()">
           <button class="btn-primary" id="btn-record" onclick="toggleRecording()">Запись</button>
           <button type="button" class="btn-primary" onclick="startDynamicRecording()">Записать динамику</button>
         </div>
@@ -900,6 +940,8 @@
     let isRecording = false;
     let recordFramesLeft = 0;
     let currentRecordLabel = '';
+    let currentRecordMetadata = null;
+    let staticSavePending = false;
 
     // Оптимизация WebSocket и инференса
     let isWsBusy = false;
@@ -1032,10 +1074,13 @@
         wsText.textContent = 'Сервер: Онлайн';
         // Запрашиваем актуальное состояние датасета при подключении
         sendAction('get_dataset_stats');
+        loadGestureCardNames();
       };
 
       ws.onclose = () => {
         if (isRecording || isPreparing) cancelRecording();
+        staticSavePending = false;
+        updateCardLock();
         cancelDynamicRecording("Соединение прервалось. Повтори попытку после подключения.");
         isWsBusy = false;
         wsDot.classList.remove('online');
@@ -1067,6 +1112,9 @@
         renderDynamicDataset(data.dynamic_dataset);
       }
       if (data.static_record) {
+        staticSavePending = false;
+        updateCardLock();
+        if (data.static_record.status === 'saved') loadGestureCardNames();
         const status = document.getElementById('record-status');
         const result = data.static_record;
         if (result.status === 'saved') {
@@ -1081,6 +1129,7 @@
       }
       if (data.type === "dynamic_clip") {
         if (data.status === "recorded") {
+          loadGestureCardNames();
           showDynamicStatus(`Жест «${data.label}»: сохранено ${data.count} из 10.`);
           return;
         }
@@ -1370,8 +1419,115 @@
     let prepInterval = null;
     const PREP_DURATION_SEC = 2.0; // Задержка перед началом записи (2 секунды)
 
+    let gestureCardLoading = false;
+    let gestureCardRequest = 0;
+
+    function updateCardLock() {
+      const locked = isPreparing || isRecording || Boolean(dynamicAttempt) || staticSavePending;
+      document.getElementById('gesture-card-fields').disabled = locked;
+      document.getElementById('record-label').readOnly = locked;
+    }
+
+    function fillGestureCard(card) {
+      document.getElementById('gesture-title').value = card.title || '';
+      document.getElementById('gesture-category').value = card.category || '';
+      document.getElementById('gesture-description').value = card.description || '';
+      document.getElementById('gesture-tip').value = card.tip || '';
+      document.getElementById('gesture-level').value = String(card.level || 3);
+      document.getElementById('gesture-type').value = card.is_dynamic ? 'dynamic' : 'static';
+      setHandMode(card.hands_count || 1);
+    }
+
+    async function loadGestureCardNames() {
+      try {
+        const response = await fetch('/api/gestures');
+        if (!response.ok) return;
+        const data = await response.json();
+        const list = document.getElementById('gesture-card-names');
+        list.replaceChildren();
+        for (const card of data.gestures || []) {
+          const option = document.createElement('option');
+          option.value = card.name;
+          option.label = card.title;
+          list.append(option);
+        }
+      } catch (error) {
+        console.warn('Не удалось загрузить список карточек:', error);
+      }
+    }
+
+    async function loadGestureCard() {
+      if (isPreparing || isRecording || dynamicAttempt || staticSavePending) return;
+      const input = document.getElementById('record-label');
+      const name = input.value.trim().toLowerCase();
+      const request = ++gestureCardRequest;
+      gestureCardLoading = false;
+      if (!name) return;
+      input.value = name;
+      gestureCardLoading = true;
+      const status = document.getElementById('gesture-card-status');
+      status.textContent = 'Загружаем карточку…';
+      try {
+        const response = await fetch('/api/gestures/' + encodeURIComponent(name));
+        if (request !== gestureCardRequest || input.value.trim().toLowerCase() !== name) return;
+        if (response.status === 404) {
+          fillGestureCard({ title: name[0].toUpperCase() + name.slice(1), hands_count: selectedHandMode });
+          status.textContent = 'Новый жест. Заполни описание и запиши эталоны.';
+          return;
+        }
+        if (!response.ok) throw new Error('Не удалось загрузить карточку.');
+        const data = await response.json();
+        if (request !== gestureCardRequest || input.value.trim().toLowerCase() !== name) return;
+        fillGestureCard(data.gesture);
+        status.textContent = 'Карточка загружена. Можно исправить описание или добавить эталоны.';
+      } catch (error) {
+        if (request === gestureCardRequest) status.textContent = error.message;
+      } finally {
+        if (request === gestureCardRequest) gestureCardLoading = false;
+      }
+    }
+
+    function readGestureCard(isDynamic) {
+      if (gestureCardLoading) throw new Error('Дождись загрузки карточки.');
+      const values = {
+        name: document.getElementById('record-label').value.trim().toLowerCase(),
+        title: document.getElementById('gesture-title').value.trim(),
+        category: document.getElementById('gesture-category').value.trim(),
+        description: document.getElementById('gesture-description').value.trim(),
+        tip: document.getElementById('gesture-tip').value.trim(),
+        level: Number(document.getElementById('gesture-level').value),
+        hands_count: selectedHandMode,
+        is_dynamic: document.getElementById('gesture-type').value === 'dynamic',
+      };
+      if (!values.name || !values.title || !values.category || !values.description || !values.tip) {
+        throw new Error('Заполни имя, заголовок, категорию, описание и подсказку.');
+      }
+      if (isDynamic !== undefined && values.is_dynamic !== isDynamic) {
+        throw new Error('Тип в карточке должен совпадать с выбранной кнопкой записи.');
+      }
+      return values;
+    }
+
+    async function saveGestureCard() {
+      if (isPreparing || isRecording || dynamicAttempt || staticSavePending) return;
+      const status = document.getElementById('gesture-card-status');
+      try {
+        const card = readGestureCard();
+        const response = await fetch('/api/gestures', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getStoredToken() },
+          body: JSON.stringify(card),
+        });
+        if (!response.ok) throw new Error('Не удалось сохранить карточку. Проверь заполненные поля.');
+        status.textContent = 'Описание сохранено. Для обучения запиши эталоны.';
+        loadGestureCardNames();
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    }
+
     function toggleRecording() {
-      if (dynamicAttempt) return;
+      if (dynamicAttempt || staticSavePending) return;
 
       if (isPreparing || isRecording) {
         cancelRecording();
@@ -1389,8 +1545,15 @@
         labelInput.focus();
         return;
       }
-      currentRecordLabel = label;
+      try {
+        currentRecordMetadata = readGestureCard(false);
+      } catch (error) {
+        document.getElementById('gesture-card-status').textContent = error.message;
+        return;
+      }
+      currentRecordLabel = currentRecordMetadata.name;
       isPreparing = true;
+      updateCardLock();
 
       const btnRecord = document.getElementById('btn-record');
       btnRecord.textContent = 'Отмена (2.0с)';
@@ -1508,6 +1671,8 @@
       isPreparing = false;
       isRecording = false;
       recordFramesLeft = 0;
+      currentRecordMetadata = null;
+      updateCardLock();
 
       const overlay = document.getElementById('countdown-overlay');
       if (overlay) {
@@ -1559,11 +1724,12 @@
     function cancelDynamicRecording(message) {
       if (!dynamicAttempt) return;
       dynamicAttempt = null;
+      updateCardLock();
       showDynamicStatus(message);
     }
 
     function startDynamicRecording(mode = "record") {
-      if (dynamicAttempt) return;
+      if (dynamicAttempt || staticSavePending) return;
 
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         showDynamicStatus("Дождись подключения к серверу.");
@@ -1598,7 +1764,18 @@
         }
       }
 
+      let metadata;
+      if (mode === "record") {
+        try {
+          metadata = readGestureCard(true);
+        } catch (error) {
+          showDynamicStatus(error.message);
+          return;
+        }
+      }
+
       const attempt = {
+        gesture: metadata,
         startedAt: null,
         handsCount: selectedHandMode,
         mode,
@@ -1608,6 +1785,7 @@
       };
 
       dynamicAttempt = attempt;
+      updateCardLock();
 
       function countdown(secondsLeft) {
         if (dynamicAttempt !== attempt) return;
@@ -1625,6 +1803,7 @@
         setTimeout(() => {
           if (dynamicAttempt !== attempt) return;
           dynamicAttempt = null;
+          updateCardLock();
           finishDynamicRecording(attempt);
         }, DYNAMIC_DURATION_MS + 100);
       }
@@ -1663,6 +1842,7 @@
         token: getStoredToken(),
         type: "dynamic_clip",
         mode: attempt.mode,
+        gesture: attempt.gesture,
         label: attempt.label,
         hands_count: attempt.handsCount,
         frames: selectedFrames,
@@ -1850,6 +2030,15 @@
             if (recordFramesLeft === 0) {
               isRecording = false;
               isLastFrame = true;
+              staticSavePending = true;
+              updateCardLock();
+              const pendingCard = currentRecordMetadata;
+              setTimeout(() => {
+                if (!staticSavePending || currentRecordMetadata !== pendingCard) return;
+                staticSavePending = false;
+                updateCardLock();
+                document.getElementById('record-status').textContent = 'Ответ не получен. Проверь список эталонов перед повторной записью.';
+              }, 10000);
               if (btnRecord) {
                 btnRecord.textContent = 'Запись';
                 btnRecord.classList.remove('btn-danger');
@@ -1893,6 +2082,7 @@
             hands_data: handsToSend,
             pose_landmarks: compactLandmarks(latestPose),
             record_label: recordLabel,
+            gesture: recordLabel ? currentRecordMetadata : undefined,
             record_finished: isLastFrame,
             hands_count: selectedHandMode
           }));

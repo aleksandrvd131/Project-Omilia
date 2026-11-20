@@ -778,7 +778,10 @@
            </div>`
         : '';
 
-      const btnText = !isLevelUnlocked
+      const isReady = gesture.is_ready !== false;
+      const btnText = !isReady
+        ? 'Эталоны ещё записываются'
+        : !isLevelUnlocked
         ? (gesture.is_learned ? 'Повторить жест ↺' : `Изучить (Ур. ${gesture.level}) 🔒`)
         : (gesture.is_learned ? 'Повторить жест ↺' : 'Изучить жест →');
 
@@ -804,7 +807,7 @@
           ${lockBanner}
         </div>
         <div style="margin-top: 1rem;">
-          <button class="btn-practice" data-name="${ui?.escapeHtml(gesture.name)}">
+          <button class="btn-practice" data-name="${ui?.escapeHtml(gesture.name)}" ${isReady ? '' : 'disabled'}>
             ${btnText}
           </button>
         </div>

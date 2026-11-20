@@ -4,7 +4,7 @@
  * ensuring seamless offline capability while immediately delivering updates in active development.
  */
 
-const CACHE_NAME = 'omilia-pwa-v3';
+const CACHE_NAME = 'omilia-pwa-v4';
 
 const STATIC_ASSETS = [
   '/',
