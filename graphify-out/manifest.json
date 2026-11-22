@@ -1,0 +1,446 @@
+{
+  ".github/workflows/cd.yml": {
+    "mtime": 1794347057.9086275,
+    "seen": 1795338487.464596,
+    "ast_hash": "c15b6e034c5a39aab600a180e595d91f",
+    "semantic_hash": "c15b6e034c5a39aab600a180e595d91f"
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1794602482.5064728,
+    "seen": 1795338487.464608,
+    "ast_hash": "2fd03e11dd88c85680799798b7676a98",
+    "semantic_hash": "2fd03e11dd88c85680799798b7676a98"
+  },
+  "pyproject.toml": {
+    "mtime": 1794601164.8417706,
+    "seen": 1795338487.4646144,
+    "ast_hash": "f15a5dbed20e1e540dd359c6d0977340",
+    "semantic_hash": "f15a5dbed20e1e540dd359c6d0977340"
+  },
+  "src/project_omilia/__init__.py": {
+    "mtime": 1794392021.1393244,
+    "seen": 1795338487.464619,
+    "ast_hash": "1fabcd84960057e36b238933a7aa0f58",
+    "semantic_hash": "1fabcd84960057e36b238933a7aa0f58"
+  },
+  "src/project_omilia/__main__.py": {
+    "mtime": 1794343510.8096576,
+    "seen": 1795338487.4646223,
+    "ast_hash": "a0d4fc2695dee31aa97b55e25d06e8d5",
+    "semantic_hash": "a0d4fc2695dee31aa97b55e25d06e8d5"
+  },
+  "src/project_omilia/api/__init__.py": {
+    "mtime": 1794391974.105828,
+    "seen": 1795338487.4646254,
+    "ast_hash": "15aeed5fd465ede537125ffdde7067d7",
+    "semantic_hash": "15aeed5fd465ede537125ffdde7067d7"
+  },
+  "src/project_omilia/api/auth.py": {
+    "mtime": 1794391974.1088285,
+    "seen": 1795338487.4646285,
+    "ast_hash": "9d5e4a8cd5fb2a9759eadc1f58e249d9",
+    "semantic_hash": "9d5e4a8cd5fb2a9759eadc1f58e249d9"
+  },
+  "src/project_omilia/api/blitz.py": {
+    "mtime": 1794589705.5101113,
+    "seen": 1795338487.4646313,
+    "ast_hash": "efe08da1e9e2448641b16889bbb49f29",
+    "semantic_hash": "efe08da1e9e2448641b16889bbb49f29"
+  },
+  "src/project_omilia/api/deps.py": {
+    "mtime": 1794392021.1383243,
+    "seen": 1795338487.4646342,
+    "ast_hash": "6cb80c0e83a4c84b317a9859a8b2ab1f",
+    "semantic_hash": "6cb80c0e83a4c84b317a9859a8b2ab1f"
+  },
+  "src/project_omilia/api/gestures.py": {
+    "mtime": 1795204547.9279594,
+    "seen": 1795338487.464637,
+    "ast_hash": "6b8f9d1eb53c3a7dae06286b1ae7f2f0",
+    "semantic_hash": "6b8f9d1eb53c3a7dae06286b1ae7f2f0"
+  },
+  "src/project_omilia/api/models.py": {
+    "mtime": 1794391991.4685996,
+    "seen": 1795338487.4646394,
+    "ast_hash": "f3d2c9cb62f6e82de60cb96bb8ca71b4",
+    "semantic_hash": "f3d2c9cb62f6e82de60cb96bb8ca71b4"
+  },
+  "src/project_omilia/api/tts.py": {
+    "mtime": 1794391974.105828,
+    "seen": 1795338487.4646425,
+    "ast_hash": "7560ceec8f970e3b91a13985e40bc5ac",
+    "semantic_hash": "7560ceec8f970e3b91a13985e40bc5ac"
+  },
+  "src/project_omilia/api/websocket.py": {
+    "mtime": 1794391974.1088285,
+    "seen": 1795338487.4646454,
+    "ast_hash": "a787df846ecc364d25411ea75e29591a",
+    "semantic_hash": "a787df846ecc364d25411ea75e29591a"
+  },
+  "src/project_omilia/app.py": {
+    "mtime": 1795207928.6227655,
+    "seen": 1795338487.464648,
+    "ast_hash": "c1200e53bc5bb1d2fd299e93a44bafe6",
+    "semantic_hash": "c1200e53bc5bb1d2fd299e93a44bafe6"
+  },
+  "src/project_omilia/body.py": {
+    "mtime": 1794595187.8722785,
+    "seen": 1795338487.4646504,
+    "ast_hash": "70a1f2014c651cadd7c1c7766462a883",
+    "semantic_hash": "70a1f2014c651cadd7c1c7766462a883"
+  },
+  "src/project_omilia/core/__init__.py": {
+    "mtime": 1794344726.0266824,
+    "seen": 1795338487.464653,
+    "ast_hash": "58f536af6cb8ffe29883a2ed3565845a",
+    "semantic_hash": "58f536af6cb8ffe29883a2ed3565845a"
+  },
+  "src/project_omilia/core/config.py": {
+    "mtime": 1794344722.979472,
+    "seen": 1795338487.4646556,
+    "ast_hash": "a19945d6c5c140fc9a456b2cb5926b2a",
+    "semantic_hash": "a19945d6c5c140fc9a456b2cb5926b2a"
+  },
+  "src/project_omilia/db.py": {
+    "mtime": 1795207928.6247945,
+    "seen": 1795338487.4646583,
+    "ast_hash": "45b74a8ade6ca24f38dd0db8ce54655c",
+    "semantic_hash": "45b74a8ade6ca24f38dd0db8ce54655c"
+  },
+  "src/project_omilia/errors.py": {
+    "mtime": 1794392021.1393244,
+    "seen": 1795338487.4646606,
+    "ast_hash": "46069306b2c841b34fb4b78ee9fc4c2c",
+    "semantic_hash": "46069306b2c841b34fb4b78ee9fc4c2c"
+  },
+  "src/project_omilia/frontend/app.js": {
+    "mtime": 1795207928.6258934,
+    "seen": 1795338487.4646633,
+    "ast_hash": "c485e827a450ae9e5902089f4f9ff856",
+    "semantic_hash": "c485e827a450ae9e5902089f4f9ff856"
+  },
+  "src/project_omilia/frontend/dynamic-clip.js": {
+    "mtime": 1794597536.9111316,
+    "seen": 1795338487.464666,
+    "ast_hash": "4d8b8229eb036a14409baae7406470d8",
+    "semantic_hash": "4d8b8229eb036a14409baae7406470d8"
+  },
+  "src/project_omilia/frontend/inference.js": {
+    "mtime": 1794596028.5638149,
+    "seen": 1795338487.4646685,
+    "ast_hash": "fdf15c530c3a1cac553faab33a8b5755",
+    "semantic_hash": "fdf15c530c3a1cac553faab33a8b5755"
+  },
+  "src/project_omilia/frontend/manifest.json": {
+    "mtime": 1794603933.9102569,
+    "seen": 1795338487.4646714,
+    "ast_hash": "e73cb09b305090afcd9510cc4dad8ce0",
+    "semantic_hash": "e73cb09b305090afcd9510cc4dad8ce0"
+  },
+  "src/project_omilia/frontend/modules/blitz.js": {
+    "mtime": 1795204540.5043256,
+    "seen": 1795338487.464674,
+    "ast_hash": "cccc6168a507ea2573aea5af85539c88",
+    "semantic_hash": "cccc6168a507ea2573aea5af85539c88"
+  },
+  "src/project_omilia/frontend/modules/camera.js": {
+    "mtime": 1795207928.6264637,
+    "seen": 1795338487.4646766,
+    "ast_hash": "502d2483b7ef06913f10682497981e98",
+    "semantic_hash": "502d2483b7ef06913f10682497981e98"
+  },
+  "src/project_omilia/frontend/modules/catalog.js": {
+    "mtime": 1795207928.6272388,
+    "seen": 1795338487.4646792,
+    "ast_hash": "49ae063b367e7ab57a7426c4caea28be",
+    "semantic_hash": "49ae063b367e7ab57a7426c4caea28be"
+  },
+  "src/project_omilia/frontend/modules/practice.js": {
+    "mtime": 1795204540.5055442,
+    "seen": 1795338487.4646816,
+    "ast_hash": "9e1f7d49506ce6d7bc463d02d6da93ea",
+    "semantic_hash": "9e1f7d49506ce6d7bc463d02d6da93ea"
+  },
+  "src/project_omilia/frontend/modules/socket.js": {
+    "mtime": 1794596567.7997694,
+    "seen": 1795338487.4646842,
+    "ast_hash": "f16b2cd5184a8b3e9762c05b1f59e234",
+    "semantic_hash": "f16b2cd5184a8b3e9762c05b1f59e234"
+  },
+  "src/project_omilia/frontend/modules/ui.js": {
+    "mtime": 1795207928.6274924,
+    "seen": 1795338487.464687,
+    "ast_hash": "87df683796deae9a2e5191184a5596ed",
+    "semantic_hash": "87df683796deae9a2e5191184a5596ed"
+  },
+  "src/project_omilia/frontend/modules/warmup.js": {
+    "mtime": 1795207928.6276944,
+    "seen": 1795338487.4646897,
+    "ast_hash": "485b22afd478f38ee3dfc5329348cd1c",
+    "semantic_hash": "485b22afd478f38ee3dfc5329348cd1c"
+  },
+  "src/project_omilia/frontend/sw.js": {
+    "mtime": 1795204547.9323874,
+    "seen": 1795338487.4646926,
+    "ast_hash": "f19a6234ce4ed17472d590ed69964df7",
+    "semantic_hash": "f19a6234ce4ed17472d590ed69964df7"
+  },
+  "src/project_omilia/gestures.py": {
+    "mtime": 1795204547.9328778,
+    "seen": 1795338487.464695,
+    "ast_hash": "88178848dd8ef0eca3509fc20e0247a0",
+    "semantic_hash": "88178848dd8ef0eca3509fc20e0247a0"
+  },
+  "src/project_omilia/math.py": {
+    "mtime": 1794345497.0433667,
+    "seen": 1795338487.4646978,
+    "ast_hash": "a4387635ff64704b2fb0a0e6fdd3504c",
+    "semantic_hash": "a4387635ff64704b2fb0a0e6fdd3504c"
+  },
+  "src/project_omilia/ml/augmentation.py": {
+    "mtime": 1794600556.6103256,
+    "seen": 1795338487.4647007,
+    "ast_hash": "cde461ae74d4c3ec75b235075aa693be",
+    "semantic_hash": "cde461ae74d4c3ec75b235075aa693be"
+  },
+  "src/project_omilia/ml/diagnostics.py": {
+    "mtime": 1794596076.3807364,
+    "seen": 1795338487.4647033,
+    "ast_hash": "12d5b99975581ec8ed569e88efa4831d",
+    "semantic_hash": "12d5b99975581ec8ed569e88efa4831d"
+  },
+  "src/project_omilia/ml/onnx_exporter.py": {
+    "mtime": 1794392021.1393244,
+    "seen": 1795338487.4647055,
+    "ast_hash": "6206fdb12d09457b7b36824bdbbeab30",
+    "semantic_hash": "6206fdb12d09457b7b36824bdbbeab30"
+  },
+  "src/project_omilia/ml/slovo_generator.py": {
+    "mtime": 1794604393.9125419,
+    "seen": 1795338487.4647083,
+    "ast_hash": "a95c45b2ea32b5bb2ad8cd7f5f7a3d54",
+    "semantic_hash": "a95c45b2ea32b5bb2ad8cd7f5f7a3d54"
+  },
+  "src/project_omilia/schemas/__init__.py": {
+    "mtime": 1794344737.575997,
+    "seen": 1795338487.4647112,
+    "ast_hash": "9b62a0cd961bff73fa8480e741bf0511",
+    "semantic_hash": "9b62a0cd961bff73fa8480e741bf0511"
+  },
+  "src/project_omilia/schemas/auth.py": {
+    "mtime": 1794344730.7605019,
+    "seen": 1795338487.4647138,
+    "ast_hash": "b533385d367cd2c81e93531814682781",
+    "semantic_hash": "b533385d367cd2c81e93531814682781"
+  },
+  "src/project_omilia/schemas/gestures.py": {
+    "mtime": 1795204547.9329593,
+    "seen": 1795338487.4647164,
+    "ast_hash": "5f8064b6e9b62a9c9660c9afb83bd939",
+    "semantic_hash": "5f8064b6e9b62a9c9660c9afb83bd939"
+  },
+  "src/project_omilia/serv.py": {
+    "mtime": 1794391974.1068282,
+    "seen": 1795338487.464719,
+    "ast_hash": "32a418308894c75963d7c1af4434e1c8",
+    "semantic_hash": "32a418308894c75963d7c1af4434e1c8"
+  },
+  "src/project_omilia/services/__init__.py": {
+    "mtime": 1794391974.1078284,
+    "seen": 1795338487.4647217,
+    "ast_hash": "8dc5150e0ecfdebfddf63803a4173907",
+    "semantic_hash": "8dc5150e0ecfdebfddf63803a4173907"
+  },
+  "src/project_omilia/services/dynamic_service.py": {
+    "mtime": 1795204547.9340582,
+    "seen": 1795338487.4647243,
+    "ast_hash": "4802c6b2af9227a1dbb49abaa1b8f484",
+    "semantic_hash": "4802c6b2af9227a1dbb49abaa1b8f484"
+  },
+  "src/project_omilia/services/pose_service.py": {
+    "mtime": 1794595194.8419485,
+    "seen": 1795338487.4647284,
+    "ast_hash": "1cefbf960a55f44ff4a9709a35822734",
+    "semantic_hash": "1cefbf960a55f44ff4a9709a35822734"
+  },
+  "src/project_omilia/services/silhouette_service.py": {
+    "mtime": 1794603155.0747898,
+    "seen": 1795338487.464731,
+    "ast_hash": "62380883da8a74c7d03b2f59ae8e05dd",
+    "semantic_hash": "62380883da8a74c7d03b2f59ae8e05dd"
+  },
+  "src/project_omilia/services/static_service.py": {
+    "mtime": 1795204547.9344935,
+    "seen": 1795338487.4647331,
+    "ast_hash": "85a1fd1188bef69fda66ffb52e37c8fc",
+    "semantic_hash": "85a1fd1188bef69fda66ffb52e37c8fc"
+  },
+  "tests/__init__.py": {
+    "mtime": 1794346979.3763547,
+    "seen": 1795338487.4647362,
+    "ast_hash": "3795bc25e860a7ca95f6ce30e033b373",
+    "semantic_hash": "3795bc25e860a7ca95f6ce30e033b373"
+  },
+  "tests/test_api.py": {
+    "mtime": 1794603152.0531662,
+    "seen": 1795338487.464739,
+    "ast_hash": "24cd3228e438580f8e8ce71af1579868",
+    "semantic_hash": "24cd3228e438580f8e8ce71af1579868"
+  },
+  "tests/test_auth.py": {
+    "mtime": 1794347003.3504615,
+    "seen": 1795338487.464742,
+    "ast_hash": "28c1fc74dc835db9712ed027630981ab",
+    "semantic_hash": "28c1fc74dc835db9712ed027630981ab"
+  },
+  "tests/test_auth_security.py": {
+    "mtime": 1794392021.1403246,
+    "seen": 1795338487.4647443,
+    "ast_hash": "b7b507c5134e2a97bac0b943bef604c1",
+    "semantic_hash": "b7b507c5134e2a97bac0b943bef604c1"
+  },
+  "tests/test_db.py": {
+    "mtime": 1794347012.415496,
+    "seen": 1795338487.4647467,
+    "ast_hash": "84226912f5306c1652dae257ea8704e1",
+    "semantic_hash": "84226912f5306c1652dae257ea8704e1"
+  },
+  "tests/test_diagnostics.cjs": {
+    "mtime": 1794595968.978627,
+    "seen": 1795338487.4647493,
+    "ast_hash": "0373eb8154938e0399629aebaad4cafc",
+    "semantic_hash": "0373eb8154938e0399629aebaad4cafc"
+  },
+  "tests/test_diagnostics.py": {
+    "mtime": 1794596076.3817365,
+    "seen": 1795338487.4647522,
+    "ast_hash": "8adfa154e4737376efcb460decf35566",
+    "semantic_hash": "8adfa154e4737376efcb460decf35566"
+  },
+  "tests/test_dtw.py": {
+    "mtime": 1794391974.1078284,
+    "seen": 1795338487.4647546,
+    "ast_hash": "36caba85407ddda55cb5a90a7194e2ee",
+    "semantic_hash": "36caba85407ddda55cb5a90a7194e2ee"
+  },
+  "tests/test_dynamic_clip.cjs": {
+    "mtime": 1794343510.816274,
+    "seen": 1795338487.4647572,
+    "ast_hash": "d6d329e571020126836fcd3d849c7bd7",
+    "semantic_hash": "d6d329e571020126836fcd3d849c7bd7"
+  },
+  "tests/test_export_import.py": {
+    "mtime": 1794604222.2459896,
+    "seen": 1795338487.4647598,
+    "ast_hash": "557f97153c463d1df640d5610c29b5ab",
+    "semantic_hash": "557f97153c463d1df640d5610c29b5ab"
+  },
+  "tests/test_frontend_modules.cjs": {
+    "mtime": 1795207928.6278555,
+    "seen": 1795338487.4647624,
+    "ast_hash": "4e2690cf280ed75fb8420384b43b0b70",
+    "semantic_hash": "4e2690cf280ed75fb8420384b43b0b70"
+  },
+  "tests/test_frontend_startup.cjs": {
+    "mtime": 1794997506.3042784,
+    "seen": 1795338487.4647648,
+    "ast_hash": "e60f58d63167843241ff2551914bcb71",
+    "semantic_hash": "e60f58d63167843241ff2551914bcb71"
+  },
+  "tests/test_inference_invariance.cjs": {
+    "mtime": 1794595351.0482142,
+    "seen": 1795338487.4647675,
+    "ast_hash": "c60c979bacbcf9e8addb2c006457a29e",
+    "semantic_hash": "c60c979bacbcf9e8addb2c006457a29e"
+  },
+  "tests/test_invariance_and_augmentation.py": {
+    "mtime": 1794595384.24763,
+    "seen": 1795338487.4647703,
+    "ast_hash": "de64522285ee743b68a226ed1222daed",
+    "semantic_hash": "de64522285ee743b68a226ed1222daed"
+  },
+  "tests/test_ml.py": {
+    "mtime": 1794604804.763599,
+    "seen": 1795338487.4647732,
+    "ast_hash": "ea6b93b135bcbe777520109b89be3607",
+    "semantic_hash": "ea6b93b135bcbe777520109b89be3607"
+  },
+  "tests/test_ml_optimization.py": {
+    "mtime": 1794391974.1098287,
+    "seen": 1795338487.464776,
+    "ast_hash": "406dfd2606d6a18e7845e63677d915cb",
+    "semantic_hash": "406dfd2606d6a18e7845e63677d915cb"
+  },
+  "tests/test_pwa_and_mobile.py": {
+    "mtime": 1794604107.909939,
+    "seen": 1795338487.4647784,
+    "ast_hash": "385e62b802b215b7005d5b03fd7a02d2",
+    "semantic_hash": "385e62b802b215b7005d5b03fd7a02d2"
+  },
+  "tests/test_slovo_dataset_db.py": {
+    "mtime": 1794601139.526076,
+    "seen": 1795338487.464781,
+    "ast_hash": "a415a9a30b6a9daf93c0d6749c633997",
+    "semantic_hash": "a415a9a30b6a9daf93c0d6749c633997"
+  },
+  "tests/test_slovo_generator.py": {
+    "mtime": 1794604595.9281993,
+    "seen": 1795338487.464784,
+    "ast_hash": "a9b5de4bcd4093524d5bb74e85aa7a90",
+    "semantic_hash": "a9b5de4bcd4093524d5bb74e85aa7a90"
+  },
+  "tests/test_srs.py": {
+    "mtime": 1794600556.6103256,
+    "seen": 1795338487.4647868,
+    "ast_hash": "7c85c214b663cf329d66e581f990f67c",
+    "semantic_hash": "7c85c214b663cf329d66e581f990f67c"
+  },
+  "tests/test_vad.py": {
+    "mtime": 1794597699.9106343,
+    "seen": 1795338487.4647892,
+    "ast_hash": "39a34df1952c58645afd82684a911eca",
+    "semantic_hash": "39a34df1952c58645afd82684a911eca"
+  },
+  "IMPROVEMENT_PLAN.md": {
+    "mtime": 1794682985.4718807,
+    "seen": 1795338487.4647918,
+    "ast_hash": "f36e99dd2620cab1d6ac1105cb3d73f4",
+    "semantic_hash": "f36e99dd2620cab1d6ac1105cb3d73f4"
+  },
+  "README.md": {
+    "mtime": 1794343279.8401887,
+    "seen": 1795338487.4647944,
+    "ast_hash": "a81c99577a9df637b7785c52371334bf",
+    "semantic_hash": "a81c99577a9df637b7785c52371334bf"
+  },
+  "src/project_omilia/debug.html": {
+    "mtime": 1795204547.9309692,
+    "seen": 1795338487.4647975,
+    "ast_hash": "122cca6cbb6aa21403646d2849d65f7c",
+    "semantic_hash": "122cca6cbb6aa21403646d2849d65f7c"
+  },
+  "src/project_omilia/frontend/index.html": {
+    "mtime": 1795207928.6264637,
+    "seen": 1795338487.4648,
+    "ast_hash": "74d335ff44583be4091cd77f014a354f",
+    "semantic_hash": "74d335ff44583be4091cd77f014a354f"
+  },
+  "src/project_omilia/frontend/icons/icon-192.png": {
+    "mtime": 1794603928.7590704,
+    "seen": 1795338487.4648025,
+    "ast_hash": "311a3e8cfd8469e51ead3ec4ed41e9d6",
+    "semantic_hash": "311a3e8cfd8469e51ead3ec4ed41e9d6"
+  },
+  "src/project_omilia/frontend/icons/icon-512.png": {
+    "mtime": 1794603928.8570144,
+    "seen": 1795338487.4648051,
+    "ast_hash": "a815ca5fdffadbadfa4aaa8d8cb99eab",
+    "semantic_hash": "a815ca5fdffadbadfa4aaa8d8cb99eab"
+  },
+  "src/project_omilia/frontend/icons/icon.svg": {
+    "mtime": 1794603925.9097269,
+    "seen": 1795338487.464808,
+    "ast_hash": "2f5f3e208b94ce85ced9ac2bcde1bfe1",
+    "semantic_hash": "2f5f3e208b94ce85ced9ac2bcde1bfe1"
+  }
+}

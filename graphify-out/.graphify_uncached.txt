@@ -1,0 +1,6 @@
+/home/dranik/Projects/Project-Omilia/README.md
+/home/dranik/Projects/Project-Omilia/src/project_omilia/debug.html
+/home/dranik/Projects/Project-Omilia/src/project_omilia/frontend/index.html
+/home/dranik/Projects/Project-Omilia/src/project_omilia/frontend/icons/icon-192.png
+/home/dranik/Projects/Project-Omilia/src/project_omilia/frontend/icons/icon-512.png
+/home/dranik/Projects/Project-Omilia/src/project_omilia/frontend/icons/icon.svg
