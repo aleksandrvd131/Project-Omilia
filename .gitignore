@@ -14,3 +14,9 @@ dsad.md
 *.onnx
 src/project_omilia/omilia.db
 IMPROVEMENT_PLAN.md
+PLAN.md
+docs
+models
+.idea
+graphify-out
+.graphifyignore
