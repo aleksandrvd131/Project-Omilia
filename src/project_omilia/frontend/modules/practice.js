@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Practice & Tutorial Module
+ * Голос рук — Practice & Tutorial Module
  * Обучение жестам: просмотр видеоуроков, интерактивная практика перед камерой и фиксация прогресса.
  */
 
@@ -63,36 +63,44 @@
       dom.tutorialTip.innerHTML = `💡 <strong>Подсказка:</strong> ${ui?.escapeHtml(gesture.tip) || gesture.tip}`;
     }
 
-    if (dom.tutorialVideo) {
-      const hasVideo = Boolean(gesture.has_video || gesture.video_url);
-      if (hasVideo) {
-        const videoSrc = gesture.video_url || `/static/videos/${encodeURIComponent(gesture.name.toLowerCase())}.mp4`;
-        dom.tutorialVideo.src = videoSrc;
-        dom.tutorialVideo.style.display = 'block';
-        if (dom.tutorialVideoFallback) dom.tutorialVideoFallback.style.display = 'none';
-
-        dom.tutorialVideo.onerror = () => {
-          dom.tutorialVideo.style.display = 'none';
-          if (dom.tutorialVideoFallback) {
-            dom.tutorialVideoFallback.style.display = 'flex';
-            const caption = document.getElementById('tutorial-demo-caption');
-            if (caption) {
-              caption.textContent = `Схема жеста: ${gesture.title || gesture.name}`;
-            }
-          }
-        };
-        dom.tutorialVideo.play().catch(() => {});
-      } else {
-        dom.tutorialVideo.style.display = 'none';
-        dom.tutorialVideo.src = '';
-        if (dom.tutorialVideoFallback) {
-          dom.tutorialVideoFallback.style.display = 'flex';
-          const caption = document.getElementById('tutorial-demo-caption');
-          if (caption) {
-            caption.textContent = `Схема жеста: ${gesture.title || gesture.name}`;
-          }
-        }
-      }
+    const image = dom.tutorialImage;
+    const video = dom.tutorialVideo;
+    const fallback = dom.tutorialVideoFallback;
+    if (image) {
+      image.onerror = null;
+      image.hidden = true;
+      image.removeAttribute('src');
+    }
+    if (video) {
+      video.onerror = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.style.display = 'none';
+    }
+    function showFallback() {
+      if (image) image.hidden = true;
+      if (video) video.style.display = 'none';
+      if (fallback) fallback.style.display = 'flex';
+      const caption = typeof document !== 'undefined' ? document.getElementById('tutorial-demo-caption') : null;
+      if (caption) caption.textContent = 'Посмотрите описание жеста ниже';
+    }
+    if (image && gesture.image_url) {
+      const imageUrl = gesture.image_url;
+      image.alt = `Пример выполнения жеста «${gesture.title || gesture.name}»`;
+      image.onerror = () => {
+        if (image.getAttribute('src') === imageUrl) showFallback();
+      };
+      if (fallback) fallback.style.display = 'none';
+      image.hidden = false;
+      image.src = imageUrl;
+    } else if (video && (gesture.has_video || gesture.video_url)) {
+      video.onerror = showFallback;
+      video.src = gesture.video_url || `/static/videos/${encodeURIComponent(gesture.name.toLowerCase())}.mp4`;
+      video.style.display = 'block';
+      if (fallback) fallback.style.display = 'none';
+      video.play().catch(() => {});
+    } else {
+      showFallback();
     }
 
     if (dom.tutorialModal) dom.tutorialModal.style.display = 'flex';
@@ -100,9 +108,15 @@
 
   function closeTutorialModal(dom) {
     if (dom.tutorialModal) dom.tutorialModal.style.display = 'none';
+    if (dom.tutorialImage) {
+      dom.tutorialImage.onerror = null;
+      dom.tutorialImage.hidden = true;
+      dom.tutorialImage.removeAttribute('src');
+    }
     if (dom.tutorialVideo) {
+      dom.tutorialVideo.onerror = null;
       dom.tutorialVideo.pause();
-      dom.tutorialVideo.src = '';
+      dom.tutorialVideo.removeAttribute('src');
     }
   }
 

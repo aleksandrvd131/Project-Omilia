@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Daily Warmup & SRS Module (US-1)
+ * Голос рук — Daily Warmup & SRS Module (US-1)
  * Ежедневная разминка по методике интервального повторения SM-2 с обновлением серий (streak) и XP.
  */
 

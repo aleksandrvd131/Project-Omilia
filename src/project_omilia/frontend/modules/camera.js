@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Camera & MediaPipe Module
+ * Голос рук — Camera & MediaPipe Module
  * Инициализация MediaPipe Hands/Pose, захват веб-камеры и отрисовка скелета рук.
  */
 
@@ -294,7 +294,17 @@
     } else {
       videoEl = dom?.blitzVideo;
     }
-    if (!videoEl || !state.mediaPipeHands) return;
+    if (!videoEl) return;
+    if (!state.mediaPipeHands || typeof Camera === 'undefined') {
+      state.isCameraRunning = false;
+      const container = videoEl.closest ? videoEl.closest('.camera-container') : null;
+      renderCameraError(container, {
+        title: 'Не загрузился модуль камеры',
+        message: 'Проверьте подключение к интернету и обновите страницу, чтобы загрузить отслеживание рук.',
+        actionText: 'Обновить страницу',
+      }, () => window.location.reload());
+      return;
+    }
 
     if (state.camera) {
       state.camera.stop();

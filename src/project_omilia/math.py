@@ -4,18 +4,18 @@ EPS: float = 1e-8
 
 
 def vec_len(A: np.ndarray) -> float:
-    """Вычисляет евклидову норму вектора через оптимизированную C-реализацию BLAS."""
+    """Вычисляет длину вектора."""
     return float(np.linalg.norm(A))
 
 
 def p_dist(A: np.ndarray, B: np.ndarray) -> float:
     """Евклидово расстояние между двумя точками."""
-    return float(np.linalg.norm(A - B))
+    return vec_len(A - B)
 
 
 def vec_normalize(A: np.ndarray) -> np.ndarray:
     """Нормализует вектор к единичной длине с защитой от деления на ноль."""
-    norm = float(np.linalg.norm(A))
+    norm = vec_len(A)
     if norm < EPS:
         return np.zeros_like(A, dtype=float)
     return A / norm
@@ -23,8 +23,8 @@ def vec_normalize(A: np.ndarray) -> np.ndarray:
 
 def vec_angle(A: np.ndarray, B: np.ndarray) -> float:
     """Вычисляет угол между двумя векторами в радианах."""
-    len_a = float(np.linalg.norm(A))
-    len_b = float(np.linalg.norm(B))
+    len_a = vec_len(A)
+    len_b = vec_len(B)
     if len_a < EPS or len_b < EPS:
         return 0.0
     cos_val = np.clip(np.dot(A, B) / (len_a * len_b), -1.0, 1.0)

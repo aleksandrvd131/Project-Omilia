@@ -2,7 +2,6 @@
 Сервис классификации и записи статических жестов (StaticGestureServer).
 """
 
-import json
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -11,58 +10,11 @@ import numpy as np
 
 from project_omilia import db
 from project_omilia.body import Pose
-from project_omilia.core.config import (
-    DATASET_PATH_1H,
-    DATASET_PATH_2H,
-    LEGACY_DATASET_PATH,
-)
 from project_omilia.gestures import StaticGesture
 from project_omilia.ml.augmentation import augment_static_samples
 from project_omilia.ml.diagnostics import diagnose_static_gesture
 from project_omilia.schemas.gestures import recording_card
 from project_omilia.services.pose_service import make_pose
-
-
-def import_static_datasets(db_path: Path) -> None:
-    """Импортирует начальные эталоны статических жестов из JSON в SQLite при первом старте."""
-    if db.static_samples_imported(db_path):
-        return
-
-    def read_dataset(path: Path) -> dict:
-        if not path.is_file() or path.stat().st_size == 0:
-            return {}
-        dataset = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(dataset, dict):
-            raise ValueError(f"Некорректный набор статических жестов: {path.name}")
-        return dataset
-
-    split = {1: read_dataset(DATASET_PATH_1H), 2: read_dataset(DATASET_PATH_2H)}
-    missing = {hands for hands, dataset in split.items() if not dataset}
-    legacy = read_dataset(LEGACY_DATASET_PATH) if missing else {}
-
-    samples = []
-    for hands, dataset in split.items():
-        width = 141 * hands
-        for label, vectors in (dataset or legacy).items():
-            name = label.strip().lower()
-            if not name or not isinstance(vectors, list):
-                raise ValueError("Некорректная запись в старом наборе статических жестов.")
-            for values in vectors:
-                vector = np.asarray(values, dtype=np.float32)
-                if not dataset and vector.shape == (141 * (3 - hands),):
-                    continue
-                if vector.shape != (width,) or not np.isfinite(vector).all():
-                    raise ValueError(f"Некорректный эталон статического жеста «{name}».")
-                samples.append(
-                    (
-                        name,
-                        hands,
-                        json.dumps(vector.tolist(), allow_nan=False),
-                        vector.tobytes(),
-                    )
-                )
-
-    db.import_static_samples(db_path, samples)
 
 
 class StaticGestureServer:

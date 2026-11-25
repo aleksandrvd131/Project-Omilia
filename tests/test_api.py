@@ -1,5 +1,5 @@
 """
-Интеграционные тесты REST API эндпоинтов Project Omilia.
+Интеграционные тесты REST API эндпоинтов Голос рук.
 """
 
 from fastapi.testclient import TestClient

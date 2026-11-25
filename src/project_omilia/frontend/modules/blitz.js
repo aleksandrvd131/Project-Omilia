@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Blitz Quiz Module
+ * Голос рук — Blitz Quiz Module
  * Режим экспресс-тестирования знаний выученных жестов на время.
  */
 
@@ -25,10 +25,16 @@
     if (!state.currentUser) {
       if (dom.blitzEligibility) {
         dom.blitzEligibility.innerHTML = `
-          <div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 1rem; border-radius: 8px; font-weight: 500;">
-            ⚠️ Для прохождения блиц-опроса необходимо войти в аккаунт.
+          <div class="blitz-notice">
+            Для проверки нужны сохранённые в профиле жесты. <a href="#" id="blitz-link-profile">Войдите в профиль</a>, чтобы начать.
           </div>
         `;
+      }
+      if (typeof document !== 'undefined') {
+        document.getElementById('blitz-link-profile')?.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (onSwitchTab) onSwitchTab('profile');
+        });
       }
       if (dom.btnStartBlitz) {
         dom.btnStartBlitz.disabled = true;
@@ -43,8 +49,8 @@
     if (learned.length === 0) {
       if (dom.blitzEligibility) {
         dom.blitzEligibility.innerHTML = `
-          <div style="background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 1rem; border-radius: 8px; font-weight: 500;">
-            💡 Для блица выучите хотя бы один жест в <a href="#" style="color: var(--primary-hover); text-decoration: underline;" id="blitz-link-catalog">словаре жестов</a>!
+          <div class="blitz-notice">
+            Для проверки изучите хотя бы один жест в <a href="#" style="color: var(--primary-hover); text-decoration: underline;" id="blitz-link-catalog">словаре жестов</a>.
           </div>
         `;
         document.getElementById('blitz-link-catalog')?.addEventListener('click', (e) => {

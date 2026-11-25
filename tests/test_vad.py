@@ -10,37 +10,33 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from project_omilia.services.dynamic_service import (
-    DynamicGestureServer,
-    dtw_distance,
-    sakoe_chiba_dtw,
-)
+from project_omilia.ml.dtw import dtw_distance
+from project_omilia.services.dynamic_service import DynamicGestureServer
 
 
 def test_sakoe_chiba_dtw_identity():
     """Идентичные последовательности дают нулевое расстояние."""
     seq1 = np.random.randn(8, 141)
-    assert sakoe_chiba_dtw(seq1, seq1) == 0.0
     assert dtw_distance(seq1, seq1) == 0.0
 
     seq_1d = np.array([1.0, 2.0, 3.0, 4.0])
-    assert sakoe_chiba_dtw(seq_1d, seq_1d) == 0.0
+    assert dtw_distance(seq_1d, seq_1d) == 0.0
 
 
 def test_sakoe_chiba_dtw_symmetry():
     """Симметричность расстояния DTW при равной и разной длине последовательностей."""
     seq_a = np.random.randn(8, 141)
     seq_b = np.random.randn(8, 141)
-    dist_ab = sakoe_chiba_dtw(seq_a, seq_b)
-    dist_ba = sakoe_chiba_dtw(seq_b, seq_a)
+    dist_ab = dtw_distance(seq_a, seq_b)
+    dist_ba = dtw_distance(seq_b, seq_a)
     assert np.isclose(dist_ab, dist_ba)
     assert dist_ab > 0.0
 
     # Разная длина последовательностей
     seq_short = np.random.randn(6, 141)
     seq_long = np.random.randn(10, 141)
-    dist_sl = sakoe_chiba_dtw(seq_short, seq_long)
-    dist_ls = sakoe_chiba_dtw(seq_long, seq_short)
+    dist_sl = dtw_distance(seq_short, seq_long)
+    dist_ls = dtw_distance(seq_long, seq_short)
     assert np.isclose(dist_sl, dist_ls)
     assert dist_sl > 0.0
 
@@ -61,10 +57,10 @@ def test_sakoe_chiba_penalizes_extreme_time_warping():
     seq_b[7:9, :] = 5.0  # Жест во второй половине клипа
 
     # При широком окне (вырождение в unconstrained DTW) промежуточный жест сопоставляется
-    unconstrained_dist = sakoe_chiba_dtw(seq_a, seq_b, radius=10)
+    unconstrained_dist = dtw_distance(seq_a, seq_b, radius=10)
 
     # При узком окне Сакое-Чиба (r = 2) экстремальный сдвиг запрещён
-    constrained_dist = sakoe_chiba_dtw(seq_a, seq_b, radius=2)
+    constrained_dist = dtw_distance(seq_a, seq_b, radius=2)
 
     assert unconstrained_dist == 0.0
     assert constrained_dist > 5.0
@@ -78,13 +74,13 @@ def test_sakoe_chiba_speedup():
     # Замер времени полного перебора (r = 16)
     t0 = time.perf_counter()
     for _ in range(150):
-        sakoe_chiba_dtw(seq_a, seq_b, radius=16)
+        dtw_distance(seq_a, seq_b, radius=16)
     t_full = time.perf_counter() - t0
 
     # Замер времени с полосой Сакое-Чиба (r = 2)
     t0 = time.perf_counter()
     for _ in range(150):
-        sakoe_chiba_dtw(seq_a, seq_b, radius=2)
+        dtw_distance(seq_a, seq_b, radius=2)
     t_band = time.perf_counter() - t0
 
     # Векторизованный band DTW выполняется быстрее
@@ -96,19 +92,19 @@ def test_sakoe_chiba_input_validation():
     """Проверка валидации некорректных данных."""
     # Пустые последовательности
     empty = np.empty((0, 141))
-    assert sakoe_chiba_dtw(empty, empty) == 0.0
+    assert dtw_distance(empty, empty) == 0.0
 
     # Несовпадающие размерности признаков
     s1 = np.ones((8, 141))
     s2 = np.ones((8, 282))
     with pytest.raises(ValueError, match="Несовпадающая размерность"):
-        sakoe_chiba_dtw(s1, s2)
+        dtw_distance(s1, s2)
 
     # Неконечные значения (NaN, Inf)
     bad_seq = np.ones((8, 141))
     bad_seq[2, 5] = np.nan
     with pytest.raises(ValueError, match="некорректные значения"):
-        sakoe_chiba_dtw(bad_seq, s1)
+        dtw_distance(bad_seq, s1)
 
 
 def test_dynamic_gesture_server_dtw_integration(tmp_path: Path):
@@ -119,14 +115,12 @@ def test_dynamic_gesture_server_dtw_integration(tmp_path: Path):
     db.init_db(test_db)
 
     server = DynamicGestureServer(test_db)
-    assert hasattr(server, "sakoe_chiba_dtw")
-    assert hasattr(server, "dtw_distance")
-
-    s1 = np.random.randn(8, 141)
-    s2 = np.random.randn(8, 141)
-    dist = server.dtw_distance(s1, s2)
-    assert isinstance(dist, float)
-    assert dist >= 0.0
+    s1 = np.zeros((8, 141))
+    s2 = np.ones((8, 141))
+    accepted, distances = server.engine.evaluate(s1, [s1, s2, s2], max_distance=1000)
+    expected = (dtw_distance(s1, s1) + 2 * dtw_distance(s1, s2)) / 3
+    assert accepted
+    assert distances["mean_nearest_three"] == round(expected, 2)
 
 
 def test_frontend_motion_vad_node_suite():

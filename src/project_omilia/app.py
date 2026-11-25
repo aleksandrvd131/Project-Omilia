@@ -1,5 +1,5 @@
 """
-Основное FastAPI приложение Project Omilia с подключением модулей и маршрутов.
+Основное FastAPI приложение Голос рук с подключением модулей и маршрутов.
 """
 
 from contextlib import asynccontextmanager
@@ -34,13 +34,13 @@ async def lifespan(app: FastAPI):
     app.state.static_server = StaticGestureServer(DB_PATH)
     app.state.dynamic_server = DynamicGestureServer(DB_PATH)
     total_gestures = len(app.state.static_server.engine_1h.dataset) + len(app.state.static_server.engine_2h.dataset)
-    print(f"Сервер Omiλia запущен. SQLite: {DB_PATH.name}, статических наборов: {total_gestures}")
+    print(f"Сервер Голос рук запущен. SQLite: {DB_PATH.name}, статических наборов: {total_gestures}")
     yield
 
 
 def create_app() -> FastAPI:
     """Фабрика создания приложения FastAPI."""
-    app = FastAPI(title="Project Omilia", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Голос рук", version="0.2.0", lifespan=lifespan)
 
     # Раздача статических файлов фронтенда
     if FRONTEND_DIR.exists():

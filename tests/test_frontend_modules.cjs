@@ -121,25 +121,25 @@ test('Catalog module: getGestureLevelInfo correctly maps all curriculum levels (
   const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'ты'];
 
   for (const name of lvl1) {
-    const info = Catalog.getGestureLevelInfo({ name });
+    const info = Catalog.getGestureLevelInfo({ name, level: 1 });
     assert.equal(info.level, 1, `Expected level 1 for ${name}`);
     assert.equal(info.level_title, 'Дактильный алфавит');
   }
 
   for (const name of lvl2) {
-    const info = Catalog.getGestureLevelInfo({ name });
+    const info = Catalog.getGestureLevelInfo({ name, level: 2 });
     assert.equal(info.level, 2, `Expected level 2 for ${name}`);
     assert.equal(info.level_title, 'Числительные и счёт');
   }
 
   for (const name of lvl3) {
-    const info = Catalog.getGestureLevelInfo({ name });
+    const info = Catalog.getGestureLevelInfo({ name, level: 3 });
     assert.equal(info.level, 3, `Expected level 3 for ${name}`);
     assert.equal(info.level_title, 'Базовый этикет');
   }
 
   for (const name of lvl4) {
-    const info = Catalog.getGestureLevelInfo({ name });
+    const info = Catalog.getGestureLevelInfo({ name, level: 4 });
     assert.equal(info.level, 4, `Expected level 4 for ${name}`);
     assert.equal(info.level_title, 'Семья и окружение');
   }
@@ -155,10 +155,10 @@ test('Catalog module: calculateLevelStats accurately computes level totals and u
   const lvl4 = ['дом', 'мама', 'папа', 'семья', 'любовь', 'стоп', 'книга', 'ты'];
 
   const mockGestures = [
-    ...lvl1.map((n, i) => ({ name: n, is_learned: i < 24 })), // 24/33 = 73% learned
-    ...lvl2.map((n) => ({ name: n, is_learned: false })),
-    ...lvl3.map((n) => ({ name: n, is_learned: false })),
-    ...lvl4.map((n) => ({ name: n, is_learned: false })),
+    ...lvl1.map((n, i) => ({ level: 1, name: n, is_learned: i < 24 })), // 24/33 = 73% learned
+    ...lvl2.map((n) => ({ level: 2, name: n, is_learned: false })),
+    ...lvl3.map((n) => ({ level: 3, name: n, is_learned: false })),
+    ...lvl4.map((n) => ({ level: 4, name: n, is_learned: false })),
   ];
 
   const stats = Catalog.calculateLevelStats(mockGestures);
@@ -455,8 +455,8 @@ test('PWA Manifest: loads valid manifest with required fields and icons', () => 
   const raw = fs.readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.name, 'Omiλia - Тренажер РЖЯ');
-  assert.equal(manifest.short_name, 'Omiλia');
+  assert.equal(manifest.name, 'Голос рук - Тренажер РЖЯ');
+  assert.equal(manifest.short_name, 'Голос рук');
   assert.equal(manifest.display, 'standalone');
   assert.ok(manifest.theme_color, 'theme_color is required');
   assert.ok(manifest.background_color, 'background_color is required');
@@ -675,11 +675,11 @@ test('HTML & PWA Integration: index.html contains all new UI components', () => 
   assert.ok(html.includes('id="profile-xp-bar"'), 'profile-xp-bar must exist');
 });
 
-test('Service Worker: sw.js caches warmup.js and has omilia-pwa-v4 with Network-First strategy', () => {
+test('Service Worker: sw.js caches warmup.js and has omilia-pwa-v6 with Network-First strategy', () => {
   const swPath = path.resolve(__dirname, '../src/project_omilia/frontend/sw.js');
   const swContent = fs.readFileSync(swPath, 'utf8');
   assert.ok(swContent.includes('/static/modules/warmup.js'), 'sw.js must pre-cache warmup.js');
-  assert.ok(swContent.includes("CACHE_NAME = 'omilia-pwa-v4'"), 'sw.js must use omilia-pwa-v4 cache name');
+  assert.ok(swContent.includes("CACHE_NAME = 'omilia-pwa-v6'"), 'sw.js must use omilia-pwa-v6 cache name');
   assert.ok(swContent.includes('skipWaiting()'), 'sw.js must skip waiting on install');
   assert.ok(swContent.includes('clients.claim()'), 'sw.js must claim clients on activate');
 });

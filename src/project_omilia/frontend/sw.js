@@ -1,15 +1,19 @@
 /**
- * Project Omiλia — Service Worker
+ * Голос рук — Service Worker
  * PWA Network-First / Cache-Fallback caching strategy for static assets and scripts,
  * ensuring seamless offline capability while immediately delivering updates in active development.
  */
 
-const CACHE_NAME = 'omilia-pwa-v4';
+const CACHE_NAME = 'omilia-pwa-v6';
 
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/static/style.css',
+  '/static/fonts/golos-text.ttf',
+  '/static/gesture-examples/%D0%B0.png',
+  '/static/gesture-examples/%D0%B1.png',
+  '/static/gesture-examples/%D0%B2.png',
   '/static/app.js',
   '/static/dynamic-clip.js',
   '/static/inference.js',

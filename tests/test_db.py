@@ -17,7 +17,7 @@ def test_sqlite_gestures_crud():
 
         # Проверка начальной инициализации каталога
         all_gestures = db.get_all_gestures(db_path)
-        assert len(all_gestures) > 0
+        assert all_gestures == []
 
         # Создание нового жеста через upsert
         new_gesture = {

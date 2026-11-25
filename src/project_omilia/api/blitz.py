@@ -12,7 +12,7 @@ from project_omilia.api.deps import (
     get_static_server,
     require_current_user,
 )
-from project_omilia.core.config import DB_PATH, GESTURE_METADATA
+from project_omilia.core.config import DB_PATH
 from project_omilia.services.dynamic_service import DynamicGestureServer
 from project_omilia.services.static_service import StaticGestureServer
 
@@ -43,17 +43,19 @@ async def api_blitz_questions(
     sample_size = min(len(learned), count)
     selected = random.sample(learned, sample_size)
 
+    cards = {card["name"]: card for card in db.get_all_gestures(DB_PATH)}
     questions = []
     combined_info = static_server.get_combined_info()
     for name in selected:
-        meta = GESTURE_METADATA.get(name, {})
+        meta = cards.get(name, {})
         dyn_hands = dynamic_hands.get(name)
         static_info = combined_info.get(name)
         hands_count = dyn_hands if dyn_hands else (static_info["hands"] if static_info else 1)
-        tip = meta.get("tip", "Покажите жест на камеру")
-        if dyn_hands:
+        tip = meta.get("tip") or ""
+        if dyn_hands and not tip:
             hand_instruction = "одной рукой" if dyn_hands == 1 else "двумя руками"
             tip = f"Покажите жест {hand_instruction} за одну секунду."
+        tip = tip or "Покажите жест на камеру"
         questions.append(
             {
                 "gesture_name": name,

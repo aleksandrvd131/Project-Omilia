@@ -8,6 +8,11 @@ from typing import Any
 from project_omilia.body import Pose
 
 
+def _landmarks(points):
+    """Преобразует JSON-точки камеры в объекты, которые ожидает Pose."""
+    return [SimpleNamespace(x=point["x"], y=point["y"], z=point.get("z", 0.0)) for point in points]
+
+
 def make_pose(hands_data: list[Any], pose_landmarks: list[Any] | None) -> Pose | None:
     """Создаёт объект Pose из координат кистей и ключевых точек скелета MediaPipe."""
     if not hands_data:
@@ -16,13 +21,13 @@ def make_pose(hands_data: list[Any], pose_landmarks: list[Any] | None) -> Pose |
     hands: list[list[SimpleNamespace]] = []
     for hand in hands_data[:2]:
         if len(hand) == 21:
-            hands.append([SimpleNamespace(x=p["x"], y=p["y"], z=p.get("z", 0.0)) for p in hand])
+            hands.append(_landmarks(hand))
 
     if not hands:
         return None
 
     if pose_landmarks and len(pose_landmarks) == 33:
-        body = [SimpleNamespace(x=p["x"], y=p["y"], z=p.get("z", 0.0)) for p in pose_landmarks]
+        body = _landmarks(pose_landmarks)
     else:
         # Базовый скелет, если тело не попало в кадр целиком
         body = [SimpleNamespace(x=0.5, y=0.5, z=0.0) for _ in range(33)]

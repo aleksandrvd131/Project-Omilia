@@ -18,8 +18,8 @@ def test_manifest_endpoint():
         assert "max-age" in response.headers["Cache-Control"]
 
         data = response.json()
-        assert data["name"] == "Omiλia - Тренажер РЖЯ"
-        assert data["short_name"] == "Omiλia"
+        assert data["name"] == "Голос рук - Тренажер РЖЯ"
+        assert data["short_name"] == "Голос рук"
         assert data["display"] == "standalone"
         assert "theme_color" in data
         assert "background_color" in data

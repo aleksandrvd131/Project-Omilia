@@ -2,6 +2,8 @@
 API-роутер каталога жестов, прогресса обучения и управления датасетом.
 """
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -13,7 +15,7 @@ from project_omilia.api.deps import (
     get_static_server,
     require_current_user,
 )
-from project_omilia.core.config import DB_PATH, GESTURE_METADATA
+from project_omilia.core.config import DB_PATH, FRONTEND_DIR
 from project_omilia.gestures import CURRICULUM_LEVELS, get_curriculum_info
 from project_omilia.schemas.gestures import DatasetImportPayload, GestureImportItem, LearnRequest
 from project_omilia.services.dynamic_service import DynamicGestureServer
@@ -44,28 +46,18 @@ async def api_get_gestures(
     db_gestures = {g["name"]: g for g in db.get_all_gestures(DB_PATH)}
 
     all_names = sorted(db_gestures.keys() | combined_stats.keys() | dynamic_hands.keys())
+    example_images = {
+        path.stem.casefold(): f"/static/gesture-examples/{quote(path.name)}"
+        for path in (FRONTEND_DIR / "gesture-examples").glob("*.png")
+    }
     gestures_list = []
     for norm_name in all_names:
         db_meta = db_gestures.get(norm_name)
-        fallback_meta = GESTURE_METADATA.get(
-            norm_name,
-            {
-                "title": norm_name.capitalize(),
-                "category": "Общие жесты",
-                "description": f"Статический жест «{norm_name}».",
-                "tip": "Повторите положение кисти перед камерой.",
-            },
-        )
-        title = (
-            db_meta["title"] if db_meta and db_meta.get("title") else fallback_meta.get("title", norm_name.capitalize())
-        )
-        category = (
-            db_meta["category"] if db_meta and db_meta.get("category") else fallback_meta.get("category", "Общие жесты")
-        )
-        description = (
-            db_meta["description"] if db_meta and db_meta.get("description") else fallback_meta.get("description", "")
-        )
-        tip = db_meta["tip"] if db_meta and db_meta.get("tip") else fallback_meta.get("tip", "")
+        meta = db_meta or {}
+        title = meta.get("title") or norm_name.capitalize()
+        category = meta.get("category") or "Общие жесты"
+        description = meta.get("description") or ""
+        tip = meta.get("tip") or ""
 
         dyn_hands = dynamic_hands.get(norm_name)
         is_dynamic = bool(dyn_hands or (db_meta and db_meta.get("is_dynamic")))
@@ -83,6 +75,7 @@ async def api_get_gestures(
                 "title": title,
                 "category": category,
                 "description": description,
+                "image_url": example_images.get(norm_name),
                 "tip": tip,
                 "level": level,
                 "level_title": CURRICULUM_LEVELS[level]["level_title"],

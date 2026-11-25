@@ -1,5 +1,5 @@
 """
-Модуль базы данных SQLite для Project Omilia:
+Модуль базы данных SQLite для Голос рук:
 пользователи, сессии, прогресс и эталоны жестов.
 """
 
@@ -17,12 +17,11 @@ from typing import Any
 
 import numpy as np
 
-from project_omilia.core.config import DB_PATH, GESTURE_METADATA
+from project_omilia.core.config import DB_PATH
 
 SCRYPT_N = 16384
 SCRYPT_R = 8
 SCRYPT_P = 1
-STATIC_SAMPLE_IMPORT = "static_json_v1"
 
 
 def hash_password(password: str) -> str:
@@ -253,27 +252,6 @@ def init_db(db_path: Path) -> None:
             """
         )
 
-
-
-def static_samples_imported(db_path: Path) -> bool:
-    with closing(get_connection(db_path)) as conn:
-        return (
-            conn.execute(
-                "SELECT 1 FROM gesture_data_migrations WHERE name = ?",
-                (STATIC_SAMPLE_IMPORT,),
-            ).fetchone()
-            is not None
-        )
-
-
-def import_static_samples(db_path: Path, samples: list[tuple]) -> None:
-    with closing(get_connection(db_path)) as conn, conn:
-        claimed = conn.execute(
-            "INSERT OR IGNORE INTO gesture_data_migrations (name) VALUES (?)",
-            (STATIC_SAMPLE_IMPORT,),
-        )
-        if claimed.rowcount:
-            _insert_static_samples(conn, samples)
 
 
 def _insert_static_samples(conn: sqlite3.Connection, samples: list[tuple]) -> None:
@@ -1365,11 +1343,10 @@ def get_daily_warmup(
     results = []
     for _, r in due_list[:resolved_limit]:
         gname = r["gesture_name"]
-        fallback = GESTURE_METADATA.get(gname, {})
-        title = r["title"] or fallback.get("title", gname.capitalize())
-        category = r["category"] or fallback.get("category", "Общие жесты")
-        description = r["description"] or fallback.get("description", "")
-        tip = r["tip"] or fallback.get("tip", "")
+        title = r["title"] or gname.capitalize()
+        category = r["category"] or "Общие жесты"
+        description = r["description"] or ""
+        tip = r["tip"] or ""
         hands_count = r["hands_count"] if r["hands_count"] is not None else 1
         is_dynamic = bool(r["is_dynamic"]) if r["is_dynamic"] is not None else False
 

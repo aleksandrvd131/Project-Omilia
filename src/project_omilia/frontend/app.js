@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Frontend Application Coordinator
+ * Голос рук — Frontend Application Coordinator
  * Модульная архитектура: координирует UI, Catalog, Camera, Socket, Practice и Blitz.
  */
 
@@ -83,8 +83,6 @@
     btnHeroWarmup: document.getElementById('btn-hero-warmup'),
     btnHeroGuide: document.getElementById('btn-hero-guide'),
     btnHeroLk: document.getElementById('btn-hero-lk'),
-    contactForm: document.getElementById('contact-form'),
-    contactSuccess: document.getElementById('contact-success'),
 
     // Каталог
     gesturesGrid: document.getElementById('gestures-grid'),
@@ -149,6 +147,7 @@
     tutorialCategory: document.getElementById('tutorial-category'),
     tutorialDesc: document.getElementById('tutorial-desc'),
     tutorialTip: document.getElementById('tutorial-tip'),
+    tutorialImage: document.getElementById('tutorial-image'),
     tutorialVideo: document.getElementById('tutorial-video'),
     tutorialVideoFallback: document.getElementById('tutorial-video-fallback'),
     btnCloseTutorial: document.getElementById('btn-close-tutorial'),
@@ -739,8 +738,46 @@
     }
   }
 
+  // Модальные окна удерживают клавиатурный фокус и возвращают его к открывшей кнопке.
+  function setupDialogAccessibility() {
+    if (typeof MutationObserver === 'undefined') return;
+    const dialogs = [...document.querySelectorAll('.modal-backdrop')];
+    let activeDialog = null;
+    let returnFocus = null;
+    function syncDialog() {
+      const visible = dialogs.find((dialog) => dialog.style.display !== 'none');
+      if (visible === activeDialog) return;
+      if (!activeDialog && visible) returnFocus = document.activeElement;
+      activeDialog = visible || null;
+      document.querySelectorAll('body > header, body > main, body > footer').forEach((el) => {
+        el.inert = Boolean(activeDialog);
+      });
+      if (activeDialog) {
+        (activeDialog.querySelector('.btn-close') || activeDialog).focus();
+      } else if (returnFocus?.isConnected) {
+        returnFocus.focus({ preventScroll: true });
+      }
+    }
+    const observer = new MutationObserver(syncDialog);
+    dialogs.forEach((dialog) => observer.observe(dialog, { attributes: true, attributeFilter: ['style'] }));
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab' || !activeDialog) return;
+      const focusable = [...activeDialog.querySelectorAll('button, a[href], input, select, textarea, video[controls], [tabindex]')]
+        .filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) { event.preventDefault(); activeDialog.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || !activeDialog.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !activeDialog.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    });
+  }
+
   // --- Привязка событий DOM ---
   function bindEvents() {
+    setupDialogAccessibility();
     dom.brandLink?.addEventListener('click', (e) => {
       e.preventDefault();
       switchTab('about');
@@ -793,15 +830,6 @@
 
     // Горячие клавиши
     window.addEventListener('keydown', handleGlobalKeyDown);
-
-    dom.contactForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      dom.contactSuccess.style.display = 'block';
-      dom.contactForm.reset();
-      setTimeout(() => {
-        dom.contactSuccess.style.display = 'none';
-      }, 4000);
-    });
 
     // Аутентификация
     dom.authTabLogin?.addEventListener('click', () => {

@@ -1,5 +1,5 @@
 def main() -> None:
-    """Запуск сервера приложения Project Omilia."""
+    """Запуск сервера приложения Голос рук."""
     import uvicorn
 
     uvicorn.run("project_omilia.serv:app", host="0.0.0.0", port=8000, reload=False)

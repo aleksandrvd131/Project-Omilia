@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Catalog Module
+ * Голос рук — Catalog Module
  * Загрузка, фильтрация, поиск, дерево курсов (Roadmap) и отрисовка карточек жестов по уровням.
  */
 
@@ -47,21 +47,6 @@
     },
   ];
 
-  // Карта уровней для всех известных жестов учебной программы (Уровни 1-4)
-  const KNOWN_GESTURE_LEVELS = {
-    // Level 1: Дактильный алфавит (все 33 буквы: а-я)
-    'а': 1, 'б': 1, 'в': 1, 'г': 1, 'д': 1, 'е': 1, 'ё': 1, 'ж': 1, 'з': 1, 'и': 1,
-    'й': 1, 'к': 1, 'л': 1, 'м': 1, 'н': 1, 'о': 1, 'п': 1, 'р': 1, 'с': 1, 'т': 1,
-    'у': 1, 'ф': 1, 'х': 1, 'ц': 1, 'ч': 1, 'ш': 1, 'щ': 1, 'ъ': 1, 'ы': 1, 'ь': 1,
-    'э': 1, 'ю': 1, 'я': 1,
-    // Level 2: Числительные и счёт
-    '1': 2, '2': 2, '3': 2, '4': 2, '5': 2, '10': 2,
-    // Level 3: Базовый этикет
-    'привет': 3, 'спасибо': 3, 'помоги': 3, 'пожалуйста': 3, 'да': 3, 'нет': 3, 'мир': 3, 'хорошо': 3,
-    // Level 4: Семья и окружение
-    'дом': 4, 'мама': 4, 'папа': 4, 'семья': 4, 'любовь': 4, 'стоп': 4, 'книга': 4, 'ты': 4,
-  };
-
   const LEVEL_TITLES = {
     1: 'Дактильный алфавит',
     2: 'Числительные и счёт',
@@ -96,50 +81,8 @@
       };
     }
 
-    const name = (gesture.name || '').trim().toLowerCase();
-    const cat = (gesture.category || '').toLowerCase();
-
-    // 0. Точное сопоставление по реестру жестов программы
-    if (KNOWN_GESTURE_LEVELS[name]) {
-      const lvl = KNOWN_GESTURE_LEVELS[name];
-      return { level: lvl, level_title: LEVEL_TITLES[lvl] };
-    }
-
-    // 1. По категории
-    if (cat.includes('алфавит') || cat.includes('дактиль')) {
-      return { level: 1, level_title: 'Дактильный алфавит' };
-    }
-    if (cat.includes('числительн') || cat.includes('счёт') || cat.includes('счет') || cat.includes('цифр')) {
-      return { level: 2, level_title: 'Числительные и счёт' };
-    }
-    if (cat.includes('привет') || cat.includes('вежливост') || cat.includes('этикет') || cat.includes('базов')) {
-      return { level: 3, level_title: 'Базовый этикет' };
-    }
-    if (cat.includes('семь') || cat.includes('дом') || cat.includes('окружен')) {
-      return { level: 4, level_title: 'Семья и окружение' };
-    }
-
-    // 2. По названию
-    if (name.length === 1 && /[а-яё]/i.test(name)) {
-      return { level: 1, level_title: 'Дактильный алфавит' };
-    }
-    if (name.startsWith('буква_') || name.startsWith('буква ')) {
-      return { level: 1, level_title: 'Дактильный алфавит' };
-    }
-
-    if (/^\d+$/.test(name) || ['один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять'].includes(name)) {
-      return { level: 2, level_title: 'Числительные и счёт' };
-    }
-
-    if (['привет', 'спасибо', 'помоги', 'да', 'нет', 'пожалуйста', 'здравствуйте', 'до свидания', 'прости', 'извини', 'мир', 'хорошо', 'благодарю'].includes(name)) {
-      return { level: 3, level_title: 'Базовый этикет' };
-    }
-
-    if (['дом', 'мама', 'папа', 'семья', 'друг', 'ты', 'мы', 'вы', 'они', 'брат', 'сестра', 'любовь', 'стоп', 'книга'].includes(name)) {
-      return { level: 4, level_title: 'Семья и окружение' };
-    }
-
-    return { level: 3, level_title: 'Базовый этикет' };
+    const level = Number(gesture.level) || 3;
+    return {level, level_title: LEVEL_TITLES[level] || LEVEL_TITLES[3]};
   }
 
   /**
@@ -247,211 +190,21 @@
   }
 
   /**
-   * Внедрение CSS-стилей для дорожной карты курсов и карточек уровней.
-   */
-  function ensureCatalogStyles() {
-    if (typeof document === 'undefined') return;
-    if (document.getElementById('catalog-curriculum-styles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'catalog-curriculum-styles';
-    style.textContent = `
-      .catalog-roadmap-view {
-        margin-bottom: 1.5rem;
-        background: #ffffff;
-        border: 1px solid var(--card-border, #e2e8f0);
-        border-radius: var(--radius, 16px);
-        padding: 1.25rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      }
-      .roadmap-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-      .roadmap-title {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text-main, #0f172a);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-      .roadmap-subtitle {
-        font-size: 0.82rem;
-        color: var(--text-muted, #64748b);
-      }
-      .roadmap-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.85rem;
-      }
-      .level-card {
-        background: #f8fafc;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 0.95rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        position: relative;
-        text-align: left;
-      }
-      .level-card:hover {
-        transform: translateY(-2px);
-        border-color: var(--primary-border, #86efac);
-        box-shadow: 0 6px 16px -2px rgba(16, 185, 129, 0.12);
-      }
-      .level-card.active {
-        border-color: var(--primary, #10b981);
-        background: #f0fdf4;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
-      }
-      .level-card.locked {
-        opacity: 0.68;
-        background: #f1f5f9;
-        border-style: dashed;
-        cursor: pointer;
-      }
-      .level-card-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 0.4rem;
-      }
-      .level-card-badge {
-        font-size: 1.35rem;
-      }
-      .level-card-status {
-        font-size: 0.72rem;
-        font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 9999px;
-      }
-      .status-unlocked {
-        background: #e0f2fe;
-        color: #0369a1;
-      }
-      .status-in-progress {
-        background: #fef3c7;
-        color: #b45309;
-      }
-      .status-completed {
-        background: #dcfce7;
-        color: #15803d;
-        border: 1px solid #86efac;
-      }
-      .status-locked {
-        background: #e2e8f0;
-        color: #64748b;
-      }
-      .level-card-title {
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: var(--text-main, #0f172a);
-        margin-bottom: 0.2rem;
-      }
-      .level-card-desc {
-        font-size: 0.74rem;
-        color: var(--text-muted, #64748b);
-        margin-bottom: 0.65rem;
-        line-height: 1.3;
-      }
-      .level-progress-bar {
-        width: 100%;
-        height: 5px;
-        background: #e2e8f0;
-        border-radius: 9999px;
-        overflow: hidden;
-        margin-bottom: 0.3rem;
-      }
-      .level-progress-fill {
-        height: 100%;
-        background: var(--primary, #10b981);
-        transition: width 0.3s ease;
-      }
-      .level-progress-fill.locked {
-        background: #94a3b8;
-      }
-      .level-card-stats {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.72rem;
-        color: var(--text-muted, #64748b);
-        font-weight: 600;
-      }
-      .level-lock-hint {
-        font-size: 0.7rem;
-        color: #b45309;
-        margin-top: 0.35rem;
-        font-weight: 600;
-      }
-      .level-filter-bar {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-        margin-bottom: 0.65rem;
-      }
-      .level-filter-label {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: var(--text-muted, #64748b);
-        margin-right: 0.2rem;
-      }
-      .gesture-level-tag {
-        font-size: 0.73rem;
-        font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 6px;
-        background: #eef2ff;
-        color: #4338ca;
-        border: 1px solid #c7d2fe;
-      }
-      .gesture-card.level-locked {
-        opacity: 0.82;
-        background: #fafafa;
-      }
-      .gesture-lock-banner {
-        background: #fffbeb;
-        border: 1px solid #fde68a;
-        color: #b45309;
-        border-radius: 8px;
-        padding: 0.35rem 0.6rem;
-        font-size: 0.76rem;
-        font-weight: 600;
-        margin-top: 0.6rem;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  /**
-   * Создание или получение DOM-контейнеров для Roadmap и фильтров уровней.
+   * Создание контейнеров маршрута обучения и фильтров уровней.
    */
   function ensureCurriculumDOM(dom) {
     if (typeof document === 'undefined') return { roadmap: null, levelFilters: null };
 
-    ensureCatalogStyles();
-
     // 1. Контейнер дорожной карты
     let roadmap = document.getElementById('catalog-roadmap');
     if (!roadmap) {
-      roadmap = document.createElement('div');
+      roadmap = document.createElement('details');
       roadmap.id = 'catalog-roadmap';
       roadmap.className = 'catalog-roadmap-view';
 
       const controls = document.querySelector('.catalog-controls');
       if (controls && controls.parentNode) {
-        controls.parentNode.insertBefore(roadmap, controls);
+        controls.parentNode.insertBefore(roadmap, controls.nextSibling);
       } else if (dom.gesturesGrid && dom.gesturesGrid.parentNode) {
         dom.gesturesGrid.parentNode.insertBefore(roadmap, dom.gesturesGrid);
       }
@@ -481,17 +234,18 @@
     if (!roadmap) return;
 
     roadmap.innerHTML = `
-      <div class="roadmap-header">
+      <summary class="roadmap-header">
         <div>
           <div class="roadmap-title">
-            <span>🗺️</span>
-            <span>Дерево курсов и уровни сложности</span>
+
+            <span>Маршрут обучения · 4 уровня</span>
           </div>
           <div class="roadmap-subtitle">
             Изучите дактильный алфавит и счёт, чтобы разблокировать базовый этикет и расширенные жесты
           </div>
         </div>
-      </div>
+        <span class="roadmap-toggle" aria-hidden="true">+</span>
+      </summary>
       <div class="roadmap-grid">
         ${CURRICULUM_LEVELS.map((lvl) => {
           const st = levelStats[lvl.level] || {
@@ -504,31 +258,31 @@
 
           let statusBadge = '';
           if (!st.isUnlocked) {
-            statusBadge = '<span class="level-card-status status-locked">🔒 Закрыт</span>';
+            statusBadge = '<span class="level-card-status status-locked">Закрыт</span>';
           } else if (st.isCompleted) {
-            statusBadge = '<span class="level-card-status status-completed">🏆 Завершён (100%)</span>';
+            statusBadge = '<span class="level-card-status status-completed">Завершён</span>';
           } else if (st.percentage >= 70) {
             statusBadge = `<span class="level-card-status status-completed">✓ Освоен (${st.percentage}%)</span>`;
           } else if (st.learned > 0) {
-            statusBadge = `<span class="level-card-status status-in-progress">⚡ В процессе (${st.percentage}%)</span>`;
+            statusBadge = `<span class="level-card-status status-in-progress">В процессе (${st.percentage}%)</span>`;
           } else {
-            statusBadge = '<span class="level-card-status status-unlocked">🟢 Открыт</span>';
+            statusBadge = '<span class="level-card-status status-unlocked">Доступен</span>';
           }
 
           const lockHint = !st.isUnlocked
-            ? `<div class="level-lock-hint">🔒 Требуется ≥ 70% Уровня ${lvl.level - 1}</div>`
+            ? `<div class="level-lock-hint">Требуется ≥ 70% Уровня ${lvl.level - 1}</div>`
             : '';
 
           const isActive = filters.level === lvl.level;
           const cardClass = `level-card ${st.isUnlocked ? '' : 'locked'} ${isActive ? 'active' : ''}`;
 
           return `
-            <div class="${cardClass}" data-level="${lvl.level}">
+            <button type="button" class="${cardClass}" data-level="${lvl.level}" aria-pressed="${isActive}">
               <div class="level-card-top">
-                <span class="level-card-badge">${lvl.badge}</span>
+                <span class="level-card-badge">${lvl.level}</span>
                 ${statusBadge}
               </div>
-              <div class="level-card-title">Уровень ${lvl.level}: ${lvl.title}</div>
+              <span class="level-card-title">${lvl.title}</span>
               <div class="level-card-desc">${lvl.description}</div>
               <div>
                 <div class="level-progress-bar">
@@ -540,7 +294,7 @@
                 </div>
                 ${lockHint}
               </div>
-            </div>
+            </button>
           `;
         }).join('')}
       </div>
@@ -768,12 +522,12 @@
       card.className = `gesture-card ${gesture.is_learned ? 'learned' : ''} ${!isLevelUnlocked ? 'level-locked' : ''}`;
 
       const handsBadge = gesture.dynamic_hands_count
-        ? '⚡ Движение'
-        : (gesture.hands_count === 2 || ['дом', 'книга', 'семья', '10'].includes(gesture.name) ? '👐 2 руки' : '✋ 1 рука');
+        ? 'В движении'
+        : (gesture.hands_count === 2 ? '2 руки' : '1 рука');
 
       const lockBanner = !isLevelUnlocked
         ? `<div class="gesture-lock-banner">
-             <span>🔒</span>
+
              <span>Уровень ${gesture.level} заблокирован (требуется ≥ 70% Уровня ${gesture.level - 1})</span>
            </div>`
         : '';
@@ -782,7 +536,7 @@
       const btnText = !isReady
         ? 'Эталоны ещё записываются'
         : !isLevelUnlocked
-        ? (gesture.is_learned ? 'Повторить жест ↺' : `Изучить (Ур. ${gesture.level}) 🔒`)
+        ? (gesture.is_learned ? 'Повторить жест ↺' : `Изучить (Ур. ${gesture.level})`)
         : (gesture.is_learned ? 'Повторить жест ↺' : 'Изучить жест →');
 
       card.innerHTML = `
@@ -791,9 +545,9 @@
             <span class="gesture-badge ${gesture.is_learned ? 'badge-learned' : 'badge-unlearned'}">
               ${gesture.is_learned ? '✓ Выучен' : 'Не изучен'}
             </span>
-            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+            <div class="gesture-meta">
               <span class="gesture-level-tag">Ур. ${gesture.level}</span>
-              <span style="font-size: 0.75rem; background: #f1f5f9; padding: 2px 7px; border-radius: 6px; font-weight: 600; color: var(--text-muted);">
+              <span class="gesture-hands">
                 ${handsBadge}
               </span>
               <span style="font-size: 0.78rem; color: var(--text-muted);">${ui?.escapeHtml(gesture.category)}</span>
@@ -802,7 +556,7 @@
           <h3 class="gesture-title">${ui?.escapeHtml(gesture.title || gesture.name)}</h3>
           <p class="gesture-desc">${ui?.escapeHtml(gesture.description)}</p>
           <div class="gesture-tip">
-            💡 ${ui?.escapeHtml(gesture.tip)}
+            ${ui?.escapeHtml(gesture.tip)}
           </div>
           ${lockBanner}
         </div>
@@ -849,7 +603,6 @@
   return {
     filters,
     CURRICULUM_LEVELS,
-    KNOWN_GESTURE_LEVELS,
     getGestureLevelInfo,
     calculateLevelStats,
     getFilteredGestures,

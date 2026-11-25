@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — UI & Helper Module
+ * Голос рук — UI & Helper Module
  * Вспомогательные функции DOM, синтеза речи (TTS), API-запросов и профиля.
  */
 
@@ -75,6 +75,7 @@
 
     dom.navBtns?.forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.tab === tabId);
+      if (btn.setAttribute) btn.setAttribute('aria-current', btn.dataset.tab === tabId ? 'page' : 'false');
     });
 
     dom.tabContents?.forEach((content) => {
@@ -88,7 +89,7 @@
     } else if (tabId === 'profile' && callbacks.onUpdateProfile) {
       callbacks.onUpdateProfile();
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 
   function getStreakValue(state) {
@@ -341,7 +342,7 @@
         }
       } else {
         headerUserArea.innerHTML = `
-          <button class="btn-login" id="btn-header-login">Войти в ЛК</button>
+          <button class="btn-login" id="btn-header-login">Войти</button>
         `;
         if (doc) {
           doc.getElementById('btn-header-login')?.addEventListener('click', () => {

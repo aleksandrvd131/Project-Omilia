@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — WebSocket Module
+ * Голос рук — WebSocket Module
  * Управление WebSocket соединением, повторными попытками и отправкой кадров.
  */
 

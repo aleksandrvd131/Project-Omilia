@@ -1,5 +1,5 @@
 /**
- * Project Omiλia — Клиентский ML-инференс в браузере (0ms Network Ping)
+ * Голос рук — Клиентский ML-инференс в браузере (0ms Network Ping)
  * Включает:
  * 1. OmiliaFeatureExtractor — точное извлечение 141 (1 рука) / 282 (2 руки) признаков позы и кистей
  * 2. OmiliaStaticClassifier — классификация статических жестов на ONNX Runtime Web / Центроидах
@@ -286,7 +286,7 @@
           this.models[handsCount].centroids = meta.centroids.map((c) => new Float32Array(c));
           this.models[handsCount].maxDistance = meta.max_distance || 2.0;
           this.models[handsCount].loaded = true;
-          console.log(`[Omilia ML] Загружена модель статики для ${handsCount} рук(и): ${meta.labels.length} классов`);
+          console.log(`[Голос рук ML] Загружена модель статики для ${handsCount} рук(и): ${meta.labels.length} классов`);
         }
 
         // Попытка инициализации onnxruntime-web при наличии библиотеки в браузере
@@ -297,13 +297,13 @@
               { executionProviders: ['wasm'] }
             );
             this.models[handsCount].onnxSession = onnxSession;
-            console.log(`[Omilia ML] ONNX Runtime Web успешно подключен для ${handsCount} рук(и)`);
+            console.log(`[Голос рук ML] ONNX Runtime Web успешно подключен для ${handsCount} рук(и)`);
           } catch (onnxErr) {
-            console.log(`[Omilia ML] ONNX Web недоступен (${onnxErr.message}), используется высокоскоростной CPU-движок`);
+            console.log(`[Голос рук ML] ONNX Web недоступен (${onnxErr.message}), используется высокоскоростной CPU-движок`);
           }
         }
       } catch (err) {
-        console.warn(`[Omilia ML] Ошибка загрузки модели ${handsCount}h:`, err);
+        console.warn(`[Голос рук ML] Ошибка загрузки модели ${handsCount}h:`, err);
       }
     }
 
