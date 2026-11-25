@@ -61,13 +61,17 @@ class DynamicGestureServer:
 
         return np.stack(vectors)
 
+    def reload(self) -> None:
+        """Перезагружает кэш динамических эталонов и предвычисленных порогов DTW."""
+        self.engine.reload()
+
     def _verification_threshold(self, payload, label, hands_count, references) -> float:
-        """Приоритет: ручной порог проверки → настройка жеста → порог по эталонам."""
+        """Приоритет: ручной порог проверки → настройка жеста → предвычисленный порог по эталонам."""
         threshold = payload.get("max_distance") if payload.get("mode") == "verify" else None
         if threshold is None:
             threshold = DYNAMIC_DTW_THRESHOLDS.get((label, hands_count))
         if threshold is None:
-            threshold = self.engine.calculate_adaptive_threshold(references)
+            threshold = self.engine.get_adaptive_threshold(label, hands_count, references)
         try:
             if type(threshold) not in (int, float):
                 raise ValueError

@@ -6,9 +6,13 @@
 """
 
 import json
+import os
+import sqlite3
+import tempfile
 from pathlib import Path
 from typing import Any
 
+import joblib
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 
@@ -98,21 +102,120 @@ def get_curriculum_info(gesture_name: str, category: str = "") -> dict[str, Any]
     }
 
 
+def _dump_joblib_atomic(model_path: Path, payload: dict[str, Any]) -> None:
+    """Атомарно сохраняет словарь модели/кэша в файл .joblib."""
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_fd, tmp_name = tempfile.mkstemp(
+        dir=model_path.parent,
+        prefix=f".{model_path.stem}_",
+        suffix=".tmp",
+    )
+    os.close(tmp_fd)
+    tmp_path = Path(tmp_name)
+    try:
+        joblib.dump(payload, tmp_path, compress=3)
+        os.replace(tmp_path, model_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _load_joblib_dict(model_path: Path) -> dict[str, Any] | None:
+    """Безопасно загружает словарь из .joblib файла."""
+    if not model_path.exists():
+        return None
+    try:
+        payload = joblib.load(model_path)
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def get_static_model_path(db_path: Path, hands_count: int) -> Path:
+    """Возвращает путь к файлу .joblib сохранённой статической модели рядом с БД."""
+    db_file = Path(db_path)
+    return db_file.with_name(f"{db_file.stem}_static_{hands_count}h.joblib")
+
+
+def get_dynamic_model_path(db_path: Path) -> Path:
+    """Возвращает путь к файлу .joblib кэша эталонов и порогов динамических жестов."""
+    db_file = Path(db_path)
+    return db_file.with_name(f"{db_file.stem}_dynamic.joblib")
+
+
 class StaticGesture:
     """Классификатор статических жестов (форма ладони и пальцев)."""
 
-    def __init__(self, db_path: Path, hands_count: int) -> None:
-        self.db_path = db_path
+    MODEL_FORMAT_VERSION = 1
+
+    def __init__(self, db_path: Path, hands_count: int, model_path: Path | None = None) -> None:
+        self.db_path = Path(db_path)
         self.hands_count = hands_count
+        self.model_path = Path(model_path) if model_path is not None else get_static_model_path(self.db_path, hands_count)
+        self.dataset: dict[str, list[np.ndarray]] = {}
         self.labels: list[str] = []
         self.vectors: np.ndarray | None = None
         self.model: KNeighborsClassifier | None = None
-        self.reload()
+        if not self.load_model():
+            self.reload()
+
+    def save_model(self, fingerprint: str | None = None) -> bool:
+        """Сохраняет обученную модель статических жестов в .joblib (или удаляет устаревший файл)."""
+        if self.model is None or self.vectors is None or not self.labels:
+            if self.model_path.exists():
+                self.model_path.unlink(missing_ok=True)
+            return False
+
+        fp = fingerprint or db.get_static_samples_fingerprint(self.db_path, self.hands_count)
+        payload = {
+            "version": self.MODEL_FORMAT_VERSION,
+            "hands_count": self.hands_count,
+            "fingerprint": fp,
+            "model": self.model,
+            "labels": self.labels,
+            "vectors": self.vectors,
+        }
+        _dump_joblib_atomic(self.model_path, payload)
+        return True
+
+    def load_model(self) -> bool:
+        """Загружает сохранённую статическую модель из .joblib, если она актуальна для текущей БД."""
+        payload = _load_joblib_dict(self.model_path)
+        if payload is None:
+            return False
+        if payload.get("version") != self.MODEL_FORMAT_VERSION:
+            return False
+        if payload.get("hands_count") != self.hands_count:
+            return False
+
+        expected_fp = db.get_static_samples_fingerprint(self.db_path, self.hands_count)
+        if payload.get("fingerprint") != expected_fp:
+            return False
+
+        model = payload.get("model")
+        labels = payload.get("labels")
+        vectors = payload.get("vectors")
+        if not isinstance(model, KNeighborsClassifier):
+            return False
+        if not isinstance(labels, list) or len(labels) < 3:
+            return False
+        if not isinstance(vectors, np.ndarray) or vectors.ndim != 2 or len(vectors) != len(labels):
+            return False
+
+        dataset: dict[str, list[np.ndarray]] = {}
+        for name, vec in zip(labels, vectors, strict=True):
+            dataset.setdefault(name, []).append(vec)
+
+        self.dataset = dataset
+        self.labels = labels
+        self.vectors = vectors
+        self.model = model
+        return True
 
     def reload(self) -> None:
         dataset: dict[str, list[np.ndarray]] = {}
         for row in db.get_static_samples(self.db_path, self.hands_count):
-            blob = row["features_blob"] if "features_blob" in row else None
+            blob = row["features_blob"] if "features_blob" in row.keys() else None
             if blob:
                 vector = np.frombuffer(blob, dtype=np.float32)
             else:
@@ -121,8 +224,9 @@ class StaticGesture:
 
         vectors = [vector for samples in dataset.values() for vector in samples]
         labels = [name for name, samples in dataset.items() for _ in samples]
+        vectors_arr = np.asarray(vectors, dtype=np.float32) if vectors else None
         model = None
-        if len(labels) >= 3:
+        if len(labels) >= 3 and vectors_arr is not None:
             # weights='distance' взвешивает соседей обратно пропорционально расстоянию
             # algorithm='auto' использует BallTree/KDTree для быстрого O(log N) поиска
             model = KNeighborsClassifier(
@@ -131,12 +235,13 @@ class StaticGesture:
                 metric="euclidean",
                 algorithm="brute",
             )
-            model.fit(np.asarray(vectors, dtype=np.float32), np.asarray(labels))
+            model.fit(vectors_arr, np.asarray(labels))
 
         self.dataset = dataset
         self.labels = labels
-        self.vectors = np.asarray(vectors, dtype=np.float32) if vectors else None
+        self.vectors = vectors_arr
         self.model = model
+        self.save_model()
 
     def add_samples(self, name: str, vectors: list[np.ndarray], metadata: dict | None = None) -> None:
         samples = [
@@ -218,10 +323,103 @@ class StaticGesture:
 
 
 class DynamicGestures:
-    """Движок распознавания динамических жестов на основе DTW."""
+    """Движок распознавания динамических жестов на основе DTW с кэшем эталонов и порогов в .joblib."""
 
-    def __init__(self, db_path: Path) -> None:
+    MODEL_FORMAT_VERSION = 1
+
+    def __init__(self, db_path: Path, model_path: Path | None = None) -> None:
         self.db_path = Path(db_path).resolve()
+        self.model_path = Path(model_path) if model_path is not None else get_dynamic_model_path(self.db_path)
+        self.samples: dict[tuple[str, int], list[np.ndarray]] = {}
+        self.adaptive_thresholds: dict[tuple[str, int], float] = {}
+        self._fingerprint: str | None = None
+        if not self.load_model():
+            self.reload()
+
+    def _get_db_fingerprint(self) -> str | None:
+        try:
+            return db.get_dynamic_samples_fingerprint(self.db_path)
+        except sqlite3.OperationalError:
+            return None
+
+    def save_model(self, fingerprint: str | None = None) -> bool:
+        """Сохраняет кэш динамических эталонов и предвычисленных порогов в .joblib."""
+        if not self.samples:
+            if self.model_path.exists():
+                self.model_path.unlink(missing_ok=True)
+            return False
+
+        fp = fingerprint or self._get_db_fingerprint()
+        if fp is None:
+            return False
+
+        payload = {
+            "version": self.MODEL_FORMAT_VERSION,
+            "fingerprint": fp,
+            "samples": self.samples,
+            "adaptive_thresholds": self.adaptive_thresholds,
+        }
+        _dump_joblib_atomic(self.model_path, payload)
+        return True
+
+    def load_model(self) -> bool:
+        """Загружает кэш эталонов и порогов DTW из .joblib, если он актуален для текущей БД."""
+        expected_fp = self._get_db_fingerprint()
+        if expected_fp is None:
+            return False
+
+        payload = _load_joblib_dict(self.model_path)
+        if payload is None:
+            return False
+        if payload.get("version") != self.MODEL_FORMAT_VERSION:
+            return False
+        if payload.get("fingerprint") != expected_fp:
+            return False
+
+        samples = payload.get("samples")
+        thresholds = payload.get("adaptive_thresholds")
+        if not isinstance(samples, dict) or not isinstance(thresholds, dict):
+            return False
+
+        self.samples = samples
+        self.adaptive_thresholds = thresholds
+        self._fingerprint = expected_fp
+        return True
+
+    def reload(self) -> None:
+        """Перечитывает эталоны из SQLite, пересчитывает адаптивные пороги DTW и сохраняет .joblib."""
+        try:
+            rows = db.get_all_dynamic_samples(self.db_path)
+        except sqlite3.OperationalError:
+            self.samples = {}
+            self.adaptive_thresholds = {}
+            self._fingerprint = None
+            if self.model_path.exists():
+                self.model_path.unlink(missing_ok=True)
+            return
+
+        samples: dict[tuple[str, int], list[np.ndarray]] = {}
+        for row in rows:
+            key = (row["gesture_name"].strip().lower(), int(row["hands_count"]))
+            samples.setdefault(key, []).append(np.asarray(json.loads(row["sequence_json"]), dtype=float))
+
+        thresholds: dict[tuple[str, int], float] = {}
+        for key, refs in samples.items():
+            if len(refs) >= 2:
+                thresholds[key] = self.calculate_adaptive_threshold(refs)
+
+        fp = self._get_db_fingerprint()
+        self.samples = samples
+        self.adaptive_thresholds = thresholds
+        self._fingerprint = fp
+        self.save_model(fp)
+
+    def _ensure_fresh(self) -> None:
+        current_fp = self._get_db_fingerprint()
+        if current_fp is None or current_fp == self._fingerprint:
+            return
+        if not self.load_model():
+            self.reload()
 
     def calculate_adaptive_threshold(self, references: list[np.ndarray], default_threshold: float = 4.5) -> float:
         """Автоматически вычисляет адаптивный порог DTW на основе эталонов."""
@@ -235,6 +433,22 @@ class DynamicGestures:
             return default_threshold
         return round(float(np.mean(pairwise) * 1.35), 2)
 
+    def get_adaptive_threshold(
+        self,
+        label: str,
+        hands_count: int,
+        references: list[np.ndarray] | None = None,
+        default_threshold: float = 4.5,
+    ) -> float:
+        """Возвращает предвычисленный адаптивный порог из кэша или рассчитывает его по эталонам."""
+        self._ensure_fresh()
+        key = (label.strip().lower(), hands_count)
+        if key in self.adaptive_thresholds:
+            return self.adaptive_thresholds[key]
+        if references:
+            return self.calculate_adaptive_threshold(references, default_threshold=default_threshold)
+        return default_threshold
+
     def add_sample(self, label: str, sequence: np.ndarray, metadata: dict | None = None) -> int:
         label = label.strip().lower()
         if not label:
@@ -247,7 +461,8 @@ class DynamicGestures:
             raise ValueError("Клип содержит некорректные значения.")
 
         hands_count = 1 if features.shape[1] == 141 else 2
-        return db.insert_dynamic_sample(
+        self._ensure_fresh()
+        new_count = db.insert_dynamic_sample(
             self.db_path,
             label,
             hands_count,
@@ -255,10 +470,20 @@ class DynamicGestures:
             limit=COUNT_OF_SAMPLES,
             metadata=metadata,
         )
+        key = (label, hands_count)
+        refs = self.samples.setdefault(key, [])
+        if len(refs) < new_count:
+            refs.append(np.array(features, dtype=float, copy=True))
+        if len(refs) >= 2:
+            self.adaptive_thresholds[key] = self.calculate_adaptive_threshold(refs)
+        fp = self._get_db_fingerprint()
+        self._fingerprint = fp
+        self.save_model(fp)
+        return new_count
 
     def get_samples(self, label: str, hands_count: int) -> list[np.ndarray]:
-        rows = db.get_dynamic_samples(self.db_path, label.strip().lower(), hands_count)
-        return [np.asarray(json.loads(row), dtype=float) for row in rows]
+        self._ensure_fresh()
+        return list(self.samples.get((label.strip().lower(), hands_count), []))
 
     def extract_vector(self, pose: Pose) -> np.ndarray:
         if not isinstance(pose, Pose):

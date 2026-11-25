@@ -245,6 +245,7 @@ async def api_export_dataset():
 async def api_import_dataset(
     payload: DatasetImportPayload,
     static_server: StaticGestureServer = Depends(get_static_server),
+    dynamic_server: DynamicGestureServer = Depends(get_dynamic_server),
 ):
     """Импорт базы данных жестов и сэмплов с валидацией схемы и перезагрузкой активных моделей."""
     if not payload.gestures and not payload.static_gesture_samples:
@@ -266,6 +267,7 @@ async def api_import_dataset(
         clear_existing_samples=payload.clear_existing_samples,
     )
     static_server.reload()
+    dynamic_server.reload()
 
     return {
         "status": "ok",
@@ -310,10 +312,12 @@ async def api_get_gesture_card(gesture_name: str):
 async def api_delete_gesture(
     gesture_name: str,
     static_server: StaticGestureServer = Depends(get_static_server),
+    dynamic_server: DynamicGestureServer = Depends(get_dynamic_server),
 ):
     """Удаляет жест из датасета модели."""
     norm_name = gesture_name.strip().lower()
     static_server.delete_gesture(norm_name)
+    dynamic_server.reload()
     return {
         "status": "ok",
         "deleted": norm_name,

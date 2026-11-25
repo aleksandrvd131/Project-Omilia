@@ -302,6 +302,25 @@ def get_static_samples(db_path: Path, hands_count: int) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def get_static_samples_fingerprint(db_path: Path, hands_count: int) -> str:
+    """Возвращает детерминированный отпечаток статического датасета для валидации кэша .joblib."""
+    with closing(get_connection(db_path)) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, gesture_name, COALESCE(LENGTH(features_blob), LENGTH(features_json), 0) AS payload_len
+            FROM static_gesture_samples
+            WHERE hands_count = ?
+            ORDER BY id
+            """,
+            (hands_count,),
+        ).fetchall()
+    digest = hashlib.sha256()
+    digest.update(f"hands={hands_count};count={len(rows)};".encode("utf-8"))
+    for row in rows:
+        digest.update(f"{row['id']}:{row['gesture_name']}:{row['payload_len']};".encode("utf-8"))
+    return digest.hexdigest()
+
+
 def get_all_gestures(db_path: Path) -> list[dict[str, Any]]:
     """Возвращает каталог всех жестов из SQLite таблицы gestures."""
     with closing(get_connection(db_path)) as conn:
@@ -613,6 +632,37 @@ def get_dynamic_samples(db_path: Path, gesture_name: str, hands_count: int) -> l
             (gesture_name, hands_count),
         ).fetchall()
     return [row["sequence_json"] for row in rows]
+
+
+def get_all_dynamic_samples(db_path: Path) -> list[sqlite3.Row]:
+    """Возвращает все эталоны динамических жестов из SQLite."""
+    with closing(get_connection(db_path)) as conn:
+        return conn.execute(
+            """
+            SELECT gesture_name, hands_count, sequence_json
+            FROM dynamic_gesture_samples
+            ORDER BY gesture_name, hands_count, id
+            """
+        ).fetchall()
+
+
+def get_dynamic_samples_fingerprint(db_path: Path) -> str:
+    """Возвращает детерминированный отпечаток динамического датасета для валидации кэша .joblib."""
+    with closing(get_connection(db_path)) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, gesture_name, hands_count, LENGTH(sequence_json) AS payload_len
+            FROM dynamic_gesture_samples
+            ORDER BY id
+            """
+        ).fetchall()
+    digest = hashlib.sha256()
+    digest.update(f"count={len(rows)};".encode("utf-8"))
+    for row in rows:
+        digest.update(
+            f"{row['id']}:{row['gesture_name']}:{row['hands_count']}:{row['payload_len']};".encode("utf-8")
+        )
+    return digest.hexdigest()
 
 
 def count_dynamic_samples(db_path: Path, gesture_name: str, hands_count: int) -> int:

@@ -46,6 +46,8 @@ async def gesture_ws(websocket: WebSocket):
                     if action == "delete_gesture":
                         recording.clear()
                     response = static_server.handle_action(action, payload)
+                    if action == "delete_gesture":
+                        dynamic_server.reload()
                     if action == "get_dataset_stats":
                         response["dynamic_dataset"] = db.list_dynamic_samples(DB_PATH)
                 else:
