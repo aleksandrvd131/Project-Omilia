@@ -258,11 +258,11 @@
     style.textContent = `
       .catalog-roadmap-view {
         margin-bottom: 1.5rem;
-        background: #ffffff;
-        border: 1px solid var(--card-border, #e2e8f0);
-        border-radius: var(--radius, 16px);
+        background: var(--card-bg, #ffffff);
+        border: 1px solid var(--card-border, #dcd6c8);
+        border-radius: var(--radius, 10px);
         padding: 1.25rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow, 0 1px 2px rgba(23,25,28,0.05));
       }
       .roadmap-header {
         display: flex;
@@ -273,16 +273,16 @@
         gap: 0.5rem;
       }
       .roadmap-title {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text-main, #0f172a);
+        font-size: 1.08rem;
+        font-weight: 700;
+        color: var(--text-main, #17191c);
         display: flex;
         align-items: center;
         gap: 0.5rem;
       }
       .roadmap-subtitle {
-        font-size: 0.82rem;
-        color: var(--text-muted, #64748b);
+        font-size: 0.84rem;
+        color: var(--text-muted, #5c626b);
       }
       .roadmap-grid {
         display: grid;
@@ -290,12 +290,12 @@
         gap: 0.85rem;
       }
       .level-card {
-        background: #f8fafc;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
+        background: var(--bg, #f5f2eb);
+        border: 1px solid var(--card-border, #dcd6c8);
+        border-radius: 8px;
         padding: 0.95rem;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -303,91 +303,95 @@
         text-align: left;
       }
       .level-card:hover {
-        transform: translateY(-2px);
-        border-color: var(--primary-border, #86efac);
-        box-shadow: 0 6px 16px -2px rgba(16, 185, 129, 0.12);
+        border-color: var(--border-strong, #c2baa8);
       }
       .level-card.active {
-        border-color: var(--primary, #10b981);
-        background: #f0fdf4;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        border-color: var(--primary, #1e40af);
+        background: var(--primary-light, #eef2ff);
+        box-shadow: 0 0 0 1px var(--primary, #1e40af);
       }
       .level-card.locked {
-        opacity: 0.68;
-        background: #f1f5f9;
+        opacity: 0.72;
+        background: var(--surface-alt, #ece7dc);
         border-style: dashed;
         cursor: pointer;
       }
       .level-card-top {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 0.4rem;
+        align-items: center;
+        margin-bottom: 0.45rem;
       }
       .level-card-badge {
-        font-size: 1.35rem;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: var(--text-muted, #5c626b);
       }
       .level-card-status {
-        font-size: 0.72rem;
-        font-weight: 700;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.7rem;
+        font-weight: 600;
         padding: 2px 7px;
-        border-radius: 9999px;
+        border-radius: 4px;
       }
       .status-unlocked {
-        background: #e0f2fe;
-        color: #0369a1;
+        background: var(--primary-light, #eef2ff);
+        color: var(--primary, #1e40af);
       }
       .status-in-progress {
-        background: #fef3c7;
-        color: #b45309;
+        background: var(--warning-soft, #fef3c7);
+        color: var(--warning, #b45309);
       }
       .status-completed {
-        background: #dcfce7;
-        color: #15803d;
-        border: 1px solid #86efac;
+        background: var(--success-soft, #dcfce7);
+        color: var(--success, #15803d);
+        border: 1px solid var(--success-border, #86efac);
       }
       .status-locked {
-        background: #e2e8f0;
-        color: #64748b;
+        background: var(--card-bg, #ffffff);
+        color: var(--text-muted, #5c626b);
+        border: 1px solid var(--card-border, #dcd6c8);
       }
       .level-card-title {
-        font-size: 0.92rem;
+        font-size: 0.94rem;
         font-weight: 700;
-        color: var(--text-main, #0f172a);
+        color: var(--text-main, #17191c);
         margin-bottom: 0.2rem;
       }
       .level-card-desc {
-        font-size: 0.74rem;
-        color: var(--text-muted, #64748b);
+        font-size: 0.78rem;
+        color: var(--text-muted, #5c626b);
         margin-bottom: 0.65rem;
-        line-height: 1.3;
+        line-height: 1.35;
       }
       .level-progress-bar {
         width: 100%;
         height: 5px;
-        background: #e2e8f0;
+        background: var(--card-border, #dcd6c8);
         border-radius: 9999px;
         overflow: hidden;
         margin-bottom: 0.3rem;
       }
       .level-progress-fill {
         height: 100%;
-        background: var(--primary, #10b981);
+        background: var(--primary, #1e40af);
         transition: width 0.3s ease;
       }
       .level-progress-fill.locked {
-        background: #94a3b8;
+        background: var(--border-strong, #c2baa8);
       }
       .level-card-stats {
         display: flex;
         justify-content: space-between;
+        font-family: var(--font-mono, monospace);
         font-size: 0.72rem;
-        color: var(--text-muted, #64748b);
+        color: var(--text-muted, #5c626b);
         font-weight: 600;
       }
       .level-lock-hint {
-        font-size: 0.7rem;
-        color: #b45309;
+        font-size: 0.72rem;
+        color: var(--warning, #b45309);
         margin-top: 0.35rem;
         font-weight: 600;
       }
@@ -401,27 +405,28 @@
       .level-filter-label {
         font-size: 0.8rem;
         font-weight: 700;
-        color: var(--text-muted, #64748b);
+        color: var(--text-muted, #5c626b);
         margin-right: 0.2rem;
       }
       .gesture-level-tag {
-        font-size: 0.73rem;
-        font-weight: 700;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.72rem;
+        font-weight: 600;
         padding: 2px 7px;
-        border-radius: 6px;
-        background: #eef2ff;
-        color: #4338ca;
-        border: 1px solid #c7d2fe;
+        border-radius: 4px;
+        background: var(--primary-light, #eef2ff);
+        color: var(--primary, #1e40af);
+        border: 1px solid var(--primary-border, #c7d2fe);
       }
       .gesture-card.level-locked {
         opacity: 0.82;
-        background: #fafafa;
+        background: var(--bg, #f5f2eb);
       }
       .gesture-lock-banner {
-        background: #fffbeb;
-        border: 1px solid #fde68a;
-        color: #b45309;
-        border-radius: 8px;
+        background: var(--warning-soft, #fef3c7);
+        border: 1px solid var(--warning-border, #fde68a);
+        color: var(--warning, #b45309);
+        border-radius: 6px;
         padding: 0.35rem 0.6rem;
         font-size: 0.76rem;
         font-weight: 600;

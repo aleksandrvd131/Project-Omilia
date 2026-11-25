@@ -401,7 +401,7 @@
         hintEl.classList.add('matching');
         const icon = hintEl.querySelector('.diagnostic-hint-icon');
         const text = hintEl.querySelector('.diagnostic-hint-text');
-        if (icon) icon.textContent = '✨';
+        if (icon) icon.textContent = '✓';
         if (text) text.textContent = 'Поза правильная! Удерживайте...';
         state.currentProblemFingers = [];
       } else if (pred.diagnostics && pred.diagnostics.primary_hint) {
@@ -409,7 +409,7 @@
         hintEl.classList.remove('matching');
         const icon = hintEl.querySelector('.diagnostic-hint-icon');
         const text = hintEl.querySelector('.diagnostic-hint-text');
-        if (icon) icon.textContent = '💡';
+        if (icon) icon.textContent = '!';
         if (text) text.textContent = pred.diagnostics.primary_hint;
         state.currentProblemFingers = pred.diagnostics.problem_fingers || [];
       } else {

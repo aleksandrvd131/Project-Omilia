@@ -1,13 +1,13 @@
 {
   "name": "Omiλia - Тренажер РЖЯ",
   "short_name": "Omiλia",
-  "description": "Интерактивный тренажер русского жестового языка с искусственным интеллектом",
+  "description": "Интерактивный тренажер русского жестового языка с распознаванием по веб-камере",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#17191c",
+  "background_color": "#f5f2eb",
   "categories": ["education", "accessibility"],
   "icons": [
     {
